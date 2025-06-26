@@ -1,1 +1,2 @@
 # SmartStock
+# smartStock-prototype
