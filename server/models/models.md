@@ -94,7 +94,7 @@ This document provides an overview of the Mongoose models defined in the `models
 | lastUpdated     | Date    | Last updated date, default: now                       |
 | notes           | String  | Additional notes                                      |
 | unit            | String  | Unit, required                                        |
-| active          | Boolean | Is active, default: true                              |
+| active          | Boolean | Is active, required (default: true)                   |
 | createdAt       | Date    | Creation date, default: now                           |
 | updatedAt       | Date    | Last updated date, default: now                       |
 
@@ -104,14 +104,34 @@ This document provides an overview of the Mongoose models defined in the `models
 
 **Collection:** User
 
-| Field            | Type     | Description                                           |
-| ---------------- | -------- | ----------------------------------------------------- |
-| fullName         | String   | Full name, required                                   |
-| email            | String   | Unique email, required                                |
-| password         | String   | Password, required                                    |
-| role             | String   | 'admin', 'staff', 'viewer' (default: 'viewer')        |
-| assignedLocation | ObjectId | Reference to Location                                 |
-| status           | String   | 'active', 'inactive', 'suspended' (default: 'active') |
-| createdAt        | Date     | Creation date, default: now                           |
-| updatedAt        | Date     | Last updated date                                     |
-| lastLogin        | Date     | Last login date                                       |
+| Field                     | Type     | Description                                             |
+| ------------------------- | -------- | ------------------------------------------------------- |
+| fullName                  | String   | Full name, required                                     |
+| email                     | String   | Unique email, required                                  |
+| password                  | String   | Password, required                                      |
+| role                      | String   | 'admin', 'staff', 'viewer' (default: 'viewer')          |
+| assignedLocation          | ObjectId | Reference to Location                                   |
+| status                    | String   | 'active', 'inactive', 'suspended' (default: 'inactive') |
+| emailVerified             | Boolean  | Email verification status (default: false)              |
+| createdAt                 | Date     | Creation date, default: now                             |
+| updatedAt                 | Date     | Last updated date                                       |
+| lastLogin                 | Date     | Last login date                                         |
+| passwordResetToken        | String   | Token for password reset functionality                  |
+| passwordResetTokenExpires | Date     | Expiration date for password reset token                |
+| passwordChangedAt         | Date     | Date when password was last changed                     |
+
+
+## 🛡️ Role-Based Permissions Matrix
+
+| Module / Feature | **Admin** | **Staff** | **Viewer** |
+| --- | --- | --- | --- |
+| **User Management** | ✅ Full CRUD | ❌ None | ❌ None |
+| **Assign Roles** | ✅ Yes | ❌ No | ❌ No |
+| **View Users** | ✅ Yes | ❌ No | ❌ No |
+| **Product Management** | ✅ Full CRUD | ✏️ Update `quantity` only🔘 Toggle Active/Inactive | 🔍 Read-only |
+| **Inventory Management** | ✅ Full CRUD | ✏️ Update `quantity` only | 🔍 Read-only |
+| **Location Management** | ✅ Full CRUD | ❌ No Access | 🔍 View-only |
+| **Forecast Management** | ✅ Full CRUD | ❌ No Access | 🔍 View-only |
+| **Alerts** | ✅ View & Close | 🔍 View-only | 🔍 View-only |
+| **View Dashboards / Stats** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Audit Logs / Activity** | ✅ Full Access | ❌ No Access | ❌ No Access |
