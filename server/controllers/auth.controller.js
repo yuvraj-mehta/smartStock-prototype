@@ -74,7 +74,7 @@ const logout = catchAsyncErrors(async (req, res) => {
 
 
 // get user details
-const getUserDetails = catchAsyncErrors(async (req, res) => {
+const getMyDetails = catchAsyncErrors(async (req, res) => {
   const user = req.user;
   return res.status(200).json({
     message: "User details fetched successfully",
@@ -90,10 +90,10 @@ const getUserDetails = catchAsyncErrors(async (req, res) => {
 })
 
 // change password controller
-const changePassword = catchAsyncErrors(async(req, res) => {
+const changePassword = catchAsyncErrors(async (req, res) => {
   const oldPassword = req.body.oldPassword;
   const newPassword = req.body.newPassword;
-  
+
   if (!oldPassword || !newPassword) {
     return res.status(400).json({ message: 'Old password and new password are required.' });
   }
@@ -121,7 +121,7 @@ const changePassword = catchAsyncErrors(async(req, res) => {
   });
 })
 
-export { login, logout, getUserDetails, changePassword };
+export { login, logout, getMyDetails, changePassword };
 
 
 

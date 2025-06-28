@@ -8,7 +8,8 @@ const productSchema = new mongoose.Schema({
   sku: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    index: true
   },
   description: {
     type: String
@@ -27,7 +28,8 @@ const productSchema = new mongoose.Schema({
   },
   quantity: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   incomingStock: {
     type: Number,

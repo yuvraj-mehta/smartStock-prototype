@@ -2,18 +2,28 @@
 import {
   login,
   logout,
-  getUserDetails,
+  getMyDetails,
   changePassword
 } from "./auth.controller.js"
 
-import createUser from "./create.user.controller.js";
+import {
+  createUser,
+  getAllUsers,
+  getUserDetails,
+  updateUser,
+  deleteUser
+} from "./user.controller.js";
 
 // const { login, logout } = authController;
 
 export {
   login,
   logout,
+  getMyDetails,
   getUserDetails,
   changePassword,
-  createUser
+  createUser,
+  getAllUsers,
+  updateUser,
+  deleteUser
 };
