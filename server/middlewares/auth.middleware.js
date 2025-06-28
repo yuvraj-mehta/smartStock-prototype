@@ -1,6 +1,6 @@
 import { catchAsyncErrors } from "./index.js";
 import jwt from "jsonwebtoken";
-import { conf } from "../config/config.js"
+import { conf } from "../config/config.js";
 import { User } from "../models/index.js";
 
 const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
@@ -15,25 +15,37 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
     if (!decoded) {
       return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
     }
-    req.user = await User.findById(decoded.id);
+
+    // Populate user with warehouse location
+    req.user = await User.findById(decoded.id)
+      .populate('assignedLocation', 'name code');
     if (!req.user) {
       return res.status(401).json({ message: 'User not found, authorization denied.' });
     }
+
+    // Expose user's warehouse location for downstream use
+    req.userLocation = req.user.assignedLocation;
+
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
   }
-})
+});
 
-const isAuthorized = (role) => (req, res, next) => {
-  if (req.user.role !== role) {
-    return res.status(403).json({ message: 'Forbidden: You are not authorized to access this resource.' });
-  } else {
-    next()
+/**
+ * Role-based authorization
+ * Accepts one or more roles: isAuthorized('admin'), isAuthorized('admin','staff')
+ */
+const isAuthorized = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) {
+    return res
+      .status(403)
+      .json({ message: 'Forbidden: You are not authorized to access this resource.' });
   }
-}
+  next();
+};
 
 export {
   isAuthenticated,
   isAuthorized
-}
+};

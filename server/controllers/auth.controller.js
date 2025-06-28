@@ -11,14 +11,21 @@ import jwt from "jsonwebtoken";
 const login = catchAsyncErrors(async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required.' });
-  }
+  // const user = await User.findOne({ email, status: 'active' }).select("+password");
+  const user = await User.findOne({ email, status: "active" })
+    .populate('assignedLocation', 'name code') // ✅ Add population
+    .select("+password");
 
-  const user = await User.findOne({ email, status: 'active' }).select("+password");
 
   if (!user) {
     return res.status(404).json({ message: 'User not found or inactive.' });
+  }
+
+  // CHANGE: Check if admin has assigned location
+  if (user.role === 'admin' && !user.assignedLocation) {
+    return res.status(403).json({
+      message: "Admin must be assigned to a warehouse location"
+    });
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -42,35 +49,47 @@ const login = catchAsyncErrors(async (req, res) => {
       fullName: user.fullName,
       email: user.email,
       role: user.role,
+      assignedLocation: user.assignedLocation,
       lastLogin: user.lastLogin,
     },
   });
 })
 
 // logout controller
+// const logout = catchAsyncErrors(async (req, res) => {
+//   // Invalidate the token or perform any necessary cleanup
+//   // Generate JWT token
+//   const authHeader = req.headers.authorization;
+//   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+//     return res.status(401).json({ message: 'No token provided, authorization denied.' });
+//   }
+
+//   const oldToken = authHeader.split(' ')[1];
+//   const token = jwt.sign({
+//     id: oldToken.id,
+//     fullName: oldToken.fullName,
+//     email: oldToken.email,
+//     role: oldToken.role,
+//   }, process.env.JWT_SECRET, {
+//     expiresIn: '0s'
+//   })
+
+//   res.status(200).json({
+//     message: "Logout successful",
+//     token,
+//   });
+// });
+
+
+
+// CHANGE: Fix logout controller (current implementation is incorrect)
 const logout = catchAsyncErrors(async (req, res) => {
-  // Invalidate the token or perform any necessary cleanup
-  // Generate JWT token
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No token provided, authorization denied.' });
-  }
-
-  const oldToken = authHeader.split(' ')[1];
-  const token = jwt.sign({
-    id: oldToken.id,
-    fullName: oldToken.fullName,
-    email: oldToken.email,
-    role: oldToken.role,
-  }, process.env.JWT_SECRET, {
-    expiresIn: '0s'
-  })
-
+  // CHANGE: Simple logout response (client should discard token)
   res.status(200).json({
-    message: "Logout successful",
-    token,
+    message: "Logout successful"
   });
 });
+
 
 
 // get user details
@@ -84,19 +103,17 @@ const getMyDetails = catchAsyncErrors(async (req, res) => {
       email: user.email,
       role: user.role,
       status: user.status,
-      userAvatar: user.userAvatar,
+      avatar: user.avatar,
+      assignedLocation: user.assignedLocation,
+      isVerified: user.isVerified,
     },
-  })
-})
+  });
+});
 
 // change password controller
 const changePassword = catchAsyncErrors(async (req, res) => {
   const oldPassword = req.body.oldPassword;
   const newPassword = req.body.newPassword;
-
-  if (!oldPassword || !newPassword) {
-    return res.status(400).json({ message: 'Old password and new password are required.' });
-  }
 
   const isValid = await bcrypt.compare(oldPassword, req.user.password);
 

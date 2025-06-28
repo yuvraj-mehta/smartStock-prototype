@@ -6,6 +6,7 @@ const generateToken = (user) => {
     id: user._id,
     email: user.email,
     role: user.role,
+    locationId: user.assignedLocation?._id,
   },
   conf.jwtSecret,
   {

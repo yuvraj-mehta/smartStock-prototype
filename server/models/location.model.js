@@ -1,37 +1,37 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const locationSchema = new mongoose.Schema({
-  cityName: {
-    type: String,
-    required: true
+  name: { 
+    type: String, 
+    required: true 
+  },
+  code: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  },
+  type: { 
+    type: String, 
+    enum: ['warehouse'], 
+    default: 'warehouse' 
   },
   address: {
-    type: String,
-    required: true
+    street: String,
+    city: String,
+    state: String,
+    zipCode: String,
+    country: String
   },
-  zipCode: {
-    type: String,
-    required: true
+  admin: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User',
+    unique: true 
   },
-  type: {
-    type: String,
-    enum: ['warehouse', 'retail', 'store'],
-    required: true
-  },
-  code: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  status: {
-    type: String,
-    enum: ['active', 'inactive', 'maintenance'],
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-});
+  status: { 
+    type: String, 
+    enum: ['active', 'inactive', 'maintenance'], 
+    default: 'active' 
+  }
+}, { timestamps: true });
 
-export const Location = mongoose.model('Location', locationSchema);
+export const Location = mongoose.model("Location", locationSchema);

@@ -4,6 +4,7 @@ import {
   getAllUsers,
   getUserDetails,
   updateUser,
+  createUser,
   deleteUser
 } from "../controllers/index.js";
 import { isAuthenticated, isAuthorized } from "../middlewares/index.js"
@@ -16,6 +17,11 @@ router.get("/", (req, res) => {
 router.get("/me",
   isAuthenticated,
   getMyDetails
+);
+router.post("/create",
+  isAuthenticated,
+  isAuthorized("admin"),
+  createUser
 );
 router.get("/all",
   isAuthenticated,

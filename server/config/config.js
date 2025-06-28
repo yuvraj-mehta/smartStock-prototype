@@ -5,7 +5,8 @@ dotenv.config();
 export const conf = {
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:9000'],
 
-  mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/myapp',
+  mongoUri: process.env.MONGO_URI,
+  // mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/myapp',
   dbName: process.env.DB_NAME || 'myapp',
 
   port: process.env.PORT || 3500,
