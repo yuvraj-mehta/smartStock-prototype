@@ -1,67 +1,88 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema({
-  name: {
+  productName: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
+  },
+  productImage: {
+    type: String,
+    required: true,
+  },
+  unit: {
+    type: String,
+    required: true,
+  },
+  manufacturer: {
+    type: String,
+  },
+  productCategory: {
+    type: String,
+    enum: ['electronics', 'apparel', 'decor', 'furniture'],
   },
   sku: {
     type: String,
     required: true,
     unique: true,
-    index: true
+    uppercase: true,
   },
-  description: {
-    type: String
-  },
-  category: {
-    type: String,
-    enum: ['electronics', 'clothing', 'food', 'other'],
-    required: true
-  },
-  reorderPoint: {
+  price: {
     type: Number,
-    required: true
-  },
-  restockTime: {
-    type: Number
+    required: true,
   },
   quantity: {
     type: Number,
     required: true,
-    min: 0
+    default: 0,
   },
-  incomingStock: {
+  weight: {
     type: Number,
-    default: 0
+    default: 0,
   },
-  lastRestockedAt: {
-    type: Date
+  dimension: {
+    length: { type: Number, required: true },
+    breadth: { type: Number, required: true },
+    height: { type: Number, required: true },
   },
-  lastUpdated: {
-    type: Date,
-    default: Date.now
+  volume: {
+    type: Number,
+    default: function() {
+      return this.dimension.length * this.dimension.breadth * this.dimension.height;
+    }
   },
-  notes: {
-    type: String
-  },
-  unit: {
-    type: String,
-    required: true
-  },
-  active: {
-    type: Boolean,
+  thresholdLimit: {
+    type: Number,
     required: true,
-    default: true
+    default: 10,
   },
-  createdAt: {
+  restockRecommended: {
+    type: Boolean,
+    default: false,
+  },
+  shelfLifeDays: {
+    type: Number,
+    required: true,
+  },
+  batchNumber: {
+    type: Number,
+  },
+  mfgDate: {
     type: Date,
-    default: Date.now
+    required: true,
   },
-  updatedAt: {
+  expDate: {
     type: Date,
-    default: Date.now
+    required: true,
   },
-});
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  supplierId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ExternalUser',
+  },
+}, { timestamps: true });     // Automatically adds createdAt and updatedAt
 
 export const Product = mongoose.model('Product', productSchema);

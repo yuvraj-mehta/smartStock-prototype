@@ -3,33 +3,54 @@ import mongoose from 'mongoose';
 const userSchema = new mongoose.Schema({
   fullName: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
   },
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    lowercase: true,
+    trim: true,
   },
   password: {
     type: String,
-    required: true
+    required: true,
+  },
+  phone: {
+    type: String,
+    required: true,
+  },
+  avatar: {
+    type: String,
+    default: 'https://media.istockphoto.com/id/1300845620/vector/user-icon-flat-isolated-on-white-background-user-symbol-vector-illustration.jpg?s=1024x1024&w=is&k=20&c=-mUWsTSENkugJ3qs5covpaj-bhYpxXY-v9RDpzsw504=',
   },
   role: {
     type: String,
-    enum: ['admin', 'staff', 'viewer'],
-    default: 'viewer'
+    enum: ['admin', 'staff', 'viewer', 'supplier', 'transporter'],
+    default: 'viewer',
   },
-  assignedLocation: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Location",
-    required: function () {
-      return this.role === 'admin'; // ✅ Only required for admin
-    }
+  shift: {
+    type: String,
+    enum: ['morning', 'afternoon', 'night'],
+  },
+  wagePerHour: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+  hoursThisMonth: {
+    type: Number,
+    default: 0,
   },
   status: {
     type: String,
     enum: ['active', 'inactive', 'suspended'],
-    default: 'active'
+    default: 'inactive',
+  },
+  assignedWarehouseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Warehouse',
   },
   isVerified: {
     type: Boolean,
@@ -37,27 +58,19 @@ const userSchema = new mongoose.Schema({
   },
   verificationToken: {
     type: String,
+    default: null,
   },
-  avatar: {
+  resetPasswordToken: {
     type: String,
-    default: 'https://media.istockphoto.com/id/1300845620/vector/user-icon-flat-isolated-on-white-background-user-symbol-vector-illustration.jpg?s=1024x1024&w=is&k=20&c=-mUWsTSENkugJ3qs5covpaj-bhYpxXY-v9RDpzsw504=',
+    default: null,
+  },
+  resetPasswordTokenExpires: {
+    type: Date,
+    default: null,
   },
   lastLogin: {
     type: Date,
-    default: null
   },
-  passwordResetToken: {
-    type: String,
-    default: null
-  },
-  passwordResetTokenExpires: {
-    type: Date,
-    default: null
-  },
-  passwordChangedAt: {
-    type: Date,
-    default: null
-  }
-}, { timestamps: true });
+}, { timestamps: true });  // automatically adds createdAt and updatedAt
 
 export const User = mongoose.model('User', userSchema);
