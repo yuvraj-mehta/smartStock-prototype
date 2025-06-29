@@ -1,11 +1,13 @@
 import {
   loginValidation,
   registerValidation,
-  changePasswordValidation
-} from "./auth.validator.js";
+  changePasswordValidation,
+  createUserValidation,
+} from "./userAndUser.validator.js";
 
 export {
   loginValidation,
   registerValidation,
-  changePasswordValidation
+  changePasswordValidation,
+  createUserValidation,
 }

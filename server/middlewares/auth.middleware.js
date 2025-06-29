@@ -18,13 +18,14 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
 
     // Populate user with warehouse location
     req.user = await User.findById(decoded.id)
-      .populate('assignedLocation', 'name code');
+      .populate('assignedWarehouseId', 'address warehouseName');
+
     if (!req.user) {
       return res.status(401).json({ message: 'User not found, authorization denied.' });
     }
 
     // Expose user's warehouse location for downstream use
-    req.userLocation = req.user.assignedLocation;
+    req.assignedWarehouseId = req.user.assignedWarehouseId;
 
     next();
   } catch (err) {
@@ -45,7 +46,16 @@ const isAuthorized = (...roles) => (req, res, next) => {
   next();
 };
 
+const canViewUserDetails = (req, res, next) => {
+  // Allow access if user is admin or viewing their own details
+  if (req.user.role === 'admin' || req.user._id.toString() === req.params.id) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Forbidden: You are not authorized to view this user.' });
+};
+
 export {
   isAuthenticated,
-  isAuthorized
+  isAuthorized,
+  canViewUserDetails
 };

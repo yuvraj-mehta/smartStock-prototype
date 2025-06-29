@@ -7,7 +7,9 @@ import {
   createUser,
   deleteUser
 } from "../controllers/index.js";
-import { isAuthenticated, isAuthorized } from "../middlewares/index.js"
+import { isAuthenticated, isAuthorized, canViewUserDetails } from "../middlewares/index.js"
+import { createUserValidation } from "../validators/index.js";
+import handleValidationErrors from "../middlewares/validationErrors.middleware.js";
 
 const router = Router();
 
@@ -21,6 +23,8 @@ router.get("/me",
 router.post("/create",
   isAuthenticated,
   isAuthorized("admin"),
+  createUserValidation,
+  handleValidationErrors,
   createUser
 );
 router.get("/all",
@@ -30,7 +34,7 @@ router.get("/all",
 )
 router.get("/:id",
   isAuthenticated,
-  isAuthorized("admin"),
+  canViewUserDetails,
   getUserDetails
 )
 router.put("/update/:id",

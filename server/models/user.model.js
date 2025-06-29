@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'staff', 'viewer', 'supplier', 'transporter'],
+    enum: ['admin', 'staff', 'viewer'],
     default: 'viewer',
   },
   shift: {
@@ -71,6 +71,6 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
   },
-}, { timestamps: true });  // automatically adds createdAt and updatedAt
+}, { timestamps: true });
 
 export const User = mongoose.model('User', userSchema);

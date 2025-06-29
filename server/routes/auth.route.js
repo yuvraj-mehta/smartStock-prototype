@@ -8,7 +8,7 @@ import { isAuthenticated, isAuthorized } from "../middlewares/index.js";
 import {
   loginValidation,
   changePasswordValidation
-} from "../validators/auth.validator.js";
+} from "../validators/index.js";
 import handleValidationErrors from "../middlewares/validationErrors.middleware.js";
 
 const router = Router();

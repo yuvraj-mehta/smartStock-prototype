@@ -4,13 +4,8 @@ import bcrypt from "bcryptjs";
 
 // Create User Controller
 const createUser = catchAsyncErrors(async (req, res) => {
-  const { fullName, email, password, role } = req.body;
+  const { fullName, email, password, phone, wagePerHour, role } = req.body;
 
-  if (!fullName || !email || !password || !role) {
-    return res.status(400).json({ message: 'All fields are required.' });
-  }
-
-  
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     return res.status(400).json({
@@ -30,9 +25,10 @@ const createUser = catchAsyncErrors(async (req, res) => {
     fullName,
     email,
     password: hashedPassword,
+    phone,
+    wagePerHour,
     role,
-    assignedLocation: req.user.assignedLocation,
-    isVerified: false,
+    assignedWarehouseId: req.user.assignedWarehouseId,
   })
 
   res.status(201).json({
@@ -41,10 +37,12 @@ const createUser = catchAsyncErrors(async (req, res) => {
       id: newUser._id,
       fullName: newUser.fullName,
       email: newUser.email,
+      phone: newUser.phone,
+      wagePerHour: newUser.wagePerHour,
       role: newUser.role,
       status: newUser.status,
       isVerified: newUser.isVerified,
-      assignedLocation: newUser.assignedLocation,
+      assignedWarehouseId: newUser.assignedWarehouseId
     }
   })
 })
@@ -54,7 +52,16 @@ const createUser = catchAsyncErrors(async (req, res) => {
 const getAllUsers = catchAsyncErrors(async (req, res) => {
   const users = await User.find({
     assignedLocation: req.user.assignedLocation,
-  }).populate('assignedLocation', 'name code');
+  }, {
+    password: 0,
+    email: 0,
+    __v: 0,
+    phone: 0,
+    verificationToken: 0,
+    verificationTokenExpiry: 0,
+    resetPasswordToken: 0,
+    resetPasswordTokenExpires: 0,
+  }).populate('assignedWarehouseId', 'address warehouseName');
 
   // const users = await User.find({ emailVerified: false });
   res.status(200).json({
@@ -103,32 +110,53 @@ const getUserDetails = catchAsyncErrors(async (req, res) => {
 // Update User data by Admin
 const updateUser = catchAsyncErrors(async (req, res) => {
   const userId = req.params.id;
-  const { fullName, email, role, status } = req.body;
+  const {
+    fullName,
+    email,
+    role,
+    status,
+    phone,
+    avatar,
+    shift,
+    wagePerHour,
+    hoursThisMonth,
+  } = req.body;
 
-  if (!userId || !fullName || !email || !role || !status) {
-    return res.status(400).json({ message: 'All fields are required.' });
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required.' });
   }
 
-  // Simple email validation
-  if (!email.includes('@')) {
+  // Validate fields only if provided
+  if (email !== undefined && !email.includes('@')) {
     return res.status(400).json({ message: 'Please provide a valid email address.' });
   }
 
-  // Validate role
   const validRoles = ['admin', 'staff', 'viewer'];
-  if (!validRoles.includes(role)) {
+  if (role !== undefined && !validRoles.includes(role)) {
     return res.status(400).json({ message: 'Invalid role.' });
   }
 
-  // Validate status
   const validStatuses = ['active', 'inactive', 'suspended'];
-  if (!validStatuses.includes(status)) {
+  if (status !== undefined && !validStatuses.includes(status)) {
     return res.status(400).json({ message: 'Invalid status.' });
+  }
+
+  const validShifts = ['morning', 'afternoon', 'night'];
+  if (shift !== undefined && !validShifts.includes(shift)) {
+    return res.status(400).json({ message: 'Invalid shift.' });
+  }
+
+  if (wagePerHour !== undefined && (typeof wagePerHour !== 'number' || wagePerHour < 0)) {
+    return res.status(400).json({ message: 'Invalid wage per hour.' });
+  }
+
+  if (hoursThisMonth !== undefined && (typeof hoursThisMonth !== 'number' || hoursThisMonth < 0)) {
+    return res.status(400).json({ message: 'Invalid hours this month.' });
   }
 
   const user = await User.findOne({
     _id: userId,
-    assignedLocation: req.user.assignedLocation
+    assignedWarehouseId: req.user.assignedWarehouseId
   });
 
   if (!user) {
@@ -136,29 +164,27 @@ const updateUser = catchAsyncErrors(async (req, res) => {
   }
 
   // Check if email already exists when changing email
-  if (user.email !== email) {
+  if (email !== undefined && user.email !== email) {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists.' });
     }
   }
 
-  if (user._id.toString() === req.user._id.toString() && role !== user.role) {
+  if (user._id.toString() === req.user._id.toString() && role !== undefined && role !== user.role) {
     return res.status(400).json({ message: "Cannot change your own role." });
   }
 
-  if (user.fullName !== fullName) {
-    user.fullName = fullName;
-  }
-  if (user.email !== email) {
-    user.email = email;
-  }
-  if (user.role !== role) {
-    user.role = role;
-  }
-  if (user.status !== status) {
-    user.status = status;
-  }
+  // Update only provided fields
+  if (fullName !== undefined) user.fullName = fullName;
+  if (email !== undefined) user.email = email;
+  if (role !== undefined) user.role = role;
+  if (status !== undefined) user.status = status;
+  if (phone !== undefined) user.phone = phone;
+  if (avatar !== undefined) user.avatar = avatar;
+  if (shift !== undefined) user.shift = shift;
+  if (wagePerHour !== undefined) user.wagePerHour = wagePerHour;
+  if (hoursThisMonth !== undefined) user.hoursThisMonth = hoursThisMonth;
   user.updatedAt = new Date();
 
   await user.save();
@@ -169,9 +195,18 @@ const updateUser = catchAsyncErrors(async (req, res) => {
       id: user._id,
       fullName: user.fullName,
       email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
       role: user.role,
       status: user.status,
-      assignedLocation: user.assignedLocation,
+      shift: user.shift,
+      wagePerHour: user.wagePerHour,
+      hoursThisMonth: user.hoursThisMonth,
+      assignedWarehouseId: user.assignedWarehouseId,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      lastLogin: user.lastLogin,
     }
   })
 })

@@ -11,9 +11,8 @@ import jwt from "jsonwebtoken";
 const login = catchAsyncErrors(async (req, res) => {
   const { email, password } = req.body;
 
-  // const user = await User.findOne({ email, status: 'active' }).select("+password");
   const user = await User.findOne({ email, status: "active" })
-    .populate('assignedLocation', 'name code') // ✅ Add population
+    .populate('assignedWarehouseId', 'address warehouseName')
     .select("+password");
 
 
@@ -22,9 +21,9 @@ const login = catchAsyncErrors(async (req, res) => {
   }
 
   // CHANGE: Check if admin has assigned location
-  if (user.role === 'admin' && !user.assignedLocation) {
+  if (user.role === 'admin' && !user.assignedWarehouseId) {
     return res.status(403).json({
-      message: "Admin must be assigned to a warehouse location"
+      message: "Admin must be assigned to a warehouse"
     });
   }
 
@@ -49,7 +48,7 @@ const login = catchAsyncErrors(async (req, res) => {
       fullName: user.fullName,
       email: user.email,
       role: user.role,
-      assignedLocation: user.assignedLocation,
+      assignedWarehouseId: user.assignedWarehouseId,
       lastLogin: user.lastLogin,
     },
   });
@@ -101,11 +100,18 @@ const getMyDetails = catchAsyncErrors(async (req, res) => {
       id: user._id,
       fullName: user.fullName,
       email: user.email,
-      role: user.role,
-      status: user.status,
+      phone: user.phone,
       avatar: user.avatar,
-      assignedLocation: user.assignedLocation,
+      role: user.role,
+      shift: user.shift,
+      wagePerHour: user.wagePerHour,
+      hoursThisMonth: user.hoursThisMonth,
+      status: user.status,
+      assignedWarehouseId: user.assignedWarehouseId,
       isVerified: user.isVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     },
   });
 });
@@ -132,6 +138,7 @@ const changePassword = catchAsyncErrors(async (req, res) => {
     user: {
       id: user._id,
       fullName: user.fullName,
+      phone: user.phone,
       email: user.email,
       role: user.role,
     },
