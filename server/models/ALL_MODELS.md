@@ -1,6 +1,4 @@
-# Database Models (Mongoose Schemas)
-
----
+# Database Models
 
 ## `batch.model.js`
 
@@ -284,7 +282,9 @@ const productSchema = new mongoose.Schema(
     },
     restockRecommended: {
       type: Boolean,
-      default: false,
+      default: function () {
+        return this.quantity <= this.thresholdLimit;
+      },
     },
     shelfLifeDays: {
       type: Number,
@@ -295,20 +295,20 @@ const productSchema = new mongoose.Schema(
     },
     mfgDate: {
       type: Date,
-      required: true,
     },
     expDate: {
       type: Date,
-      required: true,
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
-    supplierId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ExternalUser",
-    },
+    supplierIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "ExternalUser",
+      },
+    ],
   },
   { timestamps: true }
 ); // Automatically adds createdAt and updatedAt
@@ -439,7 +439,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "staff", "viewer", "supplier", "transporter"],
+      enum: ["admin", "staff", "viewer"],
       default: "viewer",
     },
     shift: {
@@ -485,7 +485,7 @@ const userSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
-); // automatically adds createdAt and updatedAt
+);
 
 export const User = mongoose.model("User", userSchema);
 ```

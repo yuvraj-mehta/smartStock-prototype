@@ -15,15 +15,16 @@ import healthRouter from './routes/health.route.js'
 
 app.use(cors(corsConfig))
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Define routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/user', userRouter);
-app.use('/api/v1/alerts', alertRouter);
+app.use('/api/v1/alert', alertRouter);
 app.use('/api/v1/health', healthRouter);
-app.use('/api/v1/products', productRouter);
+app.use('/api/v1/product', productRouter);
 app.use('/api/v1/forecast', forecastRouter);
-app.use('/api/v1/locations', locationRouter);
+app.use('/api/v1/location', locationRouter);
 app.use('/api/v1/assistant', assistantRouter);
 app.use('/api/v1/inventory', inventoryRouter);
 

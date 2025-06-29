@@ -47,7 +47,7 @@ const productSchema = new mongoose.Schema({
   },
   volume: {
     type: Number,
-    default: function() {
+    default: function () {
       return this.dimension.length * this.dimension.breadth * this.dimension.height;
     }
   },
@@ -58,7 +58,9 @@ const productSchema = new mongoose.Schema({
   },
   restockRecommended: {
     type: Boolean,
-    default: false,
+    default: function() {
+      return this.quantity <= this.thresholdLimit;
+    }
   },
   shelfLifeDays: {
     type: Number,
@@ -69,20 +71,20 @@ const productSchema = new mongoose.Schema({
   },
   mfgDate: {
     type: Date,
-    required: true,
   },
   expDate: {
     type: Date,
-    required: true,
   },
   isActive: {
     type: Boolean,
-    default: true,
+    default: false,
   },
-  supplierId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'ExternalUser',
-  },
+  supplierIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ExternalUser",
+    }
+  ],
 }, { timestamps: true });     // Automatically adds createdAt and updatedAt
 
 export const Product = mongoose.model('Product', productSchema);

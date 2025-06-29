@@ -31,6 +31,12 @@ const notEmptyValidator = (field, message) =>
     .notEmpty()
     .withMessage(message || `${field} cannot be empty`);
 
+
+
+
+
+
+
 // Grouped Validations
 const registerValidation = [
   emailValidator(),
@@ -62,5 +68,4 @@ export {
   loginValidation,
   changePasswordValidation,
   createUserValidation,
-  phoneValidator,
 };

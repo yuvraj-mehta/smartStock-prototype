@@ -14,16 +14,29 @@ import {
   deleteUser
 } from "./user.controller.js";
 
+import {
+  createProduct,
+  getProductById,
+  getAllProducts,
+  deleteProductById,
+  updateProductById
+} from "./product.controller.js"; 
+
 // const { login, logout } = authController;
 
 export {
   login,
   logout,
   getMyDetails,
-  getUserDetails,
   changePassword,
+  getUserDetails,
   createUser,
   getAllUsers,
   updateUser,
-  deleteUser
+  deleteUser,
+  createProduct,
+  getProductById,
+  getAllProducts,
+  deleteProductById,
+  updateProductById
 };
