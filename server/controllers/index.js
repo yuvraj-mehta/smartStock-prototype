@@ -1,12 +1,11 @@
-// import authController from "./auth.controller.js";
-import {
+export {
   login,
   logout,
   getMyDetails,
   changePassword
-} from "./auth.controller.js"
+} from "./auth.controller.js";
 
-import {
+export {
   createUser,
   getAllUsers,
   getUserDetails,
@@ -14,29 +13,36 @@ import {
   deleteUser
 } from "./user.controller.js";
 
-import {
-  createProduct,
-  getProductById,
-  getAllProducts,
-  deleteProductById,
-  updateProductById
-} from "./product.controller.js"; 
-
-// const { login, logout } = authController;
+export {
+  createTransporter,
+  createSupplier
+} from "./externalUser.controller.js";
 
 export {
-  login,
-  logout,
-  getMyDetails,
-  changePassword,
-  getUserDetails,
-  createUser,
-  getAllUsers,
-  updateUser,
-  deleteUser,
   createProduct,
   getProductById,
   getAllProducts,
   deleteProductById,
   updateProductById
-};
+} from "./product.controller.js";
+
+export {
+  addInventorySupply,
+  viewInventory,
+  getInventoryByProduct,
+  markDamagedInventory
+} from "./inventory.controller.js";
+
+export {
+  createTransport,
+  getAllTransports,
+  updateTransportStatus
+} from "./transport.controller.js";
+
+
+export {
+  getAllItems,
+  getItemById,
+  getItemsByBatch,
+  updateItemStatus
+} from "./item.controller.js";

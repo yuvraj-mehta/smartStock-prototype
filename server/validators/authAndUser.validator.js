@@ -63,9 +63,29 @@ const createUserValidation = [
   wageValidator(),
 ];
 
+const createSupplierValidation = [
+  notEmptyValidator('fullName', 'Full name is required'),
+  notEmptyValidator('companyName', 'Company name is required'),
+  emailValidator(),
+  passwordValidator(),
+  phoneValidator(),
+  notEmptyValidator('warehouseId', 'Warehouse ID is required'),
+];
+
+const createTransporterValidation = [
+  notEmptyValidator('fullName', 'Full name is required'),
+  notEmptyValidator('companyName', 'Company name is required'),
+  emailValidator(),
+  passwordValidator(),
+  phoneValidator(),
+  notEmptyValidator('warehouseId', 'Warehouse ID is required'),
+];
+
 export {
   registerValidation,
   loginValidation,
   changePasswordValidation,
   createUserValidation,
+  createSupplierValidation,
+  createTransporterValidation,
 };

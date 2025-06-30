@@ -5,10 +5,12 @@ import {
   getUserDetails,
   updateUser,
   createUser,
-  deleteUser
+  deleteUser,
+  createSupplier,
+  createTransporter
 } from "../controllers/index.js";
 import { isAuthenticated, isAuthorized, canViewUserDetails } from "../middlewares/index.js"
-import { createUserValidation } from "../validators/index.js";
+import { createUserValidation, createSupplierValidation, createTransporterValidation } from "../validators/index.js";
 import handleValidationErrors from "../middlewares/validationErrors.middleware.js";
 
 const router = Router();
@@ -46,6 +48,20 @@ router.delete("/delete/:id",
   isAuthenticated,
   isAuthorized("admin"),
   deleteUser
+)
+router.post('/create-supplier',
+  isAuthenticated,
+  isAuthorized("admin"),
+  createSupplierValidation,
+  handleValidationErrors,
+  createSupplier
+)
+router.post('/create-transporter',
+  isAuthenticated,
+  isAuthorized("admin"),
+  createTransporterValidation,
+  handleValidationErrors,
+  createTransporter
 )
 
 

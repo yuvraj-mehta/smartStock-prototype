@@ -1,5 +1,1 @@
-import generateToken from './token/generate.token.js'
-
-export {
-  generateToken,
-}
+export { generateToken } from './token/generate.token.js';

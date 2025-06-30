@@ -7,10 +7,8 @@ import userRouter from './routes/user.route.js';
 import productRouter from './routes/product.route.js';
 import inventoryRouter from './routes/inventory.route.js';
 import authRouter from './routes/auth.route.js';
-import alertRouter from './routes/alert.route.js';
-import locationRouter from './routes/location.route.js';
-import assistantRouter from './routes/assistant.route.js';
-import forecastRouter from './routes/forecast.route.js';
+import itemRouter from './routes/item.route.js';
+import transportRouter from './routes/transport.route.js';
 import healthRouter from './routes/health.route.js'
 
 app.use(cors(corsConfig))
@@ -20,14 +18,11 @@ app.use(express.urlencoded({ extended: true }));
 // Define routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/user', userRouter);
-app.use('/api/v1/alert', alertRouter);
 app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/product', productRouter);
-app.use('/api/v1/forecast', forecastRouter);
-app.use('/api/v1/location', locationRouter);
-app.use('/api/v1/assistant', assistantRouter);
 app.use('/api/v1/inventory', inventoryRouter);
-
+app.use('/api/v1/item', itemRouter);
+app.use('/api/v1/transport', transportRouter);
 
 // 404 handler for undefined routes
 app.use(notFound);

@@ -1,5 +1,6 @@
 import { catchAsyncErrors } from "../middlewares/index.js";
 import { User } from "../models/index.js"
+import { ExternalUser } from "../models/externalUsers.model.js";
 import bcrypt from "bcryptjs";
 
 // Create User Controller

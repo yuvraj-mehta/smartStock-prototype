@@ -68,6 +68,27 @@ const isActiveValidator = () =>
     .optional()
     .isBoolean().withMessage("isActive must be a boolean");
 
+const transportCostValidator = () =>
+  body("transportCost")
+    .notEmpty().withMessage("Transport cost is required")
+    .isNumeric().withMessage("Transport cost must be a number");
+
+const productsValidator = () =>
+  body("products")
+    .isArray({ min: 1 }).withMessage("Products must be a non-empty array");
+
+const locationValidator = () =>
+  body("location")
+    .notEmpty().withMessage("Location is required");
+
+const assignedToValidator = () =>
+  body("assignedTo")
+    .notEmpty().withMessage("AssignedTo is required");
+
+const transportModeValidator = () =>
+  body("transportMode")
+    .notEmpty().withMessage("Transport mode is required");
+
 
 
 
@@ -112,3 +133,19 @@ export const createProductValidation = [
   thresholdLimitValidator(),
   shelfLifeDaysValidator(),
 ];
+
+export const createTransportValidation = [
+  transportCostValidator(),
+  productsValidator(),
+  locationValidator(),
+  assignedToValidator(),
+  transportModeValidator(),
+];
+
+export {
+  transportCostValidator,
+  productsValidator,
+  locationValidator,
+  assignedToValidator,
+  transportModeValidator,
+};

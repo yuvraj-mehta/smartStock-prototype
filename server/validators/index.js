@@ -1,20 +1,18 @@
-import {
-  loginValidation,
-  registerValidation,
-  changePasswordValidation,
-  createUserValidation,
-} from "./userAndUser.validator.js";
-
-import {
-  createProductValidation,
-  updateProductValidation,
-} from "./product.validators.js";
-
 export {
   loginValidation,
   registerValidation,
   changePasswordValidation,
   createUserValidation,
+  createSupplierValidation,
+  createTransporterValidation
+} from "./authAndUser.validator.js";
+
+export {
   createProductValidation,
   updateProductValidation,
-}
+  createTransportValidation
+} from "./productAndInventory.validators.js";
+
+export {
+  addSupplyValidation
+} from "./addSupply.validator.js"
