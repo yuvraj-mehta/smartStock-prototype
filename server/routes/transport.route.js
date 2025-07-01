@@ -5,11 +5,11 @@ import { createTransportValidation } from "../validators/productAndInventory.val
 import {
   isAuthenticated,
   isAuthorized,
-  updateTransportStatus
 } from "../middlewares/index.js";
 import {
   createTransport,
-  getAllTransports
+  getAllTransports,
+  updateTransportStatus
 } from "../controllers/index.js";
 
 router.get("/", (req, res) => {

@@ -46,3 +46,15 @@ export {
   getItemsByBatch,
   updateItemStatus
 } from "./item.controller.js";
+
+export {
+  recordSale,
+  getAllSales,
+  getSaleById
+} from "./sales.controller.js";
+
+export {
+  createReturn,
+  getAllReturns,
+  getReturnById,
+} from "./return.controller.js";

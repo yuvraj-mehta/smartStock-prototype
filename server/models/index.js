@@ -8,3 +8,5 @@ export { Transport } from "./transport.model.js";
 export { User } from "./user.model.js";
 export { Wage } from "./wage.model.js";
 export { Warehouse } from "./warehouse.model.js";
+export { SalesHistory } from "./sales.history.model.js";
+export { Return } from "./returns.model.js";
