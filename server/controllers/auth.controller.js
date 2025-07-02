@@ -81,7 +81,7 @@ const login = catchAsyncErrors(async (req, res) => {
 
 
 
-// CHANGE: Fix logout controller (current implementation is incorrect)
+// CHANGE: Fix logout controller
 const logout = catchAsyncErrors(async (req, res) => {
   // CHANGE: Simple logout response (client should discard token)
   res.status(200).json({

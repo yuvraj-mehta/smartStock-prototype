@@ -3,6 +3,7 @@ import {
   recordSale,
   getAllSales,
   getSaleById,
+  getSaleByPackageId,
 } from "../controllers/index.js";
 import { isAuthenticated, isAuthorized } from "../middlewares/auth.middleware.js";
 
@@ -29,5 +30,11 @@ router.get(
   getSaleById
 );
 
+router.get(
+  "/package/:packageId",
+  isAuthenticated,
+  isAuthorized("admin", "staff"),
+  getSaleByPackageId
+);
 
 export default router;

@@ -50,7 +50,8 @@ export {
 export {
   recordSale,
   getAllSales,
-  getSaleById
+  getSaleById,
+  getSaleByPackageId
 } from "./sales.controller.js";
 
 export {

@@ -50,6 +50,12 @@ export const recordSale = catchAsyncErrors(async (req, res) => {
     );
   }
 
+  let packageId;
+  if (action === "dispatched") {
+    // Generate a unique package ID (e.g., using timestamp and random string)
+    packageId = `PKG-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+  }
+
   const history = await SalesHistory.create({
     productId,
     batchId,
@@ -58,6 +64,7 @@ export const recordSale = catchAsyncErrors(async (req, res) => {
     action,
     referenceItemIds,
     notes,
+    ...(packageId && { packageId }),
   });
 
   res.status(201).json({ message: "Sales record created", history });
@@ -76,6 +83,19 @@ export const getAllSales = catchAsyncErrors(async (req, res) => {
 export const getSaleById = catchAsyncErrors(async (req, res) => {
   const { id } = req.params;
   const record = await SalesHistory.findById(id)
+    .populate("productId", "productName")
+    .populate("batchId", "batchNumber")
+    .populate("warehouseId", "warehouseName")
+    .populate("referenceItemIds", "serialNumber status");
+
+  if (!record) return res.status(404).json({ message: "Record not found." });
+
+  res.status(200).json(record);
+});
+
+export const getSaleByPackageId = catchAsyncErrors(async (req, res) => {
+  const { packageId } = req.params;
+  const record = await SalesHistory.findOne({ packageId })
     .populate("productId", "productName")
     .populate("batchId", "batchNumber")
     .populate("warehouseId", "warehouseName")

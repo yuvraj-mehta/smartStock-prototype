@@ -79,12 +79,16 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
   supplierIds: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ExternalUser",
     }
   ],
-}, { timestamps: true });     // Automatically adds createdAt and updatedAt
+}, { timestamps: true });
 
 export const Product = mongoose.model('Product', productSchema);

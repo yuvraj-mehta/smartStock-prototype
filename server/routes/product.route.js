@@ -17,32 +17,38 @@ const router = Router();
 router.get("/", (req, res) => {
   res.send("Welcome to the Product API");
 });
-router.post("/add",
+
+router.post(
+  "/add",
   isAuthenticated,
   isAuthorized("admin"),
   createProductValidation,
   createProduct
-)
-router.get("/all",
+);
+router.get(
+  "/all",
   isAuthenticated,
   isAuthorized("admin", "staff"),
   getAllProducts
-)
-router.get("/:id",
+);
+router.get(
+  "/:id",
   isAuthenticated,
   isAuthorized("admin", "staff"),
   getProductById
-)
-router.delete("/delete/:id",
+);
+router.delete(
+  "/delete/:id",
   isAuthenticated,
   isAuthorized("admin"),
   deleteProductById
-)
-router.put("/update/:id",
+);
+router.put(
+  "/update/:id",
   isAuthenticated,
   isAuthorized("admin"),
   updateProductValidation,
   updateProductById
-)
+);
 
 export default router;

@@ -1,4 +1,4 @@
-import { Return } from "../models/Return.js";
+import { Return } from "../models/returns.model.js";
 import { Item } from "../models/item.model.js";
 import { Product } from "../models/product.model.js";
 import { Batch } from "../models/batch.model.js";

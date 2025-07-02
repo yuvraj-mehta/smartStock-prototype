@@ -20,6 +20,22 @@ const externalUserSchema = new mongoose.Schema({
     enum: ['active', 'inactive', 'suspended'],
     default: 'inactive'
   },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  verificationToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordTokenExpires: {
+    type: Date,
+    default: null,
+  },
   warehouseId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Warehouse'

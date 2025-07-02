@@ -9,7 +9,6 @@ const createTransporter = catchAsyncErrors(async (req, res) => {
     email,
     password,
     phone,
-    warehouseId,
   } = req.body;
 
   // Check if email already exists
@@ -29,7 +28,7 @@ const createTransporter = catchAsyncErrors(async (req, res) => {
     password: hashedPassword,
     phone,
     role: "transporter",
-    warehouseId,
+    warehouseId: req.user.warehouseId,
   });
 
   return res.status(201).json({

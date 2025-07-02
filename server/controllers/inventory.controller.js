@@ -1,4 +1,4 @@
-import { Batch, Inventory, IncomingSupply, Item, Product, Transport } from "../models/index.js";
+import { Batch, Inventory, IncomingSupply, Item, Product } from "../models/index.js";
 import { v4 as uuidv4 } from "uuid";
 import { catchAsyncErrors } from "../middlewares/index.js";
 
@@ -94,10 +94,37 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
     })
     .populate("warehouseId", "warehouseName address.city address.state");
 
+  // Group inventory by product
+  const productMap = {};
+  for (const entry of inventory) {
+    const batch = entry.batchId;
+    if (!batch || !batch.productId) continue;
+    const productId = batch.productId._id.toString();
+    if (!productMap[productId]) {
+      productMap[productId] = {
+        product: batch.productId,
+        batches: [],
+        totalQuantity: 0,
+      };
+    }
+    productMap[productId].batches.push({
+      batchId: batch._id,
+      batchNumber: batch.batchNumber,
+      supplier: batch.supplierId,
+      quantity: entry.quantity,
+      mfgDate: batch.mfgDate,
+      expDate: batch.expDate,
+      warehouse: entry.warehouseId,
+    });
+    productMap[productId].totalQuantity += entry.quantity;
+  }
+
+  const products = Object.values(productMap);
+
   return res.status(200).json({
     message: "Inventory fetched successfully.",
-    totalBatches: inventory.length,
-    inventory,
+    totalProducts: products.length,
+    products,
   });
 });
 
@@ -125,7 +152,6 @@ export const getInventoryByProduct = catchAsyncErrors(async (req, res) => {
     data: filteredEntries,
   });
 });
-
 
 // adjust inventory 
 export const markDamagedInventory = catchAsyncErrors(async (req, res) => {

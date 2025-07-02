@@ -10,10 +10,10 @@ import authRouter from './routes/auth.route.js';
 import itemRouter from './routes/item.route.js';
 import transportRouter from './routes/transport.route.js';
 import healthRouter from './routes/health.route.js'
-import salesRouter from './routes/sales.routes.js';
+import salesRouter from './routes/sales.route.js';
 import returnRouter from './routes/return.route.js';
 
-app.use(cors(corsConfig))
+app.use(cors(corsConfig));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

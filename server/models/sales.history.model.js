@@ -40,6 +40,12 @@ const SalesHistorySchema = new mongoose.Schema(
     notes: {
       type: String,
     },
+    packageId: {
+      type: String,
+      required: function () { return this.action === "dispatched"; },
+      unique: true,
+      sparse: true,
+    },
   },
   { timestamps: true }
 );
