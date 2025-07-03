@@ -23,14 +23,14 @@ const itemSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["in_stock", "dispatched", "returned", "damaged"],
+      enum: ["in_stock", "allocated", "packed", "shipped", "dispatched", "delivered", "returned", "damaged"],
       default: "in_stock",
     },
     history: [
       {
         action: {
           type: String,
-          enum: ["added", "dispatched", "returned", "transferred", "damaged"],
+          enum: ["added", "allocated", "packed", "shipped", "dispatched", "delivered", "returned", "damaged"],
         },
         date: { type: Date, default: Date.now },
         location: { type: String },

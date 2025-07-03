@@ -1,5 +1,5 @@
 import React from "react";
-import Navbar from "../components/Navbar";
+// import Navbar from "../components/Navbar";
 // import Footer from "../components/Footer"; // Uncomment if you have a Footer component
 import { AlertTriangle, MapPin, TrendingUp, Package, Plus, ArrowUpRight, Activity } from 'lucide-react';
 import { Link, useLocation } from "react-router-dom";
@@ -40,7 +40,7 @@ const DashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
-      <Navbar />
+      {/* <Navbar /> */}
       <main className="flex-1 p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}

@@ -1,12 +1,9 @@
-
 import { useSelector } from "react-redux";
-import Navbar from "../components/Navbar";
 
 const HomePage = () => {
   const { user } = useSelector((state) => state.auth);
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100">
-      <Navbar />
       <main className="max-w-5xl mx-auto px-4 py-12">
         <section className="bg-white/90 rounded-2xl shadow-xl border border-yellow-200 flex flex-col items-center py-12 px-6 mb-10 animate-fade-in">
           <h1 className="text-4xl font-extrabold text-yellow-500 mb-2 flex items-center gap-2">

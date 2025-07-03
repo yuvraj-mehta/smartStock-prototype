@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../app/slices/authSlice';
 import {
@@ -48,9 +48,9 @@ const Navbar = () => {
             {navItems.map(({ path, icon: Icon, label }, idx) => {
               const isActive = location.pathname === path;
               return (
-                <a
+                <Link
                   key={path}
-                  href={path}
+                  to={path}
                   className={`flex items-center space-x-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
                     ${isActive ? 'bg-blue-600 text-white shadow-lg font-extrabold border-2 border-blue-700 scale-105' : 'text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm'}
                     ${idx !== 0 ? 'ml-1' : ''}`}
@@ -58,7 +58,7 @@ const Navbar = () => {
                 >
                   <Icon className={`h-4 w-4 ${isActive ? 'text-white drop-shadow' : ''}`} />
                   <span className="hidden xl:inline">{label}</span>
-                </a>
+                </Link>
               );
             })}
             {/* More menu removed, User Management is now on the navbar */}
@@ -89,9 +89,9 @@ const Navbar = () => {
             {navItems.map(({ path, icon: Icon, label }) => {
               const isActive = location.pathname === path;
               return (
-                <a
+                <Link
                   key={path}
-                  href={path}
+                  to={path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
                     ${isActive ? 'bg-blue-600 text-white font-extrabold border-2 border-blue-700 scale-105 shadow-lg' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'}`}
@@ -99,7 +99,7 @@ const Navbar = () => {
                 >
                   <Icon className={`h-4 w-4 ${isActive ? 'text-white drop-shadow' : ''}`} />
                   <span>{label}</span>
-                </a>
+                </Link>
               );
             })}
             {/* Mobile User Section */}
@@ -120,21 +120,10 @@ function UserSection() {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
-  if (!isAuthenticated || !user) {
-    // Show Login button when logged out
-    return (
-      <a
-        href="/login"
-        className="px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all duration-150 border border-blue-600 shadow"
-      >
-        Login
-      </a>
-    );
-  }
-  const avatarUrl = user.avatar || null;
-  const initials = user.fullName
+  const avatarUrl = user && user.avatar ? user.avatar : null;
+  const initials = user && user.fullName
     ? user.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : (user.name || user.email || '').slice(0, 2).toUpperCase();
+    : (user && (user.name || user.email) ? (user.name || user.email).slice(0, 2).toUpperCase() : '');
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -153,7 +142,17 @@ function UserSection() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  // No custom dropdownStyle needed; use Tailwind classes for alignment
+  if (!isAuthenticated || !user) {
+    // Show Login button when logged out
+    return (
+      <Link
+        to="/login"
+        className="px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all duration-150 border border-blue-600 shadow"
+      >
+        Login
+      </Link>
+    );
+  }
 
   return (
     <div className="hidden lg:flex items-center flex-shrink-0 relative">

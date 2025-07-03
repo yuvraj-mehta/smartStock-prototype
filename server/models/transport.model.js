@@ -71,6 +71,58 @@ const transportSchema = new mongoose.Schema({
   dispatchedAt: {
     type: Date
   },
+  deliveredAt: {
+    type: Date
+  },
+  estimatedDeliveryDate: {
+    type: Date
+  },
+  actualDeliveryDate: {
+    type: Date
+  },
+  deliverySignature: {
+    type: String
+  },
+  deliveryNotes: {
+    type: String
+  },
+  deliveryPhotos: [{
+    type: String // URLs to delivery photos
+  }],
+  statusHistory: [{
+    status: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    location: {
+      type: String
+    },
+    notes: {
+      type: String
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ExternalUser'
+    }
+  }],
+  returnReason: {
+    type: String
+  },
+  returnDate: {
+    type: Date
+  },
+  customerRating: {
+    type: Number,
+    min: 1,
+    max: 5
+  },
+  customerFeedback: {
+    type: String
+  },
   updatedAt: {
     type: Date,
     default: Date.now

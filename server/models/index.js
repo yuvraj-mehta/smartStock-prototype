@@ -10,3 +10,4 @@ export { Wage } from "./wage.model.js";
 export { Warehouse } from "./warehouse.model.js";
 export { SalesHistory } from "./sales.history.model.js";
 export { Return } from "./returns.model.js";
+export { FulfillmentOrder } from "./fulfillmentOrder.model.js";

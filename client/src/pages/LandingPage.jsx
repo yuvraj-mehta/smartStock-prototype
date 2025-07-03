@@ -1,13 +1,11 @@
 import React from "react";
 import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
 
 const LandingPage = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <Navbar />
       <main>
         {/* Hero Section */}
         <section className="relative py-20 px-4 sm:px-6 lg:px-8">
