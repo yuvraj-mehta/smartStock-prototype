@@ -7,7 +7,6 @@ import {
   Package,
   Brain,
   Users,
-  Home,
   LogOut,
   Truck,
   Settings,
@@ -20,15 +19,13 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navItems = [
-    { path: '/', icon: Home, label: 'Home' },
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/products', icon: Settings, label: 'Products' },
-    { path: '/sales', icon: BarChart3, label: 'Sales' },
-    { path: '/transport', icon: Truck, label: 'Transport' },
-    { path: '/returns', icon: RotateCcw, label: 'Returns' },
+    { path: '/sales', icon: BarChart3, label: 'Sales & Returns' },
     { path: '/ai-assistant', icon: Brain, label: 'AI Assistant' },
-    { path: '/users', icon: Users, label: 'Users' },
+    { path: '/transport', icon: Truck, label: 'Transport' },
+    { path: '/users', icon: Users, label: 'Admin' },
   ];
   const toggleMenu = () => setIsMobileMenuOpen((v) => !v);
   return (
@@ -47,47 +44,24 @@ const Navbar = () => {
         </div>
         {/* Desktop Navigation - center */}
         <div className="hidden lg:flex items-center justify-center flex-1 max-w-4xl">
-          <div className="flex items-center space-x-1 bg-gray-50/80 rounded-xl p-1 shadow-inner">
-            {navItems.slice(0, 6).map(({ path, icon: Icon, label }) => {
+          <div className="flex items-center gap-2 bg-gray-50/80 rounded-xl p-1 shadow-inner">
+            {navItems.map(({ path, icon: Icon, label }, idx) => {
               const isActive = location.pathname === path;
               return (
                 <a
                   key={path}
                   href={path}
                   className={`flex items-center space-x-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
-                    ${isActive ? 'bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 shadow font-bold' : 'text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm'}`}
-                  style={isActive ? { boxShadow: '0 2px 8px 0 rgba(99,102,241,0.10)' } : {}}
+                    ${isActive ? 'bg-blue-600 text-white shadow-lg font-extrabold border-2 border-blue-700 scale-105' : 'text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm'}
+                    ${idx !== 0 ? 'ml-1' : ''}`}
+                  style={isActive ? { boxShadow: '0 4px 16px 0 rgba(37,99,235,0.18)' } : {}}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-blue-600' : ''}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-white drop-shadow' : ''}`} />
                   <span className="hidden xl:inline">{label}</span>
                 </a>
               );
             })}
-            {/* More menu for additional items */}
-            <div className="relative group">
-              <button className="flex items-center space-x-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm">
-                <Settings className="h-4 w-4" />
-                <span className="hidden xl:inline">More</span>
-              </button>
-              {/* Dropdown for additional items */}
-              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                {navItems.slice(6).map(({ path, icon: Icon, label }) => {
-                  const isActive = location.pathname === path;
-                  return (
-                    <a
-                      key={path}
-                      href={path}
-                      className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium first:rounded-t-xl last:rounded-b-xl transition-all duration-200
-                        ${isActive ? 'bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 font-bold' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'}`}
-                      style={isActive ? { boxShadow: '0 2px 8px 0 rgba(99,102,241,0.10)' } : {}}
-                    >
-                      <Icon className={`h-4 w-4 ${isActive ? 'text-blue-600' : ''}`} />
-                      <span>{label}</span>
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
+            {/* More menu removed, User Management is now on the navbar */}
           </div>
         </div>
         {/* User Info & Actions - stick to extreme right */}
@@ -120,10 +94,10 @@ const Navbar = () => {
                   href={path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
-                    ${isActive ? 'bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 font-bold' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'}`}
-                  style={isActive ? { boxShadow: '0 2px 8px 0 rgba(99,102,241,0.10)' } : {}}
+                    ${isActive ? 'bg-blue-600 text-white font-extrabold border-2 border-blue-700 scale-105 shadow-lg' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'}`}
+                  style={isActive ? { boxShadow: '0 4px 16px 0 rgba(37,99,235,0.18)' } : {}}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-blue-600' : ''}`} />
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-white drop-shadow' : ''}`} />
                   <span>{label}</span>
                 </a>
               );

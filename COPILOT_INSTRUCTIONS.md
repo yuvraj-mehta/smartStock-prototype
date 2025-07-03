@@ -350,4 +350,4 @@ server/
 
 Remember: Always prioritize security, performance, and maintainability in all code contributions to the SmartStock project.
 
-use the inspiration frontend inside the inspiration folder in the root directory to take help in designing the frontend
+Remember: use the inspiration frontend inside the inspiration folder in the root directory to take help in designing the frontend

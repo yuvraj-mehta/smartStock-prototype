@@ -7,7 +7,7 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/Dashboard.jsx";
 import HomePage from "./pages/HomePage";
-import NotFound from "../src/NotFound";
+import { NotFound } from "./components";
 
 const App = () => {
   const dispatch = useDispatch();
