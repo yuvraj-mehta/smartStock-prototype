@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const conf = {
-  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:9000'],
+  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(','),
 
   mongoUri: process.env.MONGO_URI,
   // mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/myapp',

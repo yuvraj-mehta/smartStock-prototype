@@ -7,7 +7,7 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/Dashboard.jsx";
 import HomePage from "./pages/HomePage";
-import { NotFound } from "./components";
+import { NotFound, Footer } from "./components";
 
 const App = () => {
   const dispatch = useDispatch();
@@ -33,19 +33,24 @@ const App = () => {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={isAuthenticated ? <HomePage /> : <LandingPage />} />
-        <Route
-          path="/login"
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-        />
-        <Route
-          path="/dashboard"
-          element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />}
-        />
-        {/* Add more routes here as needed */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1 }}>
+          <Routes>
+            <Route path="/" element={isAuthenticated ? <HomePage /> : <LandingPage />} />
+            <Route
+              path="/login"
+              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+            />
+            <Route
+              path="/dashboard"
+              element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" replace />}
+            />
+            {/* Add more routes here as needed */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+        <Footer />
+      </div>
     </Router>
   );
 };
