@@ -100,7 +100,7 @@ export const updateTransportStatus = async (req, res) => {
 
   const previousStatus = transport.status;
   transport.status = status;
-  
+
   // Update timestamps based on status
   if (status === "dispatched") transport.dispatchedAt = new Date();
   if (status === "delivered") {
@@ -137,10 +137,10 @@ export const updateTransportStatus = async (req, res) => {
     await order.save();
   }
 
-  res.json({ 
-    message: "Transport status updated", 
+  res.json({
+    message: "Transport status updated",
     transport,
     previousStatus,
-    newStatus: status 
+    newStatus: status
   });
 };

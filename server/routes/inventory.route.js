@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { isAuthenticated, isAuthorized } from "../middlewares/index.js";
-import { addInventorySupply, viewInventory, getInventoryByProduct, markDamagedInventory } from "../controllers/index.js";
+import { addInventorySupply, viewInventory, getInventoryByProduct, markDamagedInventory, getRealTimeInventoryStatus, trackBatchByNumber } from "../controllers/index.js";
 import { addSupplyValidation } from "../validators/index.js";
 
 const router = Router();
@@ -35,6 +35,21 @@ router.post(
   isAuthenticated,
   isAuthorized("admin", "staff"),
   markDamagedInventory
+);
+
+// New tracking and analytics routes (safe additions)
+router.get(
+  "/real-time",
+  isAuthenticated,
+  isAuthorized("admin", "staff"),
+  getRealTimeInventoryStatus
+);
+
+router.get(
+  "/batch/track/:batchNumber",
+  isAuthenticated,
+  isAuthorized("admin", "staff"),
+  trackBatchByNumber
 );
 
 export default router;

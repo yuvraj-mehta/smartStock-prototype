@@ -9,6 +9,9 @@ import HomePage from "./pages/HomePage";
 import ProductsPage from "./pages/ProductsPage.jsx";
 import InventoryPage from "./pages/InventoryPage.jsx";
 import TransportPage from "./pages/TransportPage.jsx";
+import AdminPage from "./pages/AdminPage.jsx";
+import SalesPage from "./pages/SalesPage.jsx";
+import AIAssistantPage from "./pages/AIAssistantPage.jsx";
 import { NotFound, Footer, Navbar } from "./components";
 
 const App = () => {
@@ -57,8 +60,20 @@ const App = () => {
               element={isAuthenticated ? <InventoryPage /> : <Navigate to="/login" replace />}
             />
             <Route
+              path="/sales"
+              element={isAuthenticated ? <SalesPage /> : <Navigate to="/login" replace />}
+            />
+            <Route
               path="/transport"
               element={isAuthenticated ? <TransportPage /> : <Navigate to="/login" replace />}
+            />
+            <Route
+              path="/admin"
+              element={isAuthenticated ? <AdminPage /> : <Navigate to="/login" replace />}
+            />
+            <Route
+              path="/ai-assistant"
+              element={isAuthenticated ? <AIAssistantPage /> : <Navigate to="/login" replace />}
             />
             {/* Add more routes here as needed */}
             <Route path="*" element={<NotFound />} />

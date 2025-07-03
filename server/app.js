@@ -21,13 +21,13 @@ app.use(express.urlencoded({ extended: true }));
 // Define routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/user', userRouter);
-app.use('/api/v1/health', healthRouter);
+app.use('/api/v1/item', itemRouter);
 app.use('/api/v1/sales', salesRouter);
+app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/return', returnRouter);
 app.use('/api/v1/product', productRouter);
-app.use('/api/v1/inventory', inventoryRouter);
-app.use('/api/v1/item', itemRouter);
 app.use('/api/v1/transport', transportRouter);
+app.use('/api/v1/inventory', inventoryRouter);
 app.use('/api/v1/fulfillment', fulfillmentOrderRouter);
 
 // 404 handler for undefined routes

@@ -58,22 +58,13 @@ const productSchema = new mongoose.Schema({
   },
   restockRecommended: {
     type: Boolean,
-    default: function() {
+    default: function () {
       return this.quantity <= this.thresholdLimit;
     }
   },
   shelfLifeDays: {
     type: Number,
     required: true,
-  },
-  batchNumber: {
-    type: Number,
-  },
-  mfgDate: {
-    type: Date,
-  },
-  expDate: {
-    type: Date,
   },
   isActive: {
     type: Boolean,

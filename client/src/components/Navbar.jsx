@@ -18,6 +18,8 @@ import {
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { user } = useSelector((state) => state.auth);
+
   const navItems = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
@@ -25,7 +27,7 @@ const Navbar = () => {
     { path: '/sales', icon: BarChart3, label: 'Sales & Returns' },
     { path: '/ai-assistant', icon: Brain, label: 'AI Assistant' },
     { path: '/transport', icon: Truck, label: 'Transport' },
-    { path: '/users', icon: Users, label: 'Admin' },
+    ...(user?.role === 'admin' ? [{ path: '/admin', icon: Users, label: 'Admin Panel' }] : []),
   ];
   const toggleMenu = () => setIsMobileMenuOpen((v) => !v);
   return (

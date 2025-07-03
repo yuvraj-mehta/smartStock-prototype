@@ -36,9 +36,9 @@ export const createReturn = catchAsyncErrors(async (req, res) => {
     const Order = (await import("../models/order.model.js")).Order;
     order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ message: "Order not found." });
-    
+
     // Update order status to returned/partially_returned
-    const isFullReturn = order.items.every(item => 
+    const isFullReturn = order.items.every(item =>
       item.productId.toString() === productId && item.quantity === quantity
     );
     order.orderStatus = isFullReturn ? 'returned' : 'partially_returned';
@@ -114,10 +114,10 @@ export const createReturn = catchAsyncErrors(async (req, res) => {
     notes: `${returnType}: ${reason}`,
   });
 
-  res.status(201).json({ 
-    message: "Return recorded successfully", 
+  res.status(201).json({
+    message: "Return recorded successfully",
     returnRecord,
-    returnNumber 
+    returnNumber
   });
 });
 

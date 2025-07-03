@@ -192,3 +192,121 @@ export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
     message: `${quantity} item(s) marked as damaged and inventory adjusted.`,
   });
 });
+
+// Real-time inventory status (safe addition)
+export const getRealTimeInventoryStatus = catchAsyncErrors(async (req, res) => {
+  const { warehouseId, productId } = req.query;
+
+  const matchStage = {};
+  if (warehouseId) matchStage.warehouseId = new mongoose.Types.ObjectId(warehouseId);
+
+  const inventoryStatus = await Inventory.aggregate([
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: 'batches',
+        localField: 'batchId',
+        foreignField: '_id',
+        as: 'batch'
+      }
+    },
+    { $unwind: '$batch' },
+    {
+      $lookup: {
+        from: 'products',
+        localField: 'batch.productId',
+        foreignField: '_id',
+        as: 'product'
+      }
+    },
+    { $unwind: '$product' },
+    ...(productId ? [{ $match: { 'product._id': new mongoose.Types.ObjectId(productId) } }] : []),
+    {
+      $group: {
+        _id: '$product._id',
+        productName: { $first: '$product.productName' },
+        sku: { $first: '$product.sku' },
+        totalQuantity: { $sum: '$quantity' },
+        thresholdLimit: { $first: '$product.thresholdLimit' },
+        batches: {
+          $push: {
+            batchId: '$batch._id',
+            batchNumber: '$batch.batchNumber',
+            quantity: '$quantity',
+            mfgDate: '$batch.mfgDate',
+            expDate: '$batch.expDate',
+            status: '$batch.status'
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        stockStatus: {
+          $cond: {
+            if: { $lte: ['$totalQuantity', '$thresholdLimit'] },
+            then: 'low',
+            else: { $cond: { if: { $eq: ['$totalQuantity', 0] }, then: 'out_of_stock', else: 'in_stock' } }
+          }
+        }
+      }
+    }
+  ]);
+
+  res.json({
+    message: "Real-time inventory status",
+    timestamp: new Date().toISOString(),
+    inventoryStatus
+  });
+});
+
+// Track batch by number
+export const trackBatchByNumber = catchAsyncErrors(async (req, res) => {
+  const { batchNumber } = req.params;
+  
+  const batch = await Batch.findOne({ batchNumber })
+    .populate('productId', 'productName sku price')
+    .populate('warehouseId', 'warehouseName address')
+    .populate('supplierId', 'fullName companyName');
+
+  if (!batch) {
+    return res.status(404).json({ message: "Batch not found" });
+  }
+
+  // Get items in this batch
+  const items = await Item.find({ batchId: batch._id })
+    .select('serialNumber status')
+    .sort('status');
+
+  // Get inventory info
+  const inventory = await Inventory.findOne({ batchId: batch._id });
+
+  const batchTracking = {
+    batchInfo: {
+      batchNumber: batch.batchNumber,
+      product: batch.productId,
+      supplier: batch.supplierId,
+      warehouse: batch.warehouseId,
+      originalQuantity: batch.quantity,
+      currentQuantity: inventory?.quantity || 0,
+      mfgDate: batch.mfgDate,
+      expDate: batch.expDate,
+      receivedAt: batch.receivedAt,
+      status: batch.status,
+      condition: batch.condition
+    },
+    itemsBreakdown: {
+      total: items.length,
+      statusCounts: items.reduce((acc, item) => {
+        acc[item.status] = (acc[item.status] || 0) + 1;
+        return acc;
+      }, {}),
+      items: items
+    }
+  };
+
+  res.json({
+    message: "Batch tracking information",
+    batchTracking
+  });
+});

@@ -20,7 +20,7 @@ graph TD
     F[👤 Customer Places Order] --> G[✅ Order Validation & Creation]
     G --> H[💰 Price Calculation with Tax & Shipping]
     H --> I[📋 Order Confirmation Status]
-    
+
     %% Order Processing Phase
     I --> J[🔄 Order Processing Initiated]
     J --> K[📦 Inventory Allocation FIFO]
@@ -28,42 +28,42 @@ graph TD
     L --> M[📮 Package ID & Tracking Number Generation]
     M --> N[🚛 Transport Record Creation]
     N --> O[📉 Inventory Reduction]
-    
+
     %% Fulfillment & Tracking Phase
     O --> P[🚀 Package Dispatched]
     P --> Q[📍 Real-time Status Updates]
     Q --> R[🚛 In Transit]
     R --> S[📍 Location Tracking]
     S --> T[📋 Delivery Attempt]
-    
+
     %% Delivery Confirmation Phase
     T --> U{✅ Successful Delivery?}
     U -->|Yes| V[📝 Delivery Confirmation]
     U -->|No| W[🔄 Retry Delivery]
     W --> T
-    
+
     V --> X[📸 Delivery Signature & Photos]
     X --> Y[⭐ Customer Rating & Feedback]
     Y --> Z[🏷️ Item Status: dispatched → delivered]
     Z --> AA[📊 Order Status: delivered]
-    
+
     %% Post-Delivery Phase
     AA --> BB{😊 Customer Satisfied?}
     BB -->|Yes| CC[✅ Order Complete]
     BB -->|No| DD[📞 Return Request]
-    
+
     %% Returns Processing Phase
     DD --> EE[📋 Return Initiation]
     EE --> FF[🔍 Return Type Classification]
     FF --> GG{🔍 Item Condition Check}
-    
+
     GG -->|Good Condition| HH[📦 Restock to Inventory]
     GG -->|Damaged/Defective| II[🗑️ Mark as Damaged]
-    
+
     HH --> JJ[💰 Process Refund]
     II --> JJ
     JJ --> KK[📊 Return Analytics Update]
-    
+
     %% Continuous Monitoring
     LL[📊 Analytics & Reporting] --> MM[📈 Performance Metrics]
     MM --> NN[🔄 Process Optimization]
@@ -76,14 +76,16 @@ graph TD
 ### **Phase 1: Product Arrival & Stock Management**
 
 #### 1.1 Product Reception
+
 - **Trigger**: Supplier ships products to warehouse
-- **Process**: 
+- **Process**:
   1. Goods received at warehouse dock
   2. Quality inspection performed
   3. Batch creation with manufacturing and expiry dates
   4. Supplier information recorded
 
 #### 1.2 Item Generation & Inventory Update
+
 - **Process**:
   1. Generate unique serial numbers for each item
   2. Create individual item records with status "in_stock"
@@ -94,10 +96,11 @@ graph TD
 **API Endpoint**: `POST /api/v1/inventory/add-supply`
 
 **Required Data**:
+
 ```json
 {
   "productId": "product_id",
-  "supplierId": "supplier_id", 
+  "supplierId": "supplier_id",
   "warehouseId": "warehouse_id",
   "quantity": 100,
   "mfgDate": "2025-06-01",
@@ -111,6 +114,7 @@ graph TD
 ### **Phase 2: Customer Order Management**
 
 #### 2.1 Order Creation
+
 - **Trigger**: Customer places order through system
 - **Process**:
   1. Validate customer information
@@ -123,6 +127,7 @@ graph TD
 **API Endpoint**: `POST /api/v1/order/create`
 
 **Required Data**:
+
 ```json
 {
   "customerId": "customer_id",
@@ -136,7 +141,7 @@ graph TD
   "shippingAddress": {
     "street": "123 Main St",
     "city": "City",
-    "state": "State", 
+    "state": "State",
     "zipcode": "12345",
     "country": "Country"
   },
@@ -145,6 +150,7 @@ graph TD
 ```
 
 #### 2.2 Order Validation & Confirmation
+
 - **Process**:
   1. Inventory availability check
   2. Price calculation with tax (10%) and shipping
@@ -156,6 +162,7 @@ graph TD
 ### **Phase 3: Order Processing & Fulfillment**
 
 #### 3.1 Order Processing
+
 - **Trigger**: Staff initiates order processing
 - **Process**:
   1. Allocate specific items from inventory (FIFO)
@@ -168,6 +175,7 @@ graph TD
 **API Endpoint**: `POST /api/v1/order/process/:orderId`
 
 **Required Data**:
+
 ```json
 {
   "assignedTransporter": "transporter_id",
@@ -176,11 +184,12 @@ graph TD
 ```
 
 #### 3.2 Package Generation
+
 - **Package ID Format**: `PKG-{timestamp}-{random}`
 - **Tracking Number Format**: `TRK-{uuid}`
 - **Transport Metrics Calculated**:
   - Total weight
-  - Total volume  
+  - Total volume
   - Total value
   - Transport cost
 
@@ -189,11 +198,13 @@ graph TD
 ### **Phase 4: Transport & Delivery Tracking**
 
 #### 4.1 Transport Status Updates
+
 - **Status Progression**: `dispatched` → `intransit` → `delivered`
 - **Real-time Updates**: Location tracking and delivery attempts
 - **API Endpoint**: `PATCH /api/v1/transport/update/:id`
 
 **Status Update Data**:
+
 ```json
 {
   "status": "intransit",
@@ -203,6 +214,7 @@ graph TD
 ```
 
 #### 4.2 Delivery Confirmation
+
 - **Process**:
   1. Delivery attempt made
   2. Signature and photos captured
@@ -213,6 +225,7 @@ graph TD
 **API Endpoint**: `POST /api/v1/order/confirm-delivery/:orderId`
 
 **Confirmation Data**:
+
 ```json
 {
   "deliverySignature": "signature_data",
@@ -228,6 +241,7 @@ graph TD
 ### **Phase 5: Post-Delivery & Returns Processing**
 
 #### 5.1 Customer Satisfaction Monitoring
+
 - **Metrics Tracked**:
   - Delivery time vs. expected
   - Customer ratings
@@ -235,6 +249,7 @@ graph TD
   - Return requests
 
 #### 5.2 Returns Processing
+
 - **Return Types**:
   - `defective`: Manufacturing defects
   - `damaged`: Shipping damage
@@ -245,6 +260,7 @@ graph TD
 **API Endpoint**: `POST /api/v1/return/`
 
 **Return Data**:
+
 ```json
 {
   "orderId": "order_id",
@@ -259,6 +275,7 @@ graph TD
 ```
 
 #### 5.3 Return Processing Workflow
+
 1. **Return Initiation**: Customer requests return
 2. **Classification**: Categorize return type
 3. **Inspection**: Check item condition
@@ -271,30 +288,35 @@ graph TD
 ## 🎯 Key Tracking Capabilities
 
 ### **📊 Item-Level Tracking**
+
 - **Serial Number Tracking**: Every item has unique identification
 - **Status History**: Complete audit trail from arrival to delivery
 - **Location Tracking**: Real-time location updates throughout lifecycle
 - **Batch Traceability**: Link items to specific batches with dates
 
 ### **📈 Order Management**
+
 - **Order Lifecycle**: From creation to completion/return
 - **Customer Integration**: Complete customer order history
 - **Inventory Allocation**: Automatic FIFO-based allocation
 - **Multi-item Orders**: Handle complex orders with multiple products
 
 ### **🚛 Transport & Delivery**
+
 - **Real-time Tracking**: Package and transport status updates
 - **Delivery Confirmation**: Signatures, photos, and customer feedback
 - **Performance Metrics**: Delivery times and customer satisfaction
 - **Route Optimization**: Transport mode and cost tracking
 
 ### **🔄 Returns Processing**
+
 - **Return Classification**: Categorize return reasons
 - **Inventory Restoration**: Automatic restocking for good returns
 - **Damage Tracking**: Separate handling for damaged items
 - **Refund Processing**: Complete refund workflow
 
 ### **📊 Analytics & Reporting**
+
 - **Customer Analytics**: Order patterns and lifetime value
 - **Product Performance**: Sales velocity and return rates
 - **Inventory Optimization**: Stock levels and turnover rates
@@ -305,36 +327,42 @@ graph TD
 ## 🆕 Enhanced Features Added
 
 ### **1. Customer Management System**
+
 - Complete customer profiles with contact information
 - Order history and purchase patterns
 - Customer type classification (individual/business)
 - Lifetime value tracking
 
 ### **2. Enhanced Order System**
+
 - Full order lifecycle with status tracking
 - Automatic inventory allocation using FIFO
 - Tax and shipping calculation
 - Order status history with timestamps
 
 ### **3. Advanced Transport Tracking**
+
 - Real-time status updates with location
 - Delivery confirmation with digital signatures
 - Photo documentation of deliveries
 - Customer feedback and rating system
 
 ### **4. Comprehensive Returns Processing**
+
 - Intelligent return type classification
 - Automated inventory restoration for good returns
 - Damage tracking and handling
 - Complete refund workflow with status tracking
 
 ### **5. Item-Level Traceability**
+
 - Individual item tracking with serial numbers
 - Complete history from arrival to delivery
 - Status updates at every lifecycle stage
 - Batch-level traceability for quality control
 
 ### **6. Business Intelligence Features**
+
 - Customer order patterns and analytics
 - Product performance metrics
 - Delivery performance tracking
@@ -345,6 +373,7 @@ graph TD
 ## 🔗 Complete API Reference
 
 ### **Product Arrival & Inventory**
+
 ```
 POST   /api/v1/inventory/add-supply      - Add new inventory supply
 GET    /api/v1/inventory/all             - View all inventory
@@ -353,6 +382,7 @@ POST   /api/v1/inventory/mark-damaged    - Mark inventory as damaged
 ```
 
 ### **Customer Management**
+
 ```
 POST   /api/v1/customer/create           - Create new customer
 GET    /api/v1/customer/                 - Get all customers
@@ -361,6 +391,7 @@ PUT    /api/v1/customer/:id              - Update customer details
 ```
 
 ### **Order Management**
+
 ```
 POST   /api/v1/order/create              - Create new order
 POST   /api/v1/order/process/:orderId    - Process order (allocate inventory)
@@ -371,6 +402,7 @@ GET    /api/v1/order/                    - Get all orders with filtering
 ```
 
 ### **Transport & Delivery**
+
 ```
 POST   /api/v1/transport/create          - Create transport record
 GET    /api/v1/transport/all             - Get all transports
@@ -378,6 +410,7 @@ PATCH  /api/v1/transport/update/:id      - Update transport status
 ```
 
 ### **Returns Processing**
+
 ```
 POST   /api/v1/return/                   - Create return record
 GET    /api/v1/return/                   - Get all returns
@@ -385,6 +418,7 @@ GET    /api/v1/return/:id                - Get return by ID
 ```
 
 ### **Sales & Analytics**
+
 ```
 POST   /api/v1/sales/record              - Record sale
 GET    /api/v1/sales/all                 - Get all sales
@@ -397,6 +431,7 @@ GET    /api/v1/sales/package/:packageId  - Get sale by package ID
 ## 📊 Data Models
 
 ### **Order Model**
+
 ```javascript
 {
   orderNumber: "ORD-{timestamp}-{random}",
@@ -432,6 +467,7 @@ GET    /api/v1/sales/package/:packageId  - Get sale by package ID
 ```
 
 ### **Customer Model**
+
 ```javascript
 {
   customerName: String,
@@ -447,6 +483,7 @@ GET    /api/v1/sales/package/:packageId  - Get sale by package ID
 ```
 
 ### **Enhanced Transport Model**
+
 ```javascript
 {
   packageId: String,
@@ -472,6 +509,7 @@ GET    /api/v1/sales/package/:packageId  - Get sale by package ID
 ```
 
 ### **Enhanced Returns Model**
+
 ```javascript
 {
   returnNumber: String,
@@ -492,6 +530,7 @@ GET    /api/v1/sales/package/:packageId  - Get sale by package ID
 ## 🔄 Status Transitions
 
 ### **Order Status Flow**
+
 ```
 pending → confirmed → processing → dispatched → delivered
                   ↓
@@ -501,6 +540,7 @@ pending → confirmed → processing → dispatched → delivered
 ```
 
 ### **Item Status Flow**
+
 ```
 in_stock → dispatched → delivered
      ↓
@@ -510,6 +550,7 @@ in_stock → dispatched → delivered
 ```
 
 ### **Transport Status Flow**
+
 ```
 pending → dispatched → intransit → delivered
                    ↓
@@ -517,6 +558,7 @@ pending → dispatched → intransit → delivered
 ```
 
 ### **Return Status Flow**
+
 ```
 pending → received → inspected → approved/rejected → refunded
 ```
@@ -526,24 +568,28 @@ pending → received → inspected → approved/rejected → refunded
 ## 🎯 Performance Metrics & Analytics
 
 ### **Order Metrics**
+
 - Order completion rate
 - Average order value
 - Order processing time
 - Customer satisfaction scores
 
 ### **Delivery Metrics**
+
 - On-time delivery rate
 - Average delivery time
 - Failed delivery attempts
 - Customer ratings
 
 ### **Inventory Metrics**
+
 - Stock turnover rate
 - Product velocity
 - Inventory accuracy
 - Waste/damage rates
 
 ### **Return Metrics**
+
 - Return rate by product
 - Return reason analysis
 - Processing time
@@ -554,6 +600,7 @@ pending → received → inspected → approved/rejected → refunded
 ## 🚀 Future Enhancements
 
 ### **Planned Features**
+
 1. **AI-Powered Demand Forecasting**
 2. **Automated Reorder Points**
 3. **Route Optimization for Deliveries**
@@ -564,6 +611,7 @@ pending → received → inspected → approved/rejected → refunded
 8. **IoT Integration for Live Tracking**
 
 ### **Integration Possibilities**
+
 - Payment gateways for automated transactions
 - SMS/Email notifications for status updates
 - Third-party logistics providers
@@ -575,12 +623,14 @@ pending → received → inspected → approved/rejected → refunded
 ## 📞 Support & Maintenance
 
 ### **Monitoring**
+
 - System health checks via `/api/v1/health`
 - Database performance monitoring
 - API response time tracking
 - Error rate monitoring
 
 ### **Backup & Recovery**
+
 - Automated daily database backups
 - Transaction log backups
 - Disaster recovery procedures
@@ -588,7 +638,7 @@ pending → received → inspected → approved/rejected → refunded
 
 ---
 
-*This documentation is maintained by the SmartStock development team and updated with each system enhancement.*
+_This documentation is maintained by the SmartStock development team and updated with each system enhancement._
 
 **Last Updated**: July 3, 2025  
 **Version**: 2.0  

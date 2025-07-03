@@ -5,11 +5,11 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
-    default: function() {
+    default: function () {
       return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     }
   },
-  
+
   // E-commerce platform details
   platformOrderId: {
     type: String,
@@ -21,14 +21,14 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     enum: ['shopify', 'amazon', 'website', 'manual'],
     default: 'manual'
   },
-  
+
   // Customer delivery details (no customer entity needed)
   customerInfo: {
     name: { type: String, required: true },
     email: { type: String, required: true },
     phone: { type: String, required: true }
   },
-  
+
   // Shipping address
   shippingAddress: {
     street: { type: String, required: true },
@@ -37,7 +37,7 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     zipcode: { type: String, required: true },
     country: { type: String, required: true, default: 'USA' }
   },
-  
+
   // Order items
   items: [{
     productId: {
@@ -50,7 +50,7 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true },
     totalPrice: { type: Number, required: true },
-    
+
     // Fulfillment details
     batchId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -61,27 +61,27 @@ const fulfillmentOrderSchema = new mongoose.Schema({
       ref: 'Item'
     }]
   }],
-  
+
   // Order financial details
   subtotal: { type: Number, required: true },
   tax: { type: Number, default: 0 },
   shipping: { type: Number, default: 0 },
   total: { type: Number, required: true },
-  
+
   // Order status tracking
   orderStatus: {
     type: String,
     enum: ['received', 'processing', 'packed', 'shipped', 'delivered', 'cancelled', 'returned'],
     default: 'received'
   },
-  
+
   // Processing details
   receivedAt: { type: Date, default: Date.now },
   processedAt: { type: Date },
   packedAt: { type: Date },
   shippedAt: { type: Date },
   deliveredAt: { type: Date },
-  
+
   // Staff assignment
   receivedBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -95,7 +95,7 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User' // Staff who packed the order
   },
-  
+
   // Shipping details
   packageId: { type: String },
   trackingNumber: { type: String },
@@ -108,14 +108,14 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     enum: ['standard', 'express', 'overnight', 'ground'],
     default: 'standard'
   },
-  
+
   // Analytics data
   priority: {
     type: String,
     enum: ['low', 'normal', 'high', 'urgent'],
     default: 'normal'
   },
-  
+
   // Processing time tracking (for analysis)
   processingTimes: {
     orderToProcessing: { type: Number }, // minutes
@@ -123,17 +123,17 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     packedToShipped: { type: Number }, // minutes
     shippedToDelivered: { type: Number } // hours
   },
-  
+
   // Special instructions
   packingNotes: { type: String },
   shippingNotes: { type: String },
   specialInstructions: { type: String },
-  
+
   // Return information
   returnReason: { type: String },
   returnDate: { type: Date },
   returnProcessed: { type: Boolean, default: false },
-  
+
   // Status history for tracking
   statusHistory: [{
     status: { type: String, required: true },
@@ -144,8 +144,8 @@ const fulfillmentOrderSchema = new mongoose.Schema({
     },
     notes: { type: String }
   }]
-  
-}, { 
+
+}, {
   timestamps: true,
   // Add indexes for performance
   indexes: [
@@ -157,7 +157,7 @@ const fulfillmentOrderSchema = new mongoose.Schema({
 });
 
 // Middleware to update status history
-fulfillmentOrderSchema.pre('save', function(next) {
+fulfillmentOrderSchema.pre('save', function (next) {
   if (this.isModified('orderStatus')) {
     this.statusHistory.push({
       status: this.orderStatus,

@@ -69,11 +69,11 @@ export const getProductById = catchAsyncErrors(async (req, res) => {
   if (req.user.role !== 'admin') {
     // Only expose non-sensitive fields
     const {
-      _id, productName, productImage, unit, manufacturer, productCategory, sku, price, quantity, weight, dimension, volume, thresholdLimit, mfgDate, expDate, shelfLifeDays, isActive, createdAt, updatedAt
+      _id, productName, productImage, unit, manufacturer, productCategory, sku, price, quantity, weight, dimension, volume, thresholdLimit, shelfLifeDays, isActive, createdAt, updatedAt
     } = product;
     return res.status(200).json({
       product: {
-        _id, productName, productImage, unit, manufacturer, productCategory, sku, price, quantity, weight, dimension, volume, thresholdLimit, mfgDate, expDate, shelfLifeDays, isActive, createdAt, updatedAt
+        _id, productName, productImage, unit, manufacturer, productCategory, sku, price, quantity, weight, dimension, volume, thresholdLimit, shelfLifeDays, isActive, createdAt, updatedAt
       }
     });
   }
@@ -85,7 +85,7 @@ export const getProductById = catchAsyncErrors(async (req, res) => {
 // get all products
 export const getAllProducts = catchAsyncErrors(async (req, res) => {
   if (req.user.role !== 'admin') {
-    const products = await Product.find({}, '-createdAt -updatedAt -__v -restockRecommended -supplierIds -batchNumber');
+    const products = await Product.find({}, '-createdAt -updatedAt -__v -restockRecommended -supplierIds');
 
     if (!products || products.length === 0) {
       return res.status(404).json({

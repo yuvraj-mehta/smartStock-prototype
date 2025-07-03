@@ -27,9 +27,9 @@ export const receiveOrder = catchAsyncErrors(async (req, res) => {
   // Check if order already exists
   const existingOrder = await FulfillmentOrder.findOne({ platformOrderId });
   if (existingOrder) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       message: "Order already exists in system",
-      existingOrder: existingOrder.orderNumber 
+      existingOrder: existingOrder.orderNumber
     });
   }
 
@@ -38,8 +38,8 @@ export const receiveOrder = catchAsyncErrors(async (req, res) => {
   for (const item of items) {
     const product = await Product.findById(item.productId);
     if (!product) {
-      return res.status(404).json({ 
-        message: `Product not found: ${item.sku}` 
+      return res.status(404).json({
+        message: `Product not found: ${item.sku}`
       });
     }
 
@@ -120,15 +120,15 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
   }
 
   if (order.orderStatus !== 'received') {
-    return res.status(400).json({ 
-      message: `Order cannot be processed. Current status: ${order.orderStatus}` 
+    return res.status(400).json({
+      message: `Order cannot be processed. Current status: ${order.orderStatus}`
     });
   }
 
   // Allocate inventory for each item (FIFO)
   for (let i = 0; i < order.items.length; i++) {
     const orderItem = order.items[i];
-    
+
     // Find available inventory batches (FIFO - oldest first)
     const inventoryBatches = await Inventory.find({})
       .populate({
@@ -145,7 +145,7 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
       if (!inventory.batchId || remainingQty <= 0) continue;
 
       const availableQty = Math.min(inventory.quantity, remainingQty);
-      
+
       // Find specific items to allocate
       const items = await Item.find({
         batchId: inventory.batchId._id,
@@ -174,7 +174,7 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
       await product.save();
 
       remainingQty -= availableQty;
-      
+
       // Set batch for this order item
       if (!orderItem.batchId) {
         orderItem.batchId = inventory.batchId._id;
@@ -190,7 +190,7 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
   order.processedAt = new Date();
   order.processedBy = req.user._id;
   order.packingNotes = packingNotes;
-  
+
   // Calculate processing time
   const processingTime = (order.processedAt - order.receivedAt) / (1000 * 60); // minutes
   order.processingTimes.orderToProcessing = processingTime;
@@ -215,14 +215,14 @@ export const packOrder = catchAsyncErrors(async (req, res) => {
   }
 
   if (order.orderStatus !== 'processing') {
-    return res.status(400).json({ 
-      message: `Order cannot be packed. Current status: ${order.orderStatus}` 
+    return res.status(400).json({
+      message: `Order cannot be packed. Current status: ${order.orderStatus}`
     });
   }
 
   // Generate package details
   const packageId = `PKG-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-  
+
   // Update item statuses to packed
   for (const orderItem of order.items) {
     await Item.updateMany(
@@ -272,8 +272,8 @@ export const shipOrder = catchAsyncErrors(async (req, res) => {
   }
 
   if (order.orderStatus !== 'packed') {
-    return res.status(400).json({ 
-      message: `Order cannot be shipped. Current status: ${order.orderStatus}` 
+    return res.status(400).json({
+      message: `Order cannot be shipped. Current status: ${order.orderStatus}`
     });
   }
 
@@ -429,9 +429,9 @@ export const trackOrder = catchAsyncErrors(async (req, res) => {
       { trackingNumber: identifier }
     ]
   })
-  .populate('items.productId', 'productName sku')
-  .populate('transportId')
-  .populate('receivedBy processedBy packedBy', 'fullName');
+    .populate('items.productId', 'productName sku')
+    .populate('transportId')
+    .populate('receivedBy processedBy packedBy', 'fullName');
 
   if (!order) {
     return res.status(404).json({ message: "Order not found" });
@@ -465,7 +465,7 @@ export const getAllOrders = catchAsyncErrors(async (req, res) => {
   } = req.query;
 
   let filter = {};
-  
+
   if (status) filter.orderStatus = status;
   if (platform) filter.platform = platform;
   if (priority) filter.priority = priority;
@@ -528,7 +528,7 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
 
   // Process returned items - restore to inventory if in good condition
   for (const returnedItem of returnedItems) {
-    const orderItem = order.items.find(item => 
+    const orderItem = order.items.find(item =>
       item.productId.toString() === returnedItem.productId
     );
 
