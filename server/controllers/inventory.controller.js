@@ -1,5 +1,6 @@
 import { Batch, Inventory, IncomingSupply, Item, Product } from "../models/index.js";
 import { v4 as uuidv4 } from "uuid";
+import mongoose from "mongoose";
 import { catchAsyncErrors } from "../middlewares/index.js";
 
 // Add inventory supply

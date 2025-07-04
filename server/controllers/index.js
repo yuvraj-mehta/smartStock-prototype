@@ -30,7 +30,9 @@ export {
   addInventorySupply,
   viewInventory,
   getInventoryByProduct,
-  markDamagedInventory
+  markDamagedInventory,
+  getRealTimeInventoryStatus,
+  trackBatchByNumber
 } from "./inventory.controller.js";
 
 export {
