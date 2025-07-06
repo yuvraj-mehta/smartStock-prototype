@@ -1,4 +1,3 @@
-
 import { createSlice } from "@reduxjs/toolkit";
 import axios from "axios";
 import { config } from "../../../config/config.js";
@@ -13,8 +12,6 @@ const initialState = {
   token: null,
   isAuthenticated: false,
 }
-
-
 
 const authSlice = createSlice({
   name: "auth",
@@ -64,6 +61,14 @@ const authSlice = createSlice({
       state.isAuthenticated = !!action.payload.token;
       state.loading = false;
       state.error = null;
+    },
+
+    updateUserData: (state, action) => {
+      state.user = { ...state.user, ...action.payload };
+      // Update localStorage as well
+      if (state.user) {
+        localStorage.setItem("user", JSON.stringify(state.user));
+      }
     },
 
     resetAuthSlice(state) {
@@ -121,5 +126,8 @@ export const logout = () => async (dispatch, getState) => {
     dispatch(authSlice.actions.logoutFailed(error.response?.data?.message || error.message));
   }
 };
+
+// Export the updateUserData action
+export const { updateUserData } = authSlice.actions;
 
 export default authSlice.reducer;

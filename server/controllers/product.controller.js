@@ -157,7 +157,7 @@ export const updateProductById = catchAsyncErrors(async (req, res) => {
     isActive,
   } = req.body;
   console.log(req.body);
-  
+
 
   product.productName = productName || product.productName;
   product.productImage = productImage || product.productImage;

@@ -1,5 +1,6 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 import TransportExpandableCard from "./TransportExpandableCard";
 
 const statusColors = {
@@ -130,256 +131,27 @@ const TransportPage = () => {
     // If clicking the same card, collapse it. Otherwise expand the new one.
     setExpandedCard(expandedCard === transportId ? null : transportId);
   };
-  // Sample static data for UI demonstration
-  const transports = [
-    {
-      _id: "1",
-      packageId: "PKG-12345678",
-      trackingNumber: "TRK-12345678",
-      transportCost: 1200,
-      totalWeight: 500,
-      totalVolume: 2.5,
-      totalValue: 10000,
-      status: "intransit",
-      products: [
-        {
-          batchId: {
-            _id: "BATCH-1",
-            batchNumber: "B001-2025",
-            productId: {
-              _id: "PROD-1",
-              productName: "Samsung 55\" Smart TV",
-              sku: "TV-SAM-55",
-              price: 45000,
-              weight: 15.5,
-              productCategory: "electronics",
-              unit: "piece"
-            },
-            quantity: 50,
-            mfgDate: "2025-01-15T00:00:00Z",
-            expDate: "2027-01-15T00:00:00Z"
-          },
-          quantity: 10
-        },
-        {
-          batchId: {
-            _id: "BATCH-2",
-            batchNumber: "B002-2025",
-            productId: {
-              _id: "PROD-2",
-              productName: "Nike Running Shoes",
-              sku: "SHOE-NIKE-RUN",
-              price: 8500,
-              weight: 0.8,
-              productCategory: "apparel",
-              unit: "pair"
-            },
-            quantity: 100,
-            mfgDate: "2025-02-01T00:00:00Z",
-            expDate: "2026-02-01T00:00:00Z"
-          },
-          quantity: 5
-        },
-      ],
-      location: { from: "Warehouse A", to: "Store B" },
-      assignedTo: { fullName: "John Doe", email: "john@example.com" },
-      transportMode: "land",
-      createdAt: "2025-07-01T10:00:00Z",
-      dispatchedAt: "2025-07-01T12:00:00Z",
-      deliveredAt: null,
-      estimatedDeliveryDate: "2025-07-05T00:00:00Z",
-      actualDeliveryDate: null,
-      deliverySignature: null,
-      deliveryNotes: null,
-      deliveryPhotos: [],
-      statusHistory: [
-        {
-          status: "dispatched",
-          timestamp: "2025-07-01T12:00:00Z",
-          location: "Warehouse A",
-          notes: "Package dispatched from warehouse",
-          updatedBy: { fullName: "Admin User" }
-        },
-        {
-          status: "intransit",
-          timestamp: "2025-07-02T08:00:00Z",
-          location: "Highway Junction",
-          notes: "In transit to destination",
-          updatedBy: { fullName: "John Doe" }
-        },
-      ],
-      returnReason: null,
-      returnDate: null,
-      customerRating: null,
-      customerFeedback: null,
-      updatedAt: "2025-07-02T08:00:00Z"
-    },
-    {
-      _id: "2",
-      packageId: "PKG-87654321",
-      trackingNumber: "TRK-87654321",
-      transportCost: 2200,
-      totalWeight: 1200,
-      totalVolume: 5.1,
-      totalValue: 25000,
-      status: "delivered",
-      products: [
-        {
-          batchId: {
-            _id: "BATCH-3",
-            batchNumber: "B003-2025",
-            productId: {
-              _id: "PROD-3",
-              productName: "MacBook Pro 16\"",
-              sku: "LAPTOP-APPLE-16",
-              price: 180000,
-              weight: 2.1,
-              productCategory: "electronics",
-              unit: "piece"
-            },
-            quantity: 25,
-            mfgDate: "2025-03-01T00:00:00Z",
-            expDate: "2027-03-01T00:00:00Z"
-          },
-          quantity: 20
-        },
-        {
-          batchId: {
-            _id: "BATCH-4",
-            batchNumber: "B004-2025",
-            productId: {
-              _id: "PROD-4",
-              productName: "Wooden Dining Table",
-              sku: "FURN-WOOD-TABLE",
-              price: 25000,
-              weight: 45.0,
-              productCategory: "furniture",
-              unit: "piece"
-            },
-            quantity: 15,
-            mfgDate: "2025-02-15T00:00:00Z",
-            expDate: "2030-02-15T00:00:00Z"
-          },
-          quantity: 8
-        },
-      ],
-      location: { from: "Warehouse C", to: "Store D" },
-      assignedTo: { fullName: "Anmol Singh", email: "anmol@logistics.com" },
-      transportMode: "air",
-      createdAt: "2025-06-25T09:00:00Z",
-      dispatchedAt: "2025-06-25T11:00:00Z",
-      deliveredAt: "2025-06-27T15:00:00Z",
-      estimatedDeliveryDate: "2025-06-27T00:00:00Z",
-      actualDeliveryDate: "2025-06-27T15:00:00Z",
-      deliverySignature: "John Smith",
-      deliveryNotes: "Package delivered to front desk",
-      deliveryPhotos: ["photo1.jpg", "photo2.jpg"],
-      statusHistory: [
-        {
-          status: "dispatched",
-          timestamp: "2025-06-25T11:00:00Z",
-          location: "Warehouse C",
-          notes: "Air shipment dispatched",
-          updatedBy: { fullName: "Admin User" }
-        },
-        {
-          status: "intransit",
-          timestamp: "2025-06-26T10:00:00Z",
-          location: "Airport Hub",
-          notes: "In air transit",
-          updatedBy: { fullName: "Anmol Singh" }
-        },
-        {
-          status: "delivered",
-          timestamp: "2025-06-27T15:00:00Z",
-          location: "Store D",
-          notes: "Successfully delivered",
-          updatedBy: { fullName: "Anmol Singh" }
-        },
-      ],
-      returnReason: null,
-      returnDate: null,
-      customerRating: 5,
-      customerFeedback: "Excellent service, package arrived on time",
-      updatedAt: "2025-06-27T15:00:00Z"
-    },
-    {
-      _id: "3",
-      packageId: "PKG-11223344",
-      trackingNumber: "TRK-11223344",
-      transportCost: 800,
-      totalWeight: 300,
-      totalVolume: 1.2,
-      totalValue: 6000,
-      status: "pending",
-      products: [
-        { batchId: "BATCH-5", quantity: 4 },
-      ],
-      location: { from: "Warehouse B", to: "Store F" },
-      assignedTo: { fullName: "Amit Patel", email: "amit@fleet.com" },
-      transportMode: "ship",
-      createdAt: "2025-07-03T08:00:00Z",
-      dispatchedAt: null,
-      deliveredAt: null,
-      estimatedDeliveryDate: "2025-07-10T00:00:00Z",
-      statusHistory: [
-        { status: "pending", timestamp: "2025-07-03T08:00:00Z", location: "Warehouse B" },
-      ],
-    },
-    {
-      _id: "4",
-      packageId: "PKG-55667788",
-      trackingNumber: "TRK-55667788",
-      transportCost: 1500,
-      totalWeight: 700,
-      totalVolume: 3.0,
-      totalValue: 14000,
-      status: "returned",
-      products: [
-        { batchId: "BATCH-6", quantity: 12 },
-        { batchId: "BATCH-7", quantity: 3 },
-      ],
-      location: { from: "Warehouse D", to: "Store H" },
-      assignedTo: { fullName: "Sara Lee", email: "sara@courier.com" },
-      transportMode: "land",
-      createdAt: "2025-06-20T07:00:00Z",
-      dispatchedAt: "2025-06-20T09:00:00Z",
-      deliveredAt: null,
-      estimatedDeliveryDate: "2025-06-25T00:00:00Z",
-      actualDeliveryDate: null,
-      deliverySignature: null,
-      deliveryNotes: null,
-      deliveryPhotos: [],
-      statusHistory: [
-        {
-          status: "dispatched",
-          timestamp: "2025-06-20T09:00:00Z",
-          location: "Warehouse D",
-          notes: "Package dispatched for delivery",
-          updatedBy: { fullName: "Admin User" }
-        },
-        {
-          status: "intransit",
-          timestamp: "2025-06-22T13:00:00Z",
-          location: "City Center",
-          notes: "On route to destination",
-          updatedBy: { fullName: "Sara Lee" }
-        },
-        {
-          status: "returned",
-          timestamp: "2025-06-24T18:00:00Z",
-          location: "Warehouse D",
-          notes: "Customer refused delivery",
-          updatedBy: { fullName: "Sara Lee" }
-        },
-      ],
-      returnReason: "Customer refused delivery - damaged packaging",
-      returnDate: "2025-06-24T18:00:00Z",
-      customerRating: null,
-      customerFeedback: null,
-      updatedAt: "2025-06-24T18:00:00Z"
-    },
-  ];
+  // Fetch transports from backend
+  const [transports, setTransports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchTransports = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // TODO: Replace with your actual API base URL and auth if needed
+        const res = await axios.get("/api/transport/all");
+        setTransports(res.data);
+      } catch (err) {
+        setError("Failed to load transports");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTransports();
+  }, []);
 
   // Summary stats
   const summary = {
@@ -429,19 +201,25 @@ const TransportPage = () => {
             placeholder="Search by Package ID, Tracking #, or Assigned... (UI only)"
             disabled
           />
-          <div className="text-gray-600">Showing {transports.length} transport(s)</div>
+          <div className="text-gray-600">Showing {loading ? '...' : transports.length} transport(s)</div>
         </div>
-        {/* Card-based design - Full width cards */}
-        <div className="space-y-4 mt-4">
-          {transports.map((t) => (
-            <TransportExpandableCard
-              key={t._id}
-              transport={t}
-              isExpanded={expandedCard === t._id}
-              onToggleExpanded={() => handleCardExpand(t._id)}
-            />
-          ))}
-        </div>
+        {/* Loading/Error State */}
+        {loading ? (
+          <div className="text-center text-blue-600 py-8">Loading transports...</div>
+        ) : error ? (
+          <div className="text-center text-red-600 py-8">{error}</div>
+        ) : (
+          <div className="space-y-4 mt-4">
+            {transports.map((t) => (
+              <TransportExpandableCard
+                key={t._id}
+                transport={t}
+                isExpanded={expandedCard === t._id}
+                onToggleExpanded={() => handleCardExpand(t._id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

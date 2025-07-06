@@ -1,16 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './AdminPage.css';
 
 // Import admin components
-import UserManagement from '../components/admin/UserManagement';
-import ProductManagement from '../components/admin/ProductManagement';
-import ExternalUserManagement from '../components/admin/ExternalUserManagement';
-import AdminDashboard from '../components/admin/AdminDashboard';
+import {
+  AdminUserManagement,
+  ProductManagement,
+  ExternalUserManagement,
+  AdminDashboard
+} from '../components/features';
 
 const AdminPage = () => {
   const { user } = useSelector((state) => state.auth);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [triggerAction, setTriggerAction] = useState(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Handle URL parameters for tab switching and actions
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const tabParam = urlParams.get('tab');
+    const actionParam = urlParams.get('action');
+
+    if (tabParam && ['dashboard', 'users', 'products', 'external'].includes(tabParam)) {
+      setActiveTab(tabParam);
+
+      // Handle create actions
+      if (actionParam === 'create') {
+        setTriggerAction('create');
+        // Clear the action parameter after triggering
+        setTimeout(() => setTriggerAction(null), 100);
+      }
+    }
+  }, [location.search]);
+
+  // Update URL when tab changes
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    navigate(`/admin?tab=${tabId}`);
+  };
 
   // Check if user is admin
   if (!user || user.role !== 'admin') {
@@ -29,7 +59,7 @@ const AdminPage = () => {
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'users', label: 'User Management', icon: '👥' },
     { id: 'products', label: 'Product Management', icon: '📦' },
-    { id: 'external', label: 'External Users', icon: '🏢' },
+    { id: 'external', label: 'Partner Contacts', icon: '🏢' },
   ];
 
   const renderActiveComponent = () => {
@@ -37,11 +67,11 @@ const AdminPage = () => {
       case 'dashboard':
         return <AdminDashboard />;
       case 'users':
-        return <UserManagement />;
+        return <AdminUserManagement triggerAction={triggerAction} />;
       case 'products':
-        return <ProductManagement />;
+        return <ProductManagement triggerAction={triggerAction} />;
       case 'external':
-        return <ExternalUserManagement />;
+        return <ExternalUserManagement triggerAction={triggerAction} />;
       default:
         return <AdminDashboard />;
     }
@@ -59,7 +89,7 @@ const AdminPage = () => {
           <button
             key={tab.id}
             className={`admin-tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
           >
             <span className="tab-icon">{tab.icon}</span>
             <span className="tab-label">{tab.label}</span>

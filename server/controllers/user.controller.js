@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 
 // Create User Controller
 const createUser = catchAsyncErrors(async (req, res) => {
-  const { fullName, email, password, phone, wagePerHour, role } = req.body;
+  let { fullName, email, password, phone, wagePerHour, role } = req.body;
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
@@ -18,6 +18,16 @@ const createUser = catchAsyncErrors(async (req, res) => {
     return res.status(403).json({
       message: 'Admins cannot create admins. Please use the staff role.'
     });
+  }
+
+  // Convert string values to numbers if needed
+  if (wagePerHour !== undefined && typeof wagePerHour === 'string') {
+    wagePerHour = parseFloat(wagePerHour);
+  }
+
+  // Validate wage per hour
+  if (wagePerHour !== undefined && (typeof wagePerHour !== 'number' || isNaN(wagePerHour) || wagePerHour < 0)) {
+    return res.status(400).json({ message: 'Invalid wage per hour.' });
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -52,12 +62,10 @@ const createUser = catchAsyncErrors(async (req, res) => {
 // Get All Users Controller
 const getAllUsers = catchAsyncErrors(async (req, res) => {
   const users = await User.find({
-    assignedLocation: req.user.assignedLocation,
+    assignedWarehouseId: req.user.assignedWarehouseId,
   }, {
     password: 0,
-    email: 0,
     __v: 0,
-    phone: 0,
     verificationToken: 0,
     verificationTokenExpiry: 0,
     resetPasswordToken: 0,
@@ -82,8 +90,8 @@ const getUserDetails = catchAsyncErrors(async (req, res) => {
 
   const user = await User.findOne({
     _id: userId,
-    assignedLocation: req.user.assignedLocation,
-  }).populate('assignedLocation', 'name code');
+    assignedWarehouseId: req.user.assignedWarehouseId,
+  }).populate('assignedWarehouseId', 'address warehouseName');
 
 
   if (!user) {
@@ -98,8 +106,11 @@ const getUserDetails = catchAsyncErrors(async (req, res) => {
       email: user.email,
       role: user.role,
       status: user.status,
-      assignedLocation: user.assignedLocation,
+      assignedWarehouseId: user.assignedWarehouseId,
       avatar: user.avatar,
+      shift: user.shift,
+      wagePerHour: user.wagePerHour,
+      phone: user.phone,
       isVerified: user.isVerified,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -111,7 +122,7 @@ const getUserDetails = catchAsyncErrors(async (req, res) => {
 // Update User data by Admin
 const updateUser = catchAsyncErrors(async (req, res) => {
   const userId = req.params.id;
-  const {
+  let {
     fullName,
     email,
     role,
@@ -147,11 +158,19 @@ const updateUser = catchAsyncErrors(async (req, res) => {
     return res.status(400).json({ message: 'Invalid shift.' });
   }
 
-  if (wagePerHour !== undefined && (typeof wagePerHour !== 'number' || wagePerHour < 0)) {
+  // Convert string values to numbers if needed
+  if (wagePerHour !== undefined && typeof wagePerHour === 'string') {
+    wagePerHour = parseFloat(wagePerHour);
+  }
+  if (hoursThisMonth !== undefined && typeof hoursThisMonth === 'string') {
+    hoursThisMonth = parseFloat(hoursThisMonth);
+  }
+
+  if (wagePerHour !== undefined && (typeof wagePerHour !== 'number' || isNaN(wagePerHour) || wagePerHour < 0)) {
     return res.status(400).json({ message: 'Invalid wage per hour.' });
   }
 
-  if (hoursThisMonth !== undefined && (typeof hoursThisMonth !== 'number' || hoursThisMonth < 0)) {
+  if (hoursThisMonth !== undefined && (typeof hoursThisMonth !== 'number' || isNaN(hoursThisMonth) || hoursThisMonth < 0)) {
     return res.status(400).json({ message: 'Invalid hours this month.' });
   }
 
@@ -221,7 +240,7 @@ const deleteUser = catchAsyncErrors(async (req, res) => {
 
   const user = await User.findOne({
     _id: userId,
-    assignedLocation: req.user.assignedLocation
+    assignedWarehouseId: req.user.assignedWarehouseId
   });
 
   if (!user) {

@@ -1,4 +1,5 @@
 export { Batch } from "./batch.model.js";
+export { Customer } from "./customer.model.js";
 export { ExternalUser } from "./externalUsers.model.js";
 export { IncomingSupply } from "./incomingSupply.model.js";
 export { Inventory } from "./inventory.model.js";

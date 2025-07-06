@@ -2,7 +2,8 @@ import { Router } from "express";
 import {
   login,
   logout,
-  changePassword
+  changePassword,
+  updateProfile
 } from "../controllers/index.js";
 import { isAuthenticated, isAuthorized } from "../middlewares/index.js";
 import {
@@ -27,6 +28,10 @@ router.post("/change-password",
   changePasswordValidation,
   handleValidationErrors,
   changePassword
+)
+router.put("/update-profile",
+  isAuthenticated,
+  updateProfile
 )
 
 export default router;

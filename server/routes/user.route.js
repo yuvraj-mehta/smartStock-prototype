@@ -7,7 +7,10 @@ import {
   createUser,
   deleteUser,
   createSupplier,
-  createTransporter
+  createTransporter,
+  getAllExternalUsers,
+  updateExternalUser,
+  deleteExternalUser
 } from "../controllers/index.js";
 import { isAuthenticated, isAuthorized, canViewUserDetails } from "../middlewares/index.js"
 import { createUserValidation, createSupplierValidation, createTransporterValidation } from "../validators/index.js";
@@ -33,6 +36,11 @@ router.get("/all",
   isAuthenticated,
   isAuthorized("admin"),
   getAllUsers
+)
+router.get("/external/all",
+  isAuthenticated,
+  isAuthorized("admin", "staff"),
+  getAllExternalUsers
 )
 router.get("/:id",
   isAuthenticated,
@@ -62,6 +70,16 @@ router.post('/create-transporter',
   createTransporterValidation,
   handleValidationErrors,
   createTransporter
+)
+router.put('/external/update/:id',
+  isAuthenticated,
+  isAuthorized("admin"),
+  updateExternalUser
+)
+router.delete('/external/delete/:id',
+  isAuthenticated,
+  isAuthorized("admin"),
+  deleteExternalUser
 )
 
 

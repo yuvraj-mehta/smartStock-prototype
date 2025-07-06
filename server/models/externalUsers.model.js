@@ -6,6 +6,8 @@ const externalUserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: { type: String, required: true },
+  address: { type: String },
+  contactPerson: { type: String },
   rating: {
     type: Number,
     enum: [1, 2, 3, 4, 5]

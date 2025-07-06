@@ -2,7 +2,8 @@ export {
   login,
   logout,
   getMyDetails,
-  changePassword
+  changePassword,
+  updateProfile
 } from "./auth.controller.js";
 
 export {
@@ -15,7 +16,10 @@ export {
 
 export {
   createTransporter,
-  createSupplier
+  createSupplier,
+  getAllExternalUsers,
+  updateExternalUser,
+  deleteExternalUser
 } from "./externalUser.controller.js";
 
 export {

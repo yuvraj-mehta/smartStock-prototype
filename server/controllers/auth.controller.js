@@ -48,6 +48,7 @@ const login = catchAsyncErrors(async (req, res) => {
       fullName: user.fullName,
       email: user.email,
       role: user.role,
+      avatar: user.avatar,
       assignedWarehouseId: user.assignedWarehouseId,
       lastLogin: user.lastLogin,
     },
@@ -145,7 +146,70 @@ const changePassword = catchAsyncErrors(async (req, res) => {
   });
 })
 
-export { login, logout, getMyDetails, changePassword };
+// update profile controller
+const updateProfile = catchAsyncErrors(async (req, res) => {
+  const { fullName, email, phone, avatar, shift } = req.body;
+  const userId = req.user._id;
+
+  // Validate fields only if provided
+  if (email !== undefined && !email.includes('@')) {
+    return res.status(400).json({ message: 'Please provide a valid email address.' });
+  }
+
+  const validShifts = ['morning', 'afternoon', 'night'];
+  if (shift !== undefined && shift !== '' && !validShifts.includes(shift)) {
+    return res.status(400).json({ message: 'Invalid shift.' });
+  }
+
+  // Check if email already exists when changing email
+  if (email !== undefined && req.user.email !== email) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already exists.' });
+    }
+  }
+
+  // Create update object with only provided fields
+  const updateData = {};
+  if (fullName !== undefined) updateData.fullName = fullName;
+  if (email !== undefined) updateData.email = email;
+  if (phone !== undefined) updateData.phone = phone;
+  if (avatar !== undefined) updateData.avatar = avatar;
+  if (shift !== undefined) updateData.shift = shift;
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    updateData,
+    { new: true, runValidators: true }
+  ).populate('assignedWarehouseId', 'address warehouseName');
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  res.status(200).json({
+    message: 'Profile updated successfully.',
+    user: {
+      id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      role: user.role,
+      shift: user.shift,
+      wagePerHour: user.wagePerHour,
+      hoursThisMonth: user.hoursThisMonth,
+      status: user.status,
+      assignedWarehouseId: user.assignedWarehouseId,
+      isVerified: user.isVerified,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }
+  });
+});
+
+export { login, logout, getMyDetails, changePassword, updateProfile };
 
 
 

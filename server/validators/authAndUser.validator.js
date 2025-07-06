@@ -22,9 +22,10 @@ const staffAndViewerValidator = () =>
     .isIn(['staff', 'viewer']).withMessage('Role must be one of: staff, viewer');
 
 const wageValidator = () =>
-  body('wage')
-    .notEmpty().withMessage('Wage is required')
-    .isNumeric().withMessage('Wage must be a number');
+  body('wagePerHour')
+    .optional()
+    .isNumeric().withMessage('Wage must be a number')
+    .isFloat({ min: 0 }).withMessage('Wage must be a positive number');
 
 const notEmptyValidator = (field, message) =>
   body(field)
@@ -69,7 +70,6 @@ const createSupplierValidation = [
   emailValidator(),
   passwordValidator(),
   phoneValidator(),
-  notEmptyValidator('warehouseId', 'Warehouse ID is required'),
 ];
 
 const createTransporterValidation = [
@@ -78,7 +78,6 @@ const createTransporterValidation = [
   emailValidator(),
   passwordValidator(),
   phoneValidator(),
-  notEmptyValidator('warehouseId', 'Warehouse ID is required'),
 ];
 
 export {

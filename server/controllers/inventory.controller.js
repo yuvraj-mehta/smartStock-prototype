@@ -8,15 +8,20 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
   const {
     productId,
     supplierId,
-    warehouseId,
     quantity,
     mfgDate,
     expDate,
     notes,
   } = req.body;
 
-  if (!productId || !supplierId || !warehouseId || !quantity || !mfgDate || !expDate) {
+  if (!productId || !supplierId || !quantity || !mfgDate || !expDate) {
     return res.status(400).json({ message: "All required fields must be provided." });
+  }
+
+  // Use the user's assigned warehouse ID
+  const warehouseId = req.user.assignedWarehouseId;
+  if (!warehouseId) {
+    return res.status(400).json({ message: "User is not assigned to any warehouse." });
   }
 
   // Fetch product
@@ -101,6 +106,13 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
     const batch = entry.batchId;
     if (!batch || !batch.productId) continue;
     const productId = batch.productId._id.toString();
+
+    // Get damaged item count for this batch
+    const damagedItemCount = await Item.countDocuments({
+      batchId: batch._id,
+      status: "damaged"
+    });
+
     if (!productMap[productId]) {
       productMap[productId] = {
         product: batch.productId,
@@ -113,6 +125,7 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
       batchNumber: batch.batchNumber,
       supplier: batch.supplierId,
       quantity: entry.quantity,
+      damagedQuantity: damagedItemCount,
       mfgDate: batch.mfgDate,
       expDate: batch.expDate,
       warehouse: entry.warehouseId,
@@ -264,7 +277,7 @@ export const getRealTimeInventoryStatus = catchAsyncErrors(async (req, res) => {
 // Track batch by number
 export const trackBatchByNumber = catchAsyncErrors(async (req, res) => {
   const { batchNumber } = req.params;
-  
+
   const batch = await Batch.findOne({ batchNumber })
     .populate('productId', 'productName sku price')
     .populate('warehouseId', 'warehouseName address')
