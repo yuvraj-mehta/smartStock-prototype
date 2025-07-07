@@ -179,30 +179,39 @@ export const assignTransport = catchAsyncErrors(async (req, res) => {
     return res.status(404).json({ message: "Package not found" });
   }
 
-  if (packageDoc.packageStatus !== 'created') {
-    return res.status(400).json({ message: "Package is not ready for transport assignment" });
+  // Allow assigning/reassigning transporter if package is not delivered or returned
+  if (["delivered", "returned"].includes(packageDoc.packageStatus)) {
+    return res.status(400).json({ message: "Cannot assign transporter to a delivered or returned package." });
   }
 
-  // Create transport
+  // Remove any previous transport assignment for this package
+  await Transport.deleteMany({ packageId: packageDoc._id });
+
+  // Create new transport assignment
   const transport = await Transport.create({
     packageId: packageDoc._id,
     transporterId,
     transportType: 'forward',
     assignedBy: req.user._id,
+    status: 'dispatched',
     notes
   });
 
-  // Update package status
-  packageDoc.packageStatus = 'ready_for_dispatch';
-  await packageDoc.save();
+  // If package is not already dispatched, update status
+  if (packageDoc.packageStatus !== 'dispatched') {
+    packageDoc.packageStatus = 'dispatched';
+    await packageDoc.save();
+  }
 
-  // Update order status
+  // If order is not already dispatched, update status
   const order = packageDoc.orderId;
-  order.orderStatus = 'packaged';
-  await order.save();
+  if (order && order.orderStatus !== 'dispatched') {
+    order.orderStatus = 'dispatched';
+    await order.save();
+  }
 
   res.status(200).json({
-    message: "Transport assigned successfully",
+    message: "Transporter assigned/reassigned successfully",
     transport,
     package: packageDoc
   });

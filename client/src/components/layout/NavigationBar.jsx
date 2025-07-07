@@ -22,10 +22,11 @@ const Navbar = () => {
 
   const navItems = [
     { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
+    { path: '/orders', icon: RotateCcw, label: 'Orders' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/products', icon: Settings, label: 'Products' },
     { path: '/ai-assistant', icon: Brain, label: 'AI Assistant' },
-    { path: '/transport', icon: Truck, label: 'Transport' },
+    { path: '/transports', icon: Truck, label: 'Transport' },
     ...(user?.role === 'admin' ? [{ path: '/admin', icon: Users, label: 'Admin Panel' }] : []),
   ];
   const toggleMenu = () => setIsMobileMenuOpen((v) => !v);

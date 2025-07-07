@@ -12,6 +12,9 @@ import AdminPage from './pages/AdminPage.jsx';
 import AIAssistantPage from './pages/AIAssistantPage.jsx';
 import UserPage from './pages/UserPage.jsx';
 import { NotFound, Footer, NavigationBar } from './components';
+import TransportList from './components/features/TransportList';
+import TransportDetails from './components/features/TransportDetails';
+import OrderManagementPage from './pages/OrderManagementPage.jsx';
 
 const App = () => {
   const dispatch = useDispatch();
@@ -55,6 +58,10 @@ const App = () => {
               element={isAuthenticated ? <ProductsPage /> : <Navigate to="/login" replace />}
             />
             <Route
+              path="/orders"
+              element={isAuthenticated ? <OrderManagementPage /> : <Navigate to="/login" replace />}
+            />
+            <Route
               path="/inventory"
               element={isAuthenticated ? <InventoryPage /> : <Navigate to="/login" replace />}
             />
@@ -71,6 +78,14 @@ const App = () => {
               element={isAuthenticated ? <UserPage /> : <Navigate to="/login" replace />}
             />
             {/* Add more routes here as needed */}
+            <Route
+              path="/transports"
+              element={isAuthenticated ? <TransportList /> : <Navigate to="/login" replace />}
+            />
+            <Route
+              path="/transports/:id"
+              element={isAuthenticated ? <TransportDetails /> : <Navigate to="/login" replace />}
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

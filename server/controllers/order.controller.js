@@ -179,7 +179,8 @@ export const assignTransport = catchAsyncErrors(async (req, res) => {
     return res.status(404).json({ message: "Package not found" });
   }
 
-  if (packageDoc.packageStatus !== 'created') {
+  if (packageDoc.packageStatus !== 'ready_for_dispatch') {
+    console.log(`Package status: ${packageDoc.packageStatus}`);
     return res.status(400).json({ message: "Package is not ready for transport assignment" });
   }
 
@@ -192,13 +193,14 @@ export const assignTransport = catchAsyncErrors(async (req, res) => {
     notes
   });
 
-  // Update package status
-  packageDoc.packageStatus = 'ready_for_dispatch';
+
+  // Update package status to dispatched
+  packageDoc.packageStatus = 'dispatched';
   await packageDoc.save();
 
-  // Update order status
+  // Update order status to dispatched
   const order = packageDoc.orderId;
-  order.orderStatus = 'packaged';
+  order.orderStatus = 'dispatched';
   await order.save();
 
   res.status(200).json({
