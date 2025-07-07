@@ -10,10 +10,12 @@ const supplierIdValidator = () =>
     .notEmpty().withMessage("Supplier ID is required")
     .isMongoId().withMessage("Supplier ID must be a valid Mongo ID");
 
-const warehouseIdValidator = () =>
-  body("warehouseId")
-    .notEmpty().withMessage("Warehouse ID is required")
-    .isMongoId().withMessage("Warehouse ID must be a valid Mongo ID");
+
+// WarehouseId is not required from frontend, so skip this validator
+// const warehouseIdValidator = () =>
+//   body("warehouseId")
+//     .notEmpty().withMessage("Warehouse ID is required")
+//     .isMongoId().withMessage("Warehouse ID must be a valid Mongo ID");
 
 const supplyQuantityValidator = () =>
   body("quantity")
@@ -38,7 +40,7 @@ const notesValidator = () =>
 export const addSupplyValidation = [
   productIdValidator(),
   supplierIdValidator(),
-  warehouseIdValidator(),
+  // warehouseIdValidator(),
   supplyQuantityValidator(),
   mfgDateValidator(),
   expDateValidator(),

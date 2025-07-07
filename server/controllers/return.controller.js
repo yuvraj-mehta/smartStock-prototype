@@ -204,8 +204,7 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
       });
 
       if (inventory) {
-        inventory.quantity += returnedItem.quantity;
-        await inventory.save({ session });
+        // No longer update inventory.quantity directly. Only Item.status is updated.
       } else {
         await Inventory.create([{
           batchId: returnedItem.batchId,
@@ -217,8 +216,7 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
       // Update product quantity
       const product = await Product.findById(returnedItem.productId);
       if (product) {
-        product.quantity += returnedItem.quantity;
-        await product.save({ session });
+        // No longer update product.quantity directly. Only Item.status is updated.
       }
     }
 

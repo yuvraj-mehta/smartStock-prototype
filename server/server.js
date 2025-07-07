@@ -11,4 +11,3 @@ startScheduledJobs();
 app.listen(conf.port, () => {
   console.log(`Server is running on port ${conf.port} and connected to database ${conf.dbName}`)
 })
-

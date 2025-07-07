@@ -144,13 +144,13 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
     for (const inventory of inventoryBatches) {
       if (!inventory.batchId || remainingQty <= 0) continue;
 
-      const availableQty = Math.min(inventory.quantity, remainingQty);
-
-      // Find specific items to allocate
+      // Find available in-stock items for this batch
       const items = await Item.find({
         batchId: inventory.batchId._id,
         status: 'in_stock'
-      }).limit(availableQty);
+      }).limit(remainingQty);
+
+      if (items.length === 0) continue;
 
       // Update item statuses
       for (const item of items) {
@@ -164,16 +164,7 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
         allocatedItems.push(item._id);
       }
 
-      // Update inventory
-      inventory.quantity -= availableQty;
-      await inventory.save();
-
-      // Update product quantity
-      const product = await Product.findById(orderItem.productId._id);
-      product.quantity -= availableQty;
-      await product.save();
-
-      remainingQty -= availableQty;
+      remainingQty -= items.length;
 
       // Set batch for this order item
       if (!orderItem.batchId) {
@@ -533,17 +524,8 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
     );
 
     if (orderItem && returnedItem.condition === 'good') {
-      // Restore to inventory
-      const inventory = await Inventory.findOne({ batchId: orderItem.batchId });
-      if (inventory) {
-        inventory.quantity += returnedItem.quantity;
-        await inventory.save();
-      }
 
-      // Update product quantity
-      const product = await Product.findById(orderItem.productId);
-      product.quantity += returnedItem.quantity;
-      await product.save();
+      // No longer update inventory.quantity or product.quantity directly. Only Item.status is updated.
 
       // Update item statuses
       const itemsToUpdate = orderItem.allocatedItemIds.slice(0, returnedItem.quantity);

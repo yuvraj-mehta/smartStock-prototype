@@ -26,12 +26,15 @@ export const createTransport = catchAsyncErrors(async (req, res) => {
   for (const { batchId, quantity } of products) {
     const inventory = await Inventory.findOne({ batchId });
     if (!inventory || inventory.quantity < quantity) {
-      return res.status(400).json({ message: `Insufficient inventory for batch ${batchId}` });
+      // Only check Item count, not inventory.quantity
+      const inStockCount = await Item.countDocuments({ batchId, status: "in_stock" });
+      if (inStockCount < quantity) {
+        return res.status(400).json({ message: `Insufficient in-stock items for batch ${batchId}` });
+      }
     }
 
     // Update inventory
-    inventory.quantity -= quantity;
-    await inventory.save();
+    // No longer update inventory.quantity directly. Only Item.status is updated.
 
     // Update Item status
     const items = await Item.find({ batchId, status: "in_stock" }).limit(quantity);
@@ -44,8 +47,7 @@ export const createTransport = catchAsyncErrors(async (req, res) => {
     // Update product quantity
     const batch = await Batch.findById(batchId).populate("productId");
     const product = batch.productId;
-    product.quantity -= quantity;
-    await product.save();
+    // No longer update product.quantity directly. Only Item.status is updated.
 
     totalWeight += product.weight * quantity;
     totalVolume += product.volume * quantity;

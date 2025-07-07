@@ -12,16 +12,17 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     mfgDate,
     expDate,
     notes,
+    warehouseId: incomingWarehouseId,
   } = req.body;
 
   if (!productId || !supplierId || !quantity || !mfgDate || !expDate) {
     return res.status(400).json({ message: "All required fields must be provided." });
   }
 
-  // Use the user's assigned warehouse ID
+  // Always use the user's assigned warehouse ID for supply
   const warehouseId = req.user.assignedWarehouseId;
-  if (!warehouseId) {
-    return res.status(400).json({ message: "User is not assigned to any warehouse." });
+  if (!warehouseId || !mongoose.Types.ObjectId.isValid(warehouseId)) {
+    return res.status(400).json({ message: "User is not assigned to any valid warehouse." });
   }
 
   // Fetch product
@@ -74,12 +75,11 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
 
   await Item.insertMany(items);
 
-  // 5. Update product quantity
-  product.quantity += quantity;
+  // No longer update product.quantity directly. SupplierIds update retained.
   if (!product.supplierIds.includes(supplierId)) {
     product.supplierIds.push(supplierId);
+    await product.save();
   }
-  await product.save();
 
   return res.status(201).json({
     message: "Supply added to inventory successfully.",
@@ -100,18 +100,18 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
     })
     .populate("warehouseId", "warehouseName address.city address.state");
 
-  // Group inventory by product
+  // Group inventory by product using Item status as source of truth
   const productMap = {};
   for (const entry of inventory) {
     const batch = entry.batchId;
     if (!batch || !batch.productId) continue;
     const productId = batch.productId._id.toString();
 
-    // Get damaged item count for this batch
-    const damagedItemCount = await Item.countDocuments({
-      batchId: batch._id,
-      status: "damaged"
-    });
+    // Get damaged and in-stock item counts for this batch
+    const [damagedItemCount, inStockItemCount] = await Promise.all([
+      Item.countDocuments({ batchId: batch._id, status: "damaged" }),
+      Item.countDocuments({ batchId: batch._id, status: "in_stock" })
+    ]);
 
     if (!productMap[productId]) {
       productMap[productId] = {
@@ -123,14 +123,14 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
     productMap[productId].batches.push({
       batchId: batch._id,
       batchNumber: batch.batchNumber,
-      supplier: batch.supplierId,
-      quantity: entry.quantity,
+      supplier: batch.supplierId && batch.supplierId.fullName ? batch.supplierId : null,
+      quantity: inStockItemCount, // Only in-stock items are available
       damagedQuantity: damagedItemCount,
       mfgDate: batch.mfgDate,
       expDate: batch.expDate,
       warehouse: entry.warehouseId,
     });
-    productMap[productId].totalQuantity += entry.quantity;
+    productMap[productId].totalQuantity += inStockItemCount;
   }
 
   const products = Object.values(productMap);
@@ -169,40 +169,38 @@ export const getInventoryByProduct = catchAsyncErrors(async (req, res) => {
 
 // adjust inventory 
 export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
+  console.log("Marking inventory as damaged");
+
   const { batchId, quantity, reason } = req.body;
-
-  const inventory = await Inventory.findOne({ batchId });
-  if (!inventory || inventory.quantity < quantity) {
-    return res.status(400).json({ message: "Insufficient inventory to mark damaged" });
-  }
-
-  // Reduce inventory
-  inventory.quantity -= quantity;
-  await inventory.save();
-
-  // Update item status to damaged
+  // Only update item status, do not update Inventory or Product quantities
   const items = await Item.find({ batchId, status: "in_stock" }).limit(quantity);
+  console.log(`Found ${items.length} items to mark as damaged for batch ${batchId}`);
+
   if (items.length < quantity) {
     return res.status(400).json({ message: "Not enough in-stock items to mark damaged" });
   }
 
-  for (const item of items) {
-    item.status = "damaged";
-    item.history.push({
-      action: "damaged",
-      location: inventory.warehouseId.toString(),
-      notes: reason || "Marked as damaged",
-    });
-    await item.save();
-  }
+  const itemIds = items.map(item => item._id);
+  const now = new Date();
+  const historyEntry = {
+    action: "damaged",
+    location: items[0]?.currentWarehouseId ? items[0].currentWarehouseId.toString() : "Unknown",
+    notes: reason || "Marked as damaged",
+    date: now
+  };
 
-  // Update product quantity
-  const batch = await Batch.findById(batchId).populate("productId");
-  const product = batch.productId;
-  product.quantity -= quantity;
-  await product.save();
+  // Bulk update
+  await Item.updateMany(
+    { _id: { $in: itemIds } },
+    {
+      $set: { status: "damaged" },
+      $push: { history: historyEntry }
+    }
+  );
 
-  res.status(200).json({
+  console.log(`Marked ${items.length} items as damaged for batch ${batchId}`);
+
+  return res.status(200).json({
     message: `${quantity} item(s) marked as damaged and inventory adjusted.`,
   });
 });
@@ -214,58 +212,36 @@ export const getRealTimeInventoryStatus = catchAsyncErrors(async (req, res) => {
   const matchStage = {};
   if (warehouseId) matchStage.warehouseId = new mongoose.Types.ObjectId(warehouseId);
 
-  const inventoryStatus = await Inventory.aggregate([
-    { $match: matchStage },
-    {
-      $lookup: {
-        from: 'batches',
-        localField: 'batchId',
-        foreignField: '_id',
-        as: 'batch'
-      }
-    },
-    { $unwind: '$batch' },
-    {
-      $lookup: {
-        from: 'products',
-        localField: 'batch.productId',
-        foreignField: '_id',
-        as: 'product'
-      }
-    },
-    { $unwind: '$product' },
-    ...(productId ? [{ $match: { 'product._id': new mongoose.Types.ObjectId(productId) } }] : []),
-    {
-      $group: {
-        _id: '$product._id',
-        productName: { $first: '$product.productName' },
-        sku: { $first: '$product.sku' },
-        totalQuantity: { $sum: '$quantity' },
-        thresholdLimit: { $first: '$product.thresholdLimit' },
-        batches: {
-          $push: {
-            batchId: '$batch._id',
-            batchNumber: '$batch.batchNumber',
-            quantity: '$quantity',
-            mfgDate: '$batch.mfgDate',
-            expDate: '$batch.expDate',
-            status: '$batch.status'
-          }
-        }
-      }
-    },
-    {
-      $addFields: {
-        stockStatus: {
-          $cond: {
-            if: { $lte: ['$totalQuantity', '$thresholdLimit'] },
-            then: 'low',
-            else: { $cond: { if: { $eq: ['$totalQuantity', 0] }, then: 'out_of_stock', else: 'in_stock' } }
-          }
-        }
-      }
-    }
-  ]);
+  // Compute real-time inventory status using Item status as source of truth
+  // Find all batches (optionally filter by warehouse/product)
+  const batchQuery = {};
+  if (warehouseId) batchQuery.warehouseId = warehouseId;
+  if (productId) batchQuery.productId = productId;
+  const batches = await Batch.find(batchQuery)
+    .populate('productId', 'productName sku thresholdLimit')
+    .populate('warehouseId', 'warehouseName');
+
+  const inventoryStatus = await Promise.all(batches.map(async (batch) => {
+    const inStock = await Item.countDocuments({ batchId: batch._id, status: 'in_stock' });
+    const threshold = batch.productId.thresholdLimit || 0;
+    let stockStatus = 'in_stock';
+    if (inStock === 0) stockStatus = 'out_of_stock';
+    else if (inStock <= threshold) stockStatus = 'low';
+    return {
+      productId: batch.productId._id,
+      productName: batch.productId.productName,
+      sku: batch.productId.sku,
+      batchId: batch._id,
+      batchNumber: batch.batchNumber,
+      warehouse: batch.warehouseId?.warehouseName,
+      inStock,
+      thresholdLimit: threshold,
+      stockStatus,
+      mfgDate: batch.mfgDate,
+      expDate: batch.expDate,
+      status: batch.status
+    };
+  }));
 
   res.json({
     message: "Real-time inventory status",

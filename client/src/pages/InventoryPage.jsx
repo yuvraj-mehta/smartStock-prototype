@@ -101,7 +101,23 @@ const InventoryPage = () => {
   // Handle form submissions
   const handleAddSupply = async (e) => {
     e.preventDefault();
-    await dispatch(addInventorySupply(supplyForm));
+    // Frontend validation
+    const { productId, supplierId, quantity, mfgDate, expDate } = supplyForm;
+    if (!productId || !supplierId || !quantity || !mfgDate || !expDate) {
+      alert('All required fields must be provided.');
+      return;
+    }
+    if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
+      alert('Quantity must be a positive number.');
+      return;
+    }
+    // Ensure quantity is sent as a number and supplierId as a string
+    const payload = {
+      ...supplyForm,
+      quantity: Number(supplyForm.quantity),
+      supplierId: String(supplyForm.supplierId),
+    };
+    await dispatch(addInventorySupply(payload));
     setSupplyForm({
       productId: '',
       supplierId: '',
@@ -553,7 +569,7 @@ const InventoryPage = () => {
               >
                 <option value="">Select Supplier</option>
                 {suppliers && suppliers.length > 0 ? suppliers.map(supplier => (
-                  <option key={supplier.id} value={supplier.id}>
+                  <option key={supplier.id || supplier._id} value={supplier.id || supplier._id}>
                     {supplier.companyName} - {supplier.fullName}
                   </option>
                 )) : (

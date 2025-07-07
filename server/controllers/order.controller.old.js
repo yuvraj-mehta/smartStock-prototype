@@ -150,8 +150,7 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
     totalValue += orderItem.totalPrice;
 
     // Update product quantity
-    product.quantity -= orderItem.quantity;
-    await product.save();
+    // No longer update product.quantity directly. Only Item.status is updated.
   }
 
   // Create transport record

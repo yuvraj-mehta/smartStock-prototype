@@ -166,7 +166,7 @@ export const updateProductById = catchAsyncErrors(async (req, res) => {
   product.productCategory = productCategory || product.productCategory;
   product.sku = sku || product.sku;
   product.price = price || product.price;
-  product.quantity = quantity || product.quantity;
+  // product.quantity is deprecated and no longer updated directly
   product.weight = weight || product.weight;
   product.dimension = dimension || product.dimension;
   product.thresholdLimit = thresholdLimit || product.thresholdLimit;

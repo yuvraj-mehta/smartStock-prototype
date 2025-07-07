@@ -120,12 +120,8 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
         });
 
         // Update inventory
-        inventory.quantity -= availableQty;
-        await inventory.save({ session });
 
-        // Update product quantity
-        product.quantity -= availableQty;
-        await product.save({ session });
+        // No longer update inventory.quantity or product.quantity directly. Only Item.status is updated.
 
         remainingQuantity -= availableQty;
 

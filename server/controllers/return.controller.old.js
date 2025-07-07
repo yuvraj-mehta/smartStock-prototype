@@ -68,8 +68,7 @@ export const createReturn = catchAsyncErrors(async (req, res) => {
       // Find or create inventory record
       let inventory = await Inventory.findOne({ batchId, warehouseId });
       if (inventory) {
-        inventory.quantity += quantity;
-        await inventory.save();
+        // No longer update inventory.quantity directly. Only Item.status is updated.
       } else {
         await Inventory.create({
           batchId,
@@ -79,8 +78,7 @@ export const createReturn = catchAsyncErrors(async (req, res) => {
       }
 
       // Update product quantity
-      product.quantity += quantity;
-      await product.save();
+      // No longer update product.quantity directly. Only Item.status is updated.
     }
   }
 
