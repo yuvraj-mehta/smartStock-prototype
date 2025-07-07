@@ -1,51 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { config } from '../../../../config/config.js';
+import { useSelector, useDispatch } from 'react-redux';
+import { getAllProducts, createProduct, updateProduct, deleteProduct, clearProductMessages } from '../../../app/slices/productSlice';
 import './ProductManagement.css';
 
 const ProductManagement = ({ triggerAction }) => {
-  const { token } = useSelector((state) => state.auth);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const dispatch = useDispatch();
+  const { products, loading, error, message } = useSelector((state) => state.products);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [formData, setFormData] = useState({
     productName: '',
-    productImage: '',
-    unit: '',
-    manufacturer: '',
-    productCategory: '',
     sku: '',
     price: 0,
+    manufacturer: '',
+    productCategory: '',
+    unit: 'piece',
+    productImage: '',
     quantity: 0,
     weight: 0,
     dimension: {
       length: 0,
       breadth: 0,
-      height: 0
+      height: 0,
     },
     thresholdLimit: 0,
     shelfLifeDays: 0,
-    isActive: true
+    isActive: true,
   });
 
-  const API_BASE_URL = config.apiBaseUrl;
-
-  const showNotification = (message, type = 'success') => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => {
-      setNotification({ show: false, message: '', type: '' });
-    }, 3000);
-  };
-
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    dispatch(getAllProducts());
+  }, [dispatch]);
 
   // Handle triggerAction prop
   useEffect(() => {
@@ -54,23 +41,15 @@ const ProductManagement = ({ triggerAction }) => {
     }
   }, [triggerAction]);
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/product/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      setProducts(response.data.products || []);
-    } catch (err) {
-      setError('Failed to fetch products');
-      console.error('Fetch products error:', err);
-    } finally {
-      setLoading(false);
+  // Handle success/error messages
+  useEffect(() => {
+    if (message) {
+      dispatch(clearProductMessages());
     }
-  };
+    if (error) {
+      dispatch(clearProductMessages());
+    }
+  }, [message, error, dispatch]);
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
@@ -81,13 +60,13 @@ const ProductManagement = ({ triggerAction }) => {
         ...prev,
         dimension: {
           ...prev.dimension,
-          [dimensionKey]: type === 'number' ? parseFloat(value) || 0 : value
-        }
+          [dimensionKey]: type === 'number' ? parseFloat(value) || 0 : value,
+        },
       }));
     } else {
       setFormData(prev => ({
         ...prev,
-        [name]: type === 'number' ? parseFloat(value) || 0 : value
+        [name]: type === 'number' ? parseFloat(value) || 0 : value,
       }));
     }
   };
@@ -114,11 +93,11 @@ const ProductManagement = ({ triggerAction }) => {
       dimension: product.dimension || {
         length: 0,
         breadth: 0,
-        height: 0
+        height: 0,
       },
       thresholdLimit: product.thresholdLimit || 0,
       shelfLifeDays: product.shelfLifeDays || 0,
-      isActive: product.isActive !== undefined ? product.isActive : true
+      isActive: product.isActive !== undefined ? product.isActive : true,
     });
   };
 
@@ -133,30 +112,14 @@ const ProductManagement = ({ triggerAction }) => {
 
     try {
       if (editingProduct) {
-        // Update existing product
-        await axios.put(`${API_BASE_URL}/product/update/${editingProduct._id}`, formData, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        showNotification('Product updated successfully!', 'success');
+        await dispatch(updateProduct(editingProduct._id, formData));
       } else {
-        // Create new product
-        await axios.post(`${API_BASE_URL}/product/add`, formData, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        showNotification('Product created successfully!', 'success');
+        await dispatch(createProduct(formData));
       }
 
       closeModal();
-      fetchProducts();
     } catch (err) {
       console.error('Product operation error:', err);
-      showNotification(err.response?.data?.message || `Failed to ${editingProduct ? 'update' : 'create'} product`, 'error');
     }
   };
 
@@ -169,20 +132,11 @@ const ProductManagement = ({ triggerAction }) => {
     if (!productToDelete) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/product/delete/${productToDelete._id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      showNotification('Product deleted successfully!', 'success');
+      await dispatch(deleteProduct(productToDelete._id));
       setShowDeleteModal(false);
       setProductToDelete(null);
-      fetchProducts();
     } catch (err) {
       console.error('Delete product error:', err);
-      showNotification(err.response?.data?.message || 'Failed to delete product', 'error');
     }
   };
 
@@ -194,34 +148,38 @@ const ProductManagement = ({ triggerAction }) => {
   const resetForm = () => {
     setFormData({
       productName: '',
-      productImage: '',
-      unit: '',
-      manufacturer: '',
-      productCategory: '',
       sku: '',
       price: 0,
+      manufacturer: '',
+      productCategory: '',
+      unit: 'piece',
+      productImage: '',
       quantity: 0,
       weight: 0,
       dimension: {
         length: 0,
         breadth: 0,
-        height: 0
+        height: 0,
       },
       thresholdLimit: 0,
       shelfLifeDays: 0,
-      isActive: true
+      isActive: true,
     });
+  };
+
+  const handleRefresh = () => {
+    dispatch(getAllProducts());
   };
 
   if (loading) {
     return <div className="loading">Loading products...</div>;
   }
 
-  if (error) {
+  if (error && !products.length) {
     return (
       <div className="error">
         <p>{error}</p>
-        <button onClick={fetchProducts}>Retry</button>
+        <button onClick={handleRefresh}>Retry</button>
       </div>
     );
   }
@@ -230,12 +188,21 @@ const ProductManagement = ({ triggerAction }) => {
     <div className="product-management">
       <div className="product-header">
         <h2>Product Management</h2>
-        <button
-          className="btn-primary"
-          onClick={openCreateModal}
-        >
-          + Add New Product
-        </button>
+        <div className="product-actions">
+          <button
+            className="btn-secondary"
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            🔄 Refresh
+          </button>
+          <button
+            className="btn-primary"
+            onClick={openCreateModal}
+          >
+            + Add New Product
+          </button>
+        </div>
       </div>
 
       {/* Create/Edit Product Modal */}
@@ -456,34 +423,6 @@ const ProductManagement = ({ triggerAction }) => {
                 Delete Product
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Notification */}
-      {notification.show && (
-        <div className={`notification ${notification.type}`}>
-          <div className="notification-content">
-            <div className="notification-icon">
-              {notification.type === 'success' ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="15" y1="9" x2="9" y2="15" />
-                  <line x1="9" y1="9" x2="15" y2="15" />
-                </svg>
-              )}
-            </div>
-            <span className="notification-message">{notification.message}</span>
-            <button
-              className="notification-close"
-              onClick={() => setNotification({ show: false, message: '', type: '' })}
-            >
-              ×
-            </button>
           </div>
         </div>
       )}

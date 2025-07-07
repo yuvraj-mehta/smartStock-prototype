@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { login } from "../app/slices/authSlice";
+import React, { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { login } from '../app/slices/authSlice';
 
 const LoginPage = () => {
   const dispatch = useDispatch();
@@ -9,9 +9,9 @@ const LoginPage = () => {
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   // Login form state
-  const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const [loginData, setLoginData] = useState({ email: '', password: '' });
   // Signup form state
-  const [signupData, setSignupData] = useState({ fullName: "", email: "", password: "" });
+  const [signupData, setSignupData] = useState({ fullName: '', email: '', password: '' });
 
   const handleLoginChange = (e) => {
     setLoginData({ ...loginData, [e.target.name]: e.target.value });
@@ -48,7 +48,7 @@ const LoginPage = () => {
           </div>
           <div className="mb-6 flex justify-center">
             <div className="inline-flex items-center px-4 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold shadow-sm">
-              {showSignup ? "Request Access" : "Sign In"}
+              {showSignup ? 'Request Access' : 'Sign In'}
             </div>
           </div>
           {!showSignup ? (
@@ -87,7 +87,7 @@ const LoginPage = () => {
                 className="w-full flex justify-center py-2 px-4 rounded-lg shadow-md text-white bg-gradient-to-r from-blue-600 to-purple-500 hover:from-blue-700 hover:to-purple-600 font-semibold text-lg transition-all duration-200"
                 disabled={loading}
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? 'Signing in...' : 'Sign In'}
               </button>
               <div className="text-center mt-4">
                 <span className="text-sm text-gray-600">Don't have an account? </span>
@@ -143,7 +143,7 @@ const LoginPage = () => {
                 className="w-full flex justify-center py-2 px-4 rounded-lg shadow-md text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 font-semibold text-lg transition-all duration-200"
                 disabled={signupSuccess}
               >
-                {signupSuccess ? "Request Sent" : "Request Access"}
+                {signupSuccess ? 'Request Sent' : 'Request Access'}
               </button>
               {signupSuccess && (
                 <div className="text-green-600 text-center text-sm mt-2">

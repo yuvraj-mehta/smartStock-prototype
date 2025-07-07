@@ -42,7 +42,7 @@ const UserProfilePage = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -64,7 +64,7 @@ const UserProfilePage = () => {
       // Revert to original value and exit edit mode
       setFormData(prev => ({
         ...prev,
-        [field]: originalData[field]
+        [field]: originalData[field],
       }));
       setIsEditing(false);
       setEditingField(null);
@@ -82,13 +82,13 @@ const UserProfilePage = () => {
         // Update original data to reflect the successful change
         setOriginalData(prev => ({
           ...prev,
-          [field]: formData[field]
+          [field]: formData[field],
         }));
       } catch (error) {
         // If save fails, revert to original value
         setFormData(prev => ({
           ...prev,
-          [field]: originalData[field]
+          [field]: originalData[field],
         }));
         console.error('Failed to update profile:', error);
       }
@@ -98,7 +98,6 @@ const UserProfilePage = () => {
     setIsEditing(false);
     setEditingField(null);
   };
-
 
 
   const getShiftIcon = (shift) => {
@@ -159,7 +158,7 @@ const UserProfilePage = () => {
                 Saving...
               </span>
             ) : (
-              "Click outside to save changes or press Escape to cancel"
+              'Click outside to save changes or press Escape to cancel'
             )}
           </div>
         </div>
@@ -278,7 +277,7 @@ const UserProfilePage = () => {
               options={[
                 { value: 'morning', label: '🌅 Morning' },
                 { value: 'afternoon', label: '☀️ Afternoon' },
-                { value: 'night', label: '🌙 Night' }
+                { value: 'night', label: '🌙 Night' },
               ]}
             />
 

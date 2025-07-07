@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { config } from '../../../../config/config.js';
+import { useSelector, useDispatch } from 'react-redux';
+import { getAllUsers, createSupplier, createTransporter, updateUser, deleteUser, clearUserMessages } from '../../../app/slices/userSlice';
+import { userAPI } from '../../../services/api';
 import './ExternalUserManagement.css';
 
 const ExternalUserManagement = ({ triggerAction }) => {
-  const { token } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const { users, loading, error, message } = useSelector((state) => state.users);
   const [suppliers, setSuppliers] = useState([]);
   const [transporters, setTransporters] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [localError, setLocalError] = useState(null);
   const [activeTab, setActiveTab] = useState('suppliers');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [currentUserType, setCurrentUserType] = useState('supplier');
@@ -23,7 +24,13 @@ const ExternalUserManagement = ({ triggerAction }) => {
     contactPerson: ''
   });
 
-  const API_BASE_URL = config.apiBaseUrl;
+  // Filter users to get suppliers and transporters
+  useEffect(() => {
+    const supplierUsers = users.filter(user => (user.role || '').toLowerCase() === 'supplier');
+    const transporterUsers = users.filter(user => (user.role || '').toLowerCase() === 'transporter');
+    setSuppliers(supplierUsers);
+    setTransporters(transporterUsers);
+  }, [users]);
 
   useEffect(() => {
     fetchExternalUsers();
@@ -37,25 +44,39 @@ const ExternalUserManagement = ({ triggerAction }) => {
     }
   }, [triggerAction]);
 
+  // Handle success/error messages
+  useEffect(() => {
+    if (message) {
+      dispatch(clearUserMessages());
+    }
+    if (error) {
+      dispatch(clearUserMessages());
+    }
+  }, [message, error, dispatch]);
+
   const fetchExternalUsers = async () => {
     try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/user/external/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.data && response.data.externalUsers) {
-        const allUsers = response.data.externalUsers;
-        setSuppliers(allUsers.filter(user => user.role === 'supplier'));
-        setTransporters(allUsers.filter(user => user.role === 'transporter'));
+      setLocalLoading(true);
+      setLocalError(null);
+      // Fetch external users from backend
+      const response = await userAPI.getAllExternalUsers();
+      console.log('External users API response:', response.data);
+      let externalUsers = response.data.externalUsers || [];
+      if (!Array.isArray(externalUsers)) {
+        externalUsers = [];
       }
+      // Separate suppliers and transporters
+      const supplierUsers = externalUsers.filter(user => (user.role || '').toLowerCase() === 'supplier');
+      const transporterUsers = externalUsers.filter(user => (user.role || '').toLowerCase() === 'transporter');
+      setSuppliers(supplierUsers);
+      setTransporters(transporterUsers);
     } catch (err) {
-      console.error('Error fetching external users:', err);
-      setError('Failed to fetch external users');
+      console.error('Fetch external users error:', err);
+      setLocalError('Failed to fetch external users');
+      // Fallback to getting all users and filtering
+      dispatch(getAllUsers());
     } finally {
-      setLoading(false);
+      setLocalLoading(false);
     }
   };
 
@@ -69,52 +90,26 @@ const ExternalUserManagement = ({ triggerAction }) => {
 
   const handleCreateExternalUser = async (e) => {
     e.preventDefault();
-
     try {
+      const payload = { ...formData, password: `external_${Date.now()}` };
+      console.log('Creating external user payload:', payload);
       if (editingUser) {
         // Update existing user
-        const response = await axios.put(`${API_BASE_URL}/user/external/update/${editingUser.id}`, formData, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        alert(`${editingUser.role.charAt(0).toUpperCase() + editingUser.role.slice(1)} updated successfully!`);
+        await dispatch(updateUser(editingUser._id || editingUser.id, payload));
       } else {
         // Create new user
-        const endpoint = currentUserType === 'supplier'
-          ? `${API_BASE_URL}/user/create-supplier`
-          : `${API_BASE_URL}/user/create-transporter`;
-
-        // Create the payload with a generated password (required by backend but not used for login)
-        const payload = {
-          ...formData,
-          password: `contact_${Date.now()}`, // Generated password since these are contact records
-        };
-
-        const response = await axios.post(endpoint, payload, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        alert(`${currentUserType.charAt(0).toUpperCase() + currentUserType.slice(1)} contact added successfully!`);
+        if (currentUserType === 'supplier') {
+          await dispatch(createSupplier(payload));
+        } else if (currentUserType === 'transporter') {
+          await dispatch(createTransporter(payload));
+        }
       }
-
       setShowCreateForm(false);
       setEditingUser(null);
       resetForm();
-
-      // Refresh the external users list
       fetchExternalUsers();
-
     } catch (err) {
       console.error('Error creating/updating external user:', err);
-      const action = editingUser ? 'update' : 'add';
-      const userType = editingUser ? editingUser.role : currentUserType;
-      alert(err.response?.data?.message || `Failed to ${action} ${userType} contact`);
     }
   };
 
@@ -157,29 +152,27 @@ const ExternalUserManagement = ({ triggerAction }) => {
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/user/external/delete/${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      alert(`${user.role.charAt(0).toUpperCase() + user.role.slice(1)} deleted successfully!`);
+      // Use the correct API for external users (suppliers/transporters)
+      await userAPI.deleteExternalUser(user._id || user.id);
       fetchExternalUsers();
     } catch (err) {
       console.error('Error deleting external user:', err);
-      alert(err.response?.data?.message || `Failed to delete ${user.role}`);
     }
   };
 
-  if (loading) {
+  const handleRefresh = () => {
+    fetchExternalUsers();
+  };
+
+  if (loading || localLoading) {
     return <div className="loading">Loading external users...</div>;
   }
 
-  if (error) {
+  if ((error || localError) && !suppliers.length && !transporters.length) {
     return (
       <div className="error">
-        <p>{error}</p>
-        <button onClick={() => setError(null)}>Retry</button>
+        <p>{error || localError}</p>
+        <button onClick={handleRefresh}>Retry</button>
       </div>
     );
   }
@@ -352,7 +345,7 @@ const ExternalUserManagement = ({ triggerAction }) => {
             {suppliers.length > 0 ? (
               <div className="external-users-grid">
                 {suppliers.map((supplier) => (
-                  <div key={supplier.id} className="external-user-card">
+                  <div key={supplier._id || supplier.id} className="external-user-card">
                     <div className="user-card-header">
                       <div className="user-info">
                         <h3>{supplier.fullName}</h3>
@@ -434,7 +427,7 @@ const ExternalUserManagement = ({ triggerAction }) => {
             {transporters.length > 0 ? (
               <div className="external-users-grid">
                 {transporters.map((transporter) => (
-                  <div key={transporter.id} className="external-user-card">
+                  <div key={transporter._id || transporter.id} className="external-user-card">
                     <div className="user-card-header">
                       <div className="user-info">
                         <h3>{transporter.fullName}</h3>

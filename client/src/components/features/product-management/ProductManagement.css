@@ -16,6 +16,12 @@
   margin: 0;
 }
 
+.product-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 /* Products Grid */
 .products-grid {
   display: grid;

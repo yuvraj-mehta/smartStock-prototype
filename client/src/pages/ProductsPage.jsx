@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchProducts } from '../app/slices/productSlice';
+import { getAllProducts } from '../app/slices/productSlice';
 
 const ProductsPage = () => {
 
@@ -8,13 +8,13 @@ const ProductsPage = () => {
   const { products, loading, error, message } = useSelector((state) => state.products);
   const { user } = useSelector((state) => state.auth);
 
-  const [search, setSearch] = useState("");
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterActive, setFilterActive] = useState("");
+  const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterActive, setFilterActive] = useState('');
   const [editProduct, setEditProduct] = useState(null); // product object or null
 
   useEffect(() => {
-    dispatch(fetchProducts());
+    dispatch(getAllProducts());
   }, [dispatch]);
 
   // Get unique categories for filter dropdown
@@ -32,7 +32,7 @@ const ProductsPage = () => {
       product.sku?.toLowerCase().includes(q);
     const matchesCategory = filterCategory ? product.productCategory === filterCategory : true;
     const matchesActive = filterActive
-      ? (filterActive === "active" ? product.isActive : !product.isActive)
+      ? (filterActive === 'active' ? product.isActive : !product.isActive)
       : true;
     return matchesSearch && matchesCategory && matchesActive;
   }) || [];

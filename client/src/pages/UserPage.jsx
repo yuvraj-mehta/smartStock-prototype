@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../app/slices/authSlice';
+import { logout, refreshUserDetails } from '../app/slices/authSlice';
 import { updateProfile, resetUserSlice } from '../app/slices/userSlice';
-import { config } from '../../config/config.js';
 import {
   User,
   Mail,
@@ -21,7 +20,8 @@ import {
   CheckCircle,
   AlertCircle,
   Award,
-  Building
+  Building,
+  RefreshCw,
 } from 'lucide-react';
 
 const UserPage = () => {
@@ -62,11 +62,26 @@ const UserPage = () => {
     dispatch(resetUserSlice());
   }, [dispatch]);
 
+  // Update form data when user data changes (including after refresh)
+  useEffect(() => {
+    if (user) {
+      const userData = {
+        fullName: user.fullName || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        avatar: user.avatar || '',
+        shift: user.shift || '',
+      };
+      setFormData(userData);
+      setOriginalData(userData);
+    }
+  }, [user]); // Run when user data changes
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -89,12 +104,12 @@ const UserPage = () => {
     const updateData = { [editingField]: formData[editingField] };
 
     try {
-      await dispatch(updateProfile(updateData)).unwrap();
+      await dispatch(updateProfile(updateData));
 
       // Update the original data to reflect the successful change
       setOriginalData(prev => ({
         ...prev,
-        [editingField]: formData[editingField]
+        [editingField]: formData[editingField],
       }));
 
       setIsEditing(false);
@@ -109,7 +124,7 @@ const UserPage = () => {
       // Revert to original value and exit edit mode
       setFormData(prev => ({
         ...prev,
-        [field]: originalData[field]
+        [field]: originalData[field],
       }));
       setIsEditing(false);
       setEditingField(null);
@@ -122,18 +137,18 @@ const UserPage = () => {
       const updateData = { [field]: formData[field] };
 
       try {
-        await dispatch(updateProfile(updateData)).unwrap();
+        await dispatch(updateProfile(updateData));
 
         // Update original data to reflect the successful change
         setOriginalData(prev => ({
           ...prev,
-          [field]: formData[field]
+          [field]: formData[field],
         }));
       } catch (error) {
         // If save fails, revert to original value
         setFormData(prev => ({
           ...prev,
-          [field]: originalData[field]
+          [field]: originalData[field],
         }));
         console.error('Failed to update profile:', error);
       }
@@ -146,6 +161,15 @@ const UserPage = () => {
 
   const handleLogout = () => {
     dispatch(logout());
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await dispatch(refreshUserDetails());
+      // Form data will be updated automatically by the useEffect watching user changes
+    } catch (error) {
+      console.error('Failed to refresh user details:', error);
+    }
   };
 
   const getShiftIcon = (shift) => {
@@ -205,7 +229,7 @@ const UserPage = () => {
                   Saving...
                 </span>
               ) : (
-                "Click outside to auto-save or use buttons below"
+                'Click outside to auto-save or use buttons below'
               )}
             </div>
             <div className="flex gap-2">
@@ -284,7 +308,7 @@ const UserPage = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600">
           <div className="absolute inset-0 opacity-30">
             <div className="absolute inset-0 bg-repeat" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
             }}></div>
           </div>
         </div>
@@ -450,7 +474,7 @@ const UserPage = () => {
                   options={[
                     { value: 'morning', label: '🌅 Morning' },
                     { value: 'afternoon', label: '☀️ Afternoon' },
-                    { value: 'night', label: '🌙 Night' }
+                    { value: 'night', label: '🌙 Night' },
                   ]}
                 />
               </div>
@@ -517,16 +541,29 @@ const UserPage = () => {
               </div>
             </div>
 
-            {/* Action Button */}
+            {/* Action Buttons */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-              <div className="p-6 text-center">
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 hover:scale-105 hover:shadow-xl"
-                >
-                  <LogOut className="w-5 h-5" />
-                  Sign Out
-                </button>
+              <div className="p-6">
+                <div className="space-y-3">
+                  {/* Refresh Button */}
+                  <button
+                    onClick={handleRefresh}
+                    disabled={userLoading}
+                    className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 hover:scale-105 hover:shadow-xl disabled:scale-100 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-5 h-5 ${userLoading ? 'animate-spin' : ''}`} />
+                    {userLoading ? 'Refreshing...' : 'Refresh Profile'}
+                  </button>
+
+                  {/* Logout Button */}
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 hover:scale-105 hover:shadow-xl"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Sign Out
+                  </button>
+                </div>
               </div>
             </div>
           </div>

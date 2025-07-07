@@ -12,7 +12,7 @@ import {
   Settings,
   Menu,
   X,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
 
 const Navbar = () => {

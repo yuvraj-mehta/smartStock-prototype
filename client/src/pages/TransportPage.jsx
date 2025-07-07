@@ -1,18 +1,17 @@
 
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import TransportExpandableCard from "./TransportExpandableCard";
+import React, { useEffect, useState } from 'react';
+import TransportExpandableCard from './TransportExpandableCard';
 
 const statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  dispatched: "bg-blue-100 text-blue-800",
-  intransit: "bg-purple-100 text-purple-800",
-  delivered: "bg-green-100 text-green-800",
-  returned: "bg-red-100 text-red-800",
+  pending: 'bg-yellow-100 text-yellow-800',
+  dispatched: 'bg-blue-100 text-blue-800',
+  intransit: 'bg-purple-100 text-purple-800',
+  delivered: 'bg-green-100 text-green-800',
+  returned: 'bg-red-100 text-red-800',
 };
 
 const TransportStatusBadge = ({ status }) => (
-  <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColors[status] || "bg-gray-100 text-gray-800"}`}>
+  <span className={`px-2 py-1 rounded text-xs font-semibold ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
     {status.charAt(0).toUpperCase() + status.slice(1)}
   </span>
 );
@@ -113,7 +112,7 @@ const TransportDetailsModal = ({ transport, onClose }) => {
           <ul className="list-disc ml-6 mt-2">
             {transport.statusHistory.map((h, idx) => (
               <li key={idx} className="mb-1">
-                <span className="font-semibold">{h.status}</span> at {h.location || "-"} on {new Date(h.timestamp).toLocaleString()}
+                <span className="font-semibold">{h.status}</span> at {h.location || '-'} on {new Date(h.timestamp).toLocaleString()}
               </li>
             ))}
           </ul>
@@ -141,11 +140,41 @@ const TransportPage = () => {
       setLoading(true);
       setError(null);
       try {
-        // TODO: Replace with your actual API base URL and auth if needed
-        const res = await axios.get("/api/transport/all");
-        setTransports(res.data);
+        // TODO: Replace with your new backend API call
+        // Mock transport data for now
+        const mockTransports = [
+          {
+            _id: '1',
+            transportId: 'T001',
+            packageId: 'P001',
+            driverName: 'John Doe',
+            vehicleNumber: 'ABC123',
+            startLocation: 'Warehouse A',
+            endLocation: 'Customer Location',
+            status: 'intransit',
+            estimatedDelivery: '2024-01-15',
+            actualDelivery: null,
+            distance: '25 km',
+            createdAt: '2024-01-14T10:00:00Z',
+          },
+          {
+            _id: '2',
+            transportId: 'T002',
+            packageId: 'P002',
+            driverName: 'Jane Smith',
+            vehicleNumber: 'XYZ789',
+            startLocation: 'Warehouse B',
+            endLocation: 'Customer Location 2',
+            status: 'delivered',
+            estimatedDelivery: '2024-01-14',
+            actualDelivery: '2024-01-14T16:30:00Z',
+            distance: '15 km',
+            createdAt: '2024-01-13T08:00:00Z',
+          },
+        ];
+        setTransports(mockTransports);
       } catch (err) {
-        setError("Failed to load transports");
+        setError('Failed to load transports');
       } finally {
         setLoading(false);
       }

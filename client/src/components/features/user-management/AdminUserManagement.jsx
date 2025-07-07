@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { config } from '../../../../config/config';
+import { useSelector, useDispatch } from 'react-redux';
+import { getAllUsers, createUser, updateUser, deleteUser, clearUserMessages } from '../../../app/slices/userSlice';
 import './AdminUserManagement.css';
 
 const UserManagement = ({ triggerAction }) => {
-  const { token } = useSelector((state) => state.auth);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const dispatch = useDispatch();
+  const { users, loading, error, message } = useSelector((state) => state.users);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
@@ -19,14 +16,12 @@ const UserManagement = ({ triggerAction }) => {
     role: 'staff',
     wagePerHour: 0,
     shift: 'morning',
-    status: 'active'
+    status: 'active',
   });
 
-  const API_BASE_URL = config.apiBaseUrl;
-
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    dispatch(getAllUsers());
+  }, [dispatch]);
 
   // Handle triggerAction prop
   useEffect(() => {
@@ -35,28 +30,15 @@ const UserManagement = ({ triggerAction }) => {
     }
   }, [triggerAction]);
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/user/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      // Map _id to id for consistent frontend usage
-      const usersWithId = (response.data.users || []).map(user => ({
-        ...user,
-        id: user._id || user.id
-      }));
-      setUsers(usersWithId);
-    } catch (err) {
-      console.error('Fetch users error:', err.response?.data || err.message);
-      setError('Failed to fetch users');
-    } finally {
-      setLoading(false);
+  // Handle success/error messages
+  useEffect(() => {
+    if (message) {
+      dispatch(clearUserMessages());
     }
-  };
+    if (error) {
+      dispatch(clearUserMessages());
+    }
+  }, [message, error, dispatch]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -64,42 +46,19 @@ const UserManagement = ({ triggerAction }) => {
     // Parse numeric values
     let parsedValue = value;
     if (name === 'wagePerHour') {
-      // Handle empty string or null/undefined
-      if (value === '' || value === null || value === undefined) {
-        parsedValue = 0;
-      } else {
-        parsedValue = parseFloat(value);
-        // If parsing fails, set to 0
-        if (isNaN(parsedValue)) {
-          parsedValue = 0;
-        }
-      }
+      parsedValue = parseFloat(value) || 0;
     }
 
     setFormData(prev => ({
       ...prev,
-      [name]: parsedValue
+      [name]: parsedValue,
     }));
   };
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      const createData = { ...formData };
-
-      // Ensure numeric values are properly formatted
-      if (createData.wagePerHour !== undefined) {
-        createData.wagePerHour = parseFloat(createData.wagePerHour) || 0;
-      }
-
-      const response = await axios.post(`${API_BASE_URL}/user/create`, createData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      alert('User created successfully!');
+      await dispatch(createUser(formData));
       setShowCreateForm(false);
       setFormData({
         fullName: '',
@@ -109,58 +68,40 @@ const UserManagement = ({ triggerAction }) => {
         role: 'staff',
         wagePerHour: 0,
         shift: 'morning',
-        status: 'active'
+        status: 'active',
       });
-      fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create user');
+      console.error('Create user error:', err);
     }
   };
 
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     try {
-      const updateData = { ...formData };
-      delete updateData.password; // Don't send password in update
-
-      // Ensure numeric values are properly formatted
-      if (updateData.wagePerHour !== undefined) {
-        updateData.wagePerHour = parseFloat(updateData.wagePerHour) || 0;
-      }
-
-      const userId = editingUser.id || editingUser._id;
-
-      const response = await axios.put(`${API_BASE_URL}/user/update/${userId}`, updateData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      alert('User updated successfully!');
+      await dispatch(updateUser(editingUser._id, formData));
       setEditingUser(null);
-      fetchUsers();
+      setShowCreateForm(false);
+      setFormData({
+        fullName: '',
+        email: '',
+        password: '',
+        phone: '',
+        role: 'staff',
+        wagePerHour: 0,
+        shift: 'morning',
+        status: 'active',
+      });
     } catch (err) {
-      console.error('Update error:', err.response?.data || err.message);
-      alert(err.response?.data?.message || 'Failed to update user');
+      console.error('Update user error:', err);
     }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (window.confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        await axios.delete(`${API_BASE_URL}/user/delete/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        alert('User deleted successfully!');
-        fetchUsers();
+        await dispatch(deleteUser(userId));
       } catch (err) {
-        console.error('Delete error:', err.response?.data || err.message);
-        alert(err.response?.data?.message || 'Failed to delete user');
+        console.error('Delete user error:', err);
       }
     }
   };
@@ -174,7 +115,7 @@ const UserManagement = ({ triggerAction }) => {
       role: user.role,
       wagePerHour: user.wagePerHour || 0,
       shift: user.shift || 'morning',
-      status: user.status
+      status: user.status,
     });
   };
 
@@ -188,19 +129,23 @@ const UserManagement = ({ triggerAction }) => {
       role: 'staff',
       wagePerHour: 0,
       shift: 'morning',
-      status: 'active'
+      status: 'active',
     });
+  };
+
+  const handleRefresh = () => {
+    dispatch(getAllUsers());
   };
 
   if (loading) {
     return <div className="loading">Loading users...</div>;
   }
 
-  if (error) {
+  if (error && !users.length) {
     return (
       <div className="error">
         <p>{error}</p>
-        <button onClick={fetchUsers}>Retry</button>
+        <button onClick={handleRefresh}>Retry</button>
       </div>
     );
   }
@@ -209,12 +154,21 @@ const UserManagement = ({ triggerAction }) => {
     <div className="user-management">
       <div className="user-header">
         <h2>User Management</h2>
-        <button
-          className="btn-primary"
-          onClick={() => setShowCreateForm(true)}
-        >
-          + Create New User
-        </button>
+        <div className="user-actions">
+          <button
+            className="btn-secondary"
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            🔄 Refresh
+          </button>
+          <button
+            className="btn-primary"
+            onClick={() => setShowCreateForm(true)}
+          >
+            + Create New User
+          </button>
+        </div>
       </div>
 
       {/* Create User Modal */}
@@ -463,7 +417,7 @@ const UserManagement = ({ triggerAction }) => {
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id || user._id}>
+              <tr key={user._id || user.id}>
                 <td>
                   <div className="user-info">
                     <img
@@ -503,7 +457,7 @@ const UserManagement = ({ triggerAction }) => {
                     </button>
                     <button
                       className="btn-delete"
-                      onClick={() => handleDeleteUser(user.id || user._id, user.fullName)}
+                      onClick={() => handleDeleteUser(user._id || user.id)}
                     >
                       Delete
                     </button>

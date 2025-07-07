@@ -1,40 +1,50 @@
 import { Router } from "express";
-const router = Router();
-
-import { createTransportValidation } from "../validators/productAndInventory.validators.js";
+import {
+  getAllTransports,
+  getTransportById,
+  updateTransportStatus,
+  getTransportsByPackageId
+} from "../controllers/index.js";
 import {
   isAuthenticated,
   isAuthorized,
 } from "../middlewares/index.js";
-import {
-  createTransport,
-  getAllTransports,
-  updateTransportStatus
-} from "../controllers/index.js";
+
+const router = Router();
 
 router.get("/", (req, res) => {
   res.send("Welcome to the Transport API");
 });
 
+// Get all transports
 router.get(
   "/all",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "transporter"),
   getAllTransports
 );
 
-router.post(
-  "/create",
+// Get transport by ID
+router.get(
+  "/:transportId",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
-  createTransportValidation,
-  createTransport
+  isAuthorized("admin", "staff", "transporter"),
+  getTransportById
 );
 
-router.patch(
-  "/update/:id",
+// Get transports by package ID
+router.get(
+  "/package/:packageId",
   isAuthenticated,
-  isAuthorized("transporter"),
+  isAuthorized("admin", "staff", "viewer"),
+  getTransportsByPackageId
+);
+
+// Update transport status (for transporters)
+router.patch(
+  "/status/:transportId",
+  isAuthenticated,
+  isAuthorized("admin", "staff", "transporter"),
   updateTransportStatus
 );
 

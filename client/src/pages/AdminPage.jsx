@@ -8,7 +8,7 @@ import {
   AdminUserManagement,
   ProductManagement,
   ExternalUserManagement,
-  AdminDashboard
+  AdminDashboard,
 } from '../components/features';
 
 const AdminPage = () => {

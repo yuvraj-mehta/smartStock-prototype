@@ -46,7 +46,7 @@ const UserDashboard = () => {
       phone: '+1234567890',
       wagePerHour: 15.50,
       role: 'staff',
-      shift: 'morning'
+      shift: 'morning',
     };
 
     await createUser(userData);
@@ -57,7 +57,7 @@ const UserDashboard = () => {
   const handleUpdateUser = async (userId) => {
     const updateData = {
       status: 'active',
-      wagePerHour: 16.00
+      wagePerHour: 16.00,
     };
 
     await updateUser(userId, updateData);

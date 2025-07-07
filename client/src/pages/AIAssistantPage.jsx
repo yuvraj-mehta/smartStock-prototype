@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { config } from '../../config/config';
 import './AIAssistantPage.css';
 
 const AIAssistantPage = () => {
@@ -14,7 +12,7 @@ const AIAssistantPage = () => {
     inventory: [],
     predictions: [],
     alerts: [],
-    analytics: {}
+    analytics: {},
   });
   const [analysisResults, setAnalysisResults] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -22,10 +20,8 @@ const AIAssistantPage = () => {
   const [thresholdSettings, setThresholdSettings] = useState({
     lowStockThreshold: 10,
     highStockThreshold: 1000,
-    demandSensitivity: 'medium'
+    demandSensitivity: 'medium',
   });
-
-  const API_BASE_URL = config.apiBaseUrl;
 
   useEffect(() => {
     fetchData();
@@ -36,22 +32,28 @@ const AIAssistantPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+      // TODO: Replace with your new backend API calls
+      // Mock data for now
+      const mockData = {
+        products: [
+          { _id: '1', productName: 'Sample Product 1', sku: 'SP001', price: 29.99 },
+          { _id: '2', productName: 'Sample Product 2', sku: 'SP002', price: 49.99 },
+        ],
+        sales: [
+          { _id: '1', productId: '1', quantity: 10, date: '2024-01-15' },
+          { _id: '2', productId: '2', quantity: 5, date: '2024-01-16' },
+        ],
+        inventory: [
+          { _id: '1', productId: '1', quantity: 100, location: 'Warehouse A' },
+          { _id: '2', productId: '2', quantity: 50, location: 'Warehouse B' },
+        ],
       };
-
-      const [productsRes, salesRes, inventoryRes] = await Promise.allSettled([
-        axios.get(`${API_BASE_URL}/product/all`, { headers }),
-        axios.get(`${API_BASE_URL}/sales/all`, { headers }),
-        axios.get(`${API_BASE_URL}/inventory/all`, { headers })
-      ]);
 
       setData(prev => ({
         ...prev,
-        products: productsRes.status === 'fulfilled' ? (productsRes.value.data.products || []) : [],
-        sales: salesRes.status === 'fulfilled' ? (salesRes.value.data.sales || []) : [],
-        inventory: inventoryRes.status === 'fulfilled' ? (inventoryRes.value.data.inventory || []) : []
+        products: mockData.products,
+        sales: mockData.sales,
+        inventory: mockData.inventory,
       }));
 
     } catch (err) {
@@ -61,90 +63,52 @@ const AIAssistantPage = () => {
     }
   };
 
-  // Mock AI functions (in real implementation, these would call AI/ML services)
   const generateMockPredictions = () => {
-    const predictions = [
-      {
-        productId: '1',
-        productName: 'iPhone 15',
-        currentStock: 45,
-        predictedDemand: 78,
-        recommendedStock: 85,
-        confidence: 87,
-        trend: 'increasing',
-        seasonality: 'high',
-        riskLevel: 'medium'
-      },
-      {
-        productId: '2',
-        productName: 'Samsung Galaxy S24',
-        currentStock: 23,
-        predictedDemand: 34,
-        recommendedStock: 40,
-        confidence: 92,
-        trend: 'stable',
-        seasonality: 'medium',
-        riskLevel: 'low'
-      },
-      {
-        productId: '3',
-        productName: 'MacBook Pro',
-        currentStock: 12,
-        predictedDemand: 8,
-        recommendedStock: 15,
-        confidence: 75,
-        trend: 'decreasing',
-        seasonality: 'low',
-        riskLevel: 'high'
-      }
-    ];
-    setData(prev => ({ ...prev, predictions }));
-  };
-
-  const generateMockAlerts = () => {
-    const alerts = [
+    // Mock prediction data
+    const mockPredictions = [
       {
         id: 1,
-        type: 'low_stock',
-        priority: 'high',
-        product: 'iPhone 15',
-        message: 'Stock running low. Current: 15 units, Threshold: 20 units',
-        recommendation: 'Order 50 more units immediately',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        status: 'active'
+        productName: 'Sample Product 1',
+        currentStock: 100,
+        predictedDemand: 85,
+        recommendedRestock: 150,
+        confidence: 0.85,
+        nextRestockDate: '2024-02-15',
       },
       {
         id: 2,
-        type: 'overstock',
-        priority: 'medium',
-        product: 'Old Model Headphones',
-        message: 'Excess inventory detected. Current: 150 units, moving slowly',
-        recommendation: 'Consider discount promotion or clearance sale',
-        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
-        status: 'active'
+        productName: 'Sample Product 2',
+        currentStock: 50,
+        predictedDemand: 40,
+        recommendedRestock: 80,
+        confidence: 0.78,
+        nextRestockDate: '2024-02-20',
       },
-      {
-        id: 3,
-        type: 'demand_spike',
-        priority: 'high',
-        product: 'Gaming Console',
-        message: 'Unusual demand spike detected. 300% increase from last week',
-        recommendation: 'Increase stock levels and monitor competitor pricing',
-        timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
-        status: 'new'
-      },
-      {
-        id: 4,
-        type: 'threshold_adjust',
-        priority: 'low',
-        product: 'Tablet Accessories',
-        message: 'Threshold may need adjustment based on seasonal patterns',
-        recommendation: 'Review and adjust low stock threshold from 25 to 35 units',
-        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
-        status: 'active'
-      }
     ];
-    setData(prev => ({ ...prev, alerts }));
+
+    setData(prev => ({ ...prev, predictions: mockPredictions }));
+  };
+
+  const generateMockAlerts = () => {
+    // Mock alerts data
+    const mockAlerts = [
+      {
+        id: 1,
+        type: 'low_stock',
+        message: 'Sample Product 1 is running low',
+        severity: 'warning',
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        type: 'high_demand',
+        message: 'Unusual demand spike detected for Sample Product 2',
+        severity: 'info',
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    setData(prev => ({ ...prev, alerts: mockAlerts }));
   };
 
   const analyzeSalesData = async () => {
@@ -159,25 +123,25 @@ const AIAssistantPage = () => {
         topProducts: [
           { name: 'iPhone 15', sales: 89, revenue: 79100 },
           { name: 'Samsung Galaxy S24', sales: 67, revenue: 53600 },
-          { name: 'MacBook Pro', sales: 23, revenue: 45980 }
+          { name: 'MacBook Pro', sales: 23, revenue: 45980 },
         ],
         trends: {
           weeklyGrowth: 12.5,
           monthlyGrowth: 8.3,
-          yearlyGrowth: 25.7
+          yearlyGrowth: 25.7,
         },
         insights: [
           'Peak sales occur on Fridays and Saturdays',
           'Electronics category shows strongest growth',
           'Customer retention rate is 78%',
-          'Average time between purchases is 21 days'
+          'Average time between purchases is 21 days',
         ],
         recommendations: [
           'Increase iPhone 15 stock by 30% for next month',
           'Launch targeted marketing for slower-moving items',
           'Optimize pricing for accessories to increase basket size',
-          'Consider bundle offers to increase average order value'
-        ]
+          'Consider bundle offers to increase average order value',
+        ],
       };
       setAnalysisResults(analysis);
       setLoading(false);
@@ -204,13 +168,13 @@ const AIAssistantPage = () => {
           'Seasonal trends',
           'Historical sales data',
           'Market conditions',
-          'Promotional impact'
+          'Promotional impact',
         ],
         recommendations: [
           `Order ${Math.floor(Math.random() * 50) + 20} units`,
           'Monitor competitor pricing',
-          'Consider promotional strategy'
-        ]
+          'Consider promotional strategy',
+        ],
       };
 
       alert(`Demand Prediction for ${selectedProduct}:\nPredicted demand: ${prediction.predictedDemand} units\nConfidence: ${prediction.confidence}%`);
@@ -232,8 +196,8 @@ const AIAssistantPage = () => {
     setData(prev => ({
       ...prev,
       alerts: prev.alerts.map(alert =>
-        alert.id === alertId ? { ...alert, status: 'dismissed' } : alert
-      )
+        alert.id === alertId ? { ...alert, status: 'dismissed' } : alert,
+      ),
     }));
   };
 
@@ -242,7 +206,7 @@ const AIAssistantPage = () => {
       low_stock: '⚠️',
       overstock: '📦',
       demand_spike: '📈',
-      threshold_adjust: '🎚️'
+      threshold_adjust: '🎚️',
     };
     return icons[type] || '🔔';
   };
@@ -251,7 +215,7 @@ const AIAssistantPage = () => {
     const colors = {
       high: 'red',
       medium: 'orange',
-      low: 'blue'
+      low: 'blue',
     };
     return colors[priority] || 'gray';
   };
@@ -260,7 +224,7 @@ const AIAssistantPage = () => {
     { id: 'demand-prediction', label: 'Demand Prediction', icon: '🔮' },
     { id: 'stock-alerts', label: 'Stock Alerts', icon: '🚨' },
     { id: 'sales-analysis', label: 'Sales Analysis', icon: '📊' },
-    { id: 'threshold-settings', label: 'Threshold Settings', icon: '⚙️' }
+    { id: 'threshold-settings', label: 'Threshold Settings', icon: '⚙️' },
   ];
 
   return (
@@ -512,7 +476,7 @@ const AIAssistantPage = () => {
                     value={thresholdSettings.lowStockThreshold}
                     onChange={(e) => setThresholdSettings(prev => ({
                       ...prev,
-                      lowStockThreshold: parseInt(e.target.value)
+                      lowStockThreshold: parseInt(e.target.value),
                     }))}
                   />
                   <span className="setting-description">Alert when stock falls below this level</span>
@@ -524,7 +488,7 @@ const AIAssistantPage = () => {
                     value={thresholdSettings.highStockThreshold}
                     onChange={(e) => setThresholdSettings(prev => ({
                       ...prev,
-                      highStockThreshold: parseInt(e.target.value)
+                      highStockThreshold: parseInt(e.target.value),
                     }))}
                   />
                   <span className="setting-description">Alert when stock exceeds this level</span>
@@ -539,7 +503,7 @@ const AIAssistantPage = () => {
                     value={thresholdSettings.demandSensitivity}
                     onChange={(e) => setThresholdSettings(prev => ({
                       ...prev,
-                      demandSensitivity: e.target.value
+                      demandSensitivity: e.target.value,
                     }))}
                   >
                     <option value="low">Low - Conservative predictions</option>

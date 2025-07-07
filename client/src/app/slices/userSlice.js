@@ -1,9 +1,5 @@
-import { createSlice } from "@reduxjs/toolkit";
-import axios from "axios";
-import { config } from "../../../config/config.js";
-import { updateUserData } from "./authSlice.js";
-
-const API_BASE_URL = config.apiBaseUrl;
+import { createSlice } from '@reduxjs/toolkit';
+import { authAPI, userAPI } from '../../services/api';
 
 const initialState = {
   loading: false,
@@ -15,7 +11,7 @@ const initialState = {
 };
 
 const userSlice = createSlice({
-  name: "users",
+  name: 'users',
   initialState,
   reducers: {
     // Get all users
@@ -26,20 +22,13 @@ const userSlice = createSlice({
     },
     getUsersSuccess(state, action) {
       state.loading = false;
-      // Map _id to id for consistent frontend usage
-      const users = action.payload.users.map(user => ({
-        ...user,
-        id: user._id || user.id
-      }));
-      state.users = users;
-      state.totalUsers = action.payload.totalUsers;
+      state.users = action.payload.users || [];
+      state.totalUsers = action.payload.totalUsers || action.payload.users?.length || 0;
       state.message = action.payload.message;
     },
     getUsersFailed(state, action) {
       state.loading = false;
       state.error = action.payload;
-      state.users = [];
-      state.totalUsers = 0;
     },
 
     // Get single user
@@ -50,15 +39,12 @@ const userSlice = createSlice({
     },
     getUserSuccess(state, action) {
       state.loading = false;
-      const user = action.payload.user;
-      // Map _id to id for consistent frontend usage
-      state.selectedUser = { ...user, id: user._id || user.id };
+      state.selectedUser = action.payload.user;
       state.message = action.payload.message;
     },
     getUserFailed(state, action) {
       state.loading = false;
       state.error = action.payload;
-      state.selectedUser = null;
     },
 
     // Create user
@@ -69,12 +55,12 @@ const userSlice = createSlice({
     },
     createUserSuccess(state, action) {
       state.loading = false;
-      const user = action.payload.user;
-      // Map _id to id for consistent frontend usage
-      const userWithId = { ...user, id: user._id || user.id };
-      state.users.push(userWithId);
-      state.totalUsers += 1;
       state.message = action.payload.message;
+      // Add new user to the existing users array
+      if (action.payload.user) {
+        state.users.push(action.payload.user);
+        state.totalUsers += 1;
+      }
     },
     createUserFailed(state, action) {
       state.loading = false;
@@ -89,17 +75,14 @@ const userSlice = createSlice({
     },
     updateUserSuccess(state, action) {
       state.loading = false;
-      const updatedUser = action.payload.user;
-      // Map _id to id for consistent frontend usage
-      const userWithId = { ...updatedUser, id: updatedUser._id || updatedUser.id };
-      const index = state.users.findIndex(user => (user.id === userWithId.id || user._id === userWithId.id));
-      if (index !== -1) {
-        state.users[index] = userWithId;
-      }
-      if (state.selectedUser && (state.selectedUser.id === userWithId.id || state.selectedUser._id === userWithId.id)) {
-        state.selectedUser = userWithId;
-      }
       state.message = action.payload.message;
+      // Update user in the existing users array
+      if (action.payload.user) {
+        const index = state.users.findIndex(user => user._id === action.payload.user._id);
+        if (index !== -1) {
+          state.users[index] = action.payload.user;
+        }
+      }
     },
     updateUserFailed(state, action) {
       state.loading = false;
@@ -114,187 +97,173 @@ const userSlice = createSlice({
     },
     deleteUserSuccess(state, action) {
       state.loading = false;
-      const deletedUserId = action.payload.userId;
-      state.users = state.users.filter(user => user.id !== deletedUserId && user._id !== deletedUserId);
-      state.totalUsers -= 1;
-      if (state.selectedUser && (state.selectedUser.id === deletedUserId || state.selectedUser._id === deletedUserId)) {
-        state.selectedUser = null;
-      }
       state.message = action.payload.message;
+      // Remove user from the existing users array
+      if (action.payload.userId) {
+        state.users = state.users.filter(user => user._id !== action.payload.userId);
+        state.totalUsers -= 1;
+      }
     },
     deleteUserFailed(state, action) {
       state.loading = false;
       state.error = action.payload;
     },
 
-    // Update current user profile
-    updateProfileRequest(state) {
-      state.loading = true;
-      state.error = null;
-      state.message = null;
-    },
-    updateProfileSuccess(state, action) {
-      state.loading = false;
-      state.message = action.payload.message;
-    },
-    updateProfileFailed(state, action) {
-      state.loading = false;
-      state.error = action.payload;
-    },
-
-    // Reset slice
-    resetUserSlice(state) {
-      state.loading = false;
-      state.error = null;
-      state.message = null;
-      state.selectedUser = null;
-    },
-
     // Clear selected user
     clearSelectedUser(state) {
       state.selectedUser = null;
     },
-  }
+
+    // Clear messages
+    clearUserMessages(state) {
+      state.error = null;
+      state.message = null;
+    },
+
+    // Reset user slice
+    resetUserSlice(state) {
+      state.loading = false;
+      state.error = null;
+      state.message = null;
+      state.users = [];
+      state.selectedUser = null;
+      state.totalUsers = 0;
+    },
+  },
 });
 
-// Async action creators
-export const getAllUsers = () => async (dispatch, getState) => {
+// Mock action creators - replace with your new backend integration
+export const getAllUsers = () => async (dispatch) => {
   dispatch(userSlice.actions.getUsersRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.get(`${API_BASE_URL}/user/all`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.getUsersSuccess(res.data));
-  } catch (error) {
-    dispatch(userSlice.actions.getUsersFailed(error.response?.data?.message || error.message));
-  }
-};
+    const response = await userAPI.getAllUsers();
+    const users = response.data.users || response.data || [];
 
-export const getUserDetails = (userId) => async (dispatch, getState) => {
-  dispatch(userSlice.actions.getUserRequest());
-  try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.get(`${API_BASE_URL}/user/${userId}`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.getUserSuccess(res.data));
-  } catch (error) {
-    dispatch(userSlice.actions.getUserFailed(error.response?.data?.message || error.message));
-  }
-};
-
-export const createUser = (userData) => async (dispatch, getState) => {
-  dispatch(userSlice.actions.createUserRequest());
-  try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.post(`${API_BASE_URL}/user/create`, userData, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.createUserSuccess(res.data));
-  } catch (error) {
-    dispatch(userSlice.actions.createUserFailed(error.response?.data?.message || error.message));
-  }
-};
-
-export const updateUser = (userId, userData) => async (dispatch, getState) => {
-  dispatch(userSlice.actions.updateUserRequest());
-  try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.put(`${API_BASE_URL}/user/update/${userId}`, userData, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.updateUserSuccess(res.data));
-  } catch (error) {
-    dispatch(userSlice.actions.updateUserFailed(error.response?.data?.message || error.message));
-  }
-};
-
-export const deleteUser = (userId) => async (dispatch, getState) => {
-  dispatch(userSlice.actions.deleteUserRequest());
-  try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.delete(`${API_BASE_URL}/user/delete/${userId}`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.deleteUserSuccess({
-      ...res.data,
-      userId: userId
+    dispatch(userSlice.actions.getUsersSuccess({
+      users: users,
+      totalUsers: users.length,
+      message: response.data.message || 'Users fetched successfully.'
     }));
   } catch (error) {
-    dispatch(userSlice.actions.deleteUserFailed(error.response?.data?.message || error.message));
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch users';
+    dispatch(userSlice.actions.getUsersFailed(errorMessage));
   }
 };
 
-export const createSupplier = (supplierData) => async (dispatch, getState) => {
+export const getUserDetails = (userId) => async (dispatch) => {
+  dispatch(userSlice.actions.getUserRequest());
+  try {
+    const response = await userAPI.getUserDetails(userId);
+
+    dispatch(userSlice.actions.getUserSuccess({
+      user: response.data.user,
+      message: response.data.message || 'User details fetched successfully.'
+    }));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch user details';
+    dispatch(userSlice.actions.getUserFailed(errorMessage));
+  }
+};
+
+export const createUser = (userData) => async (dispatch) => {
   dispatch(userSlice.actions.createUserRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.post(`${API_BASE_URL}/user/create-supplier`, supplierData, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.createUserSuccess(res.data));
+    const response = await userAPI.createUser(userData);
+
+    dispatch(userSlice.actions.createUserSuccess({
+      user: response.data.user,
+      message: response.data.message || 'User created successfully.'
+    }));
   } catch (error) {
-    dispatch(userSlice.actions.createUserFailed(error.response?.data?.message || error.message));
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to create user';
+    dispatch(userSlice.actions.createUserFailed(errorMessage));
   }
 };
 
-export const createTransporter = (transporterData) => async (dispatch, getState) => {
+export const updateUser = (userId, userData) => async (dispatch) => {
+  dispatch(userSlice.actions.updateUserRequest());
+  try {
+    const response = await userAPI.updateUser(userId, userData);
+
+    dispatch(userSlice.actions.updateUserSuccess({
+      user: response.data.user,
+      message: response.data.message || 'User updated successfully.'
+    }));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to update user';
+    dispatch(userSlice.actions.updateUserFailed(errorMessage));
+  }
+};
+
+export const deleteUser = (userId) => async (dispatch) => {
+  dispatch(userSlice.actions.deleteUserRequest());
+  try {
+    const response = await userAPI.deleteUser(userId);
+
+    dispatch(userSlice.actions.deleteUserSuccess({
+      userId: userId,
+      message: response.data.message || 'User deleted successfully.'
+    }));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to delete user';
+    dispatch(userSlice.actions.deleteUserFailed(errorMessage));
+  }
+};
+
+export const createSupplier = (supplierData) => async (dispatch) => {
   dispatch(userSlice.actions.createUserRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.post(`${API_BASE_URL}/user/create-transporter`, transporterData, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.createUserSuccess(res.data));
+    const response = await userAPI.createSupplier(supplierData);
+
+    dispatch(userSlice.actions.createUserSuccess({
+      user: response.data.user || response.data.supplier,
+      message: response.data.message || 'Supplier created successfully.'
+    }));
   } catch (error) {
-    dispatch(userSlice.actions.createUserFailed(error.response?.data?.message || error.message));
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to create supplier';
+    dispatch(userSlice.actions.createUserFailed(errorMessage));
   }
 };
 
-export const updateProfile = (profileData) => async (dispatch, getState) => {
-  dispatch(userSlice.actions.updateProfileRequest());
+export const createTransporter = (transporterData) => async (dispatch) => {
+  dispatch(userSlice.actions.createUserRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.put(`${API_BASE_URL}/auth/update-profile`, profileData, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    dispatch(userSlice.actions.updateProfileSuccess(res.data));
+    const response = await userAPI.createTransporter(transporterData);
 
-    // Update the auth state with the new user data
-    if (res.data.user) {
-      dispatch(updateUserData(res.data.user));
-    }
-
-    return res.data;
+    dispatch(userSlice.actions.createUserSuccess({
+      user: response.data.user || response.data.transporter,
+      message: response.data.message || 'Transporter created successfully.'
+    }));
   } catch (error) {
-    dispatch(userSlice.actions.updateProfileFailed(error.response?.data?.message || error.message));
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to create transporter';
+    dispatch(userSlice.actions.createUserFailed(errorMessage));
+  }
+};
+
+export const updateProfile = (profileData) => async (dispatch) => {
+  dispatch(userSlice.actions.updateUserRequest());
+  try {
+    const response = await authAPI.updateProfile(profileData);
+
+    // Update the user in localStorage
+    const updatedUser = response.data.user;
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+
+    // Update auth state with the new user data
+    dispatch({ type: 'auth/updateUserData', payload: updatedUser });
+
+    dispatch(userSlice.actions.updateUserSuccess({
+      user: updatedUser,
+      message: response.data.message || 'Profile updated successfully.'
+    }));
+
+    return updatedUser;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to update profile';
+    dispatch(userSlice.actions.updateUserFailed(errorMessage));
     throw error;
   }
 };
 
-// Export actions for direct use
-export const { resetUserSlice, clearSelectedUser } = userSlice.actions;
-
+export const { clearUserMessages, resetUserSlice, clearSelectedUser } = userSlice.actions;
 export default userSlice.reducer;

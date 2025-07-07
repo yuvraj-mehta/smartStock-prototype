@@ -18,7 +18,7 @@ import {
   FaSyncAlt,
   FaTachometerAlt,
   FaWarehouse,
-  FaClipboardList
+  FaClipboardList,
 } from 'react-icons/fa';
 import {
   fetchInventory,
@@ -26,9 +26,9 @@ import {
   markDamagedInventory,
   fetchRealTimeInventoryStatus,
   trackBatchByNumber,
-  clearInventoryMessages
+  clearInventoryMessages,
 } from '../app/slices/inventorySlice';
-import { fetchProducts } from '../app/slices/productSlice';
+import { getAllProducts } from '../app/slices/productSlice';
 import { fetchSuppliers } from '../app/slices/supplierSlice';
 
 const InventoryPage = () => {
@@ -40,7 +40,7 @@ const InventoryPage = () => {
     error,
     message,
     realTimeStatus,
-    batchTracking
+    batchTracking,
   } = useSelector(state => state.inventory);
   const { user } = useSelector(state => state.auth);
   const { products: allProducts } = useSelector(state => state.products);
@@ -61,22 +61,22 @@ const InventoryPage = () => {
     quantity: '',
     mfgDate: '',
     expDate: '',
-    notes: ''
+    notes: '',
   });
   const [damagedForm, setDamagedForm] = useState({
     productId: '',
     batchId: '',
     quantity: '',
-    reason: ''
+    reason: '',
   });
   const [batchTrackingForm, setBatchTrackingForm] = useState({
-    batchNumber: ''
+    batchNumber: '',
   });
 
   // Load data on component mount
   useEffect(() => {
     dispatch(fetchInventory());
-    dispatch(fetchProducts());
+    dispatch(getAllProducts());
     dispatch(fetchRealTimeInventoryStatus());
     dispatch(fetchSuppliers());
   }, [dispatch]);
@@ -108,7 +108,7 @@ const InventoryPage = () => {
       quantity: '',
       mfgDate: '',
       expDate: '',
-      notes: ''
+      notes: '',
     });
   };
 
@@ -119,7 +119,7 @@ const InventoryPage = () => {
       productId: '',
       batchId: '',
       quantity: '',
-      reason: ''
+      reason: '',
     });
   };
 
@@ -157,7 +157,7 @@ const InventoryPage = () => {
       return sum + (p.batches || []).reduce((batchSum, batch) => {
         return batchSum + (batch.damagedQuantity || 0);
       }, 0);
-    }, 0)
+    }, 0),
   };
 
   // Define tabs
@@ -788,7 +788,7 @@ const InventoryPage = () => {
                       <option key={batch.batchId} value={batch.batchNumber}>
                         {batch.batchNumber} - {item.product.productName}
                       </option>
-                    ))
+                    )),
                   )}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">

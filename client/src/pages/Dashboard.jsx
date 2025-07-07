@@ -1,18 +1,18 @@
-import React from "react";
+import React from 'react';
 // import Navbar from "../components/Navbar";
 // import Footer from "../components/Footer"; // Uncomment if you have a Footer component
 import { AlertTriangle, MapPin, TrendingUp, Package, Plus, ArrowUpRight, Activity } from 'lucide-react';
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from 'react-router-dom';
 
 // Dummy data for demonstration
 const products = [
-  { id: 1, name: "Product A", price: 120, reorder_point: 10 },
-  { id: 2, name: "Product B", price: 80, reorder_point: 15 },
-  { id: 3, name: "Product C", price: 200, reorder_point: 5 },
+  { id: 1, name: 'Product A', price: 120, reorder_point: 10 },
+  { id: 2, name: 'Product B', price: 80, reorder_point: 15 },
+  { id: 3, name: 'Product C', price: 200, reorder_point: 5 },
 ];
 const locations = [
-  { id: 1, name: "Warehouse 1" },
-  { id: 2, name: "Warehouse 2" },
+  { id: 1, name: 'Warehouse 1' },
+  { id: 2, name: 'Warehouse 2' },
 ];
 const inventoryData = [
   { id: 1, product: products[0], location: locations[0], quantity: 50 },
@@ -20,8 +20,8 @@ const inventoryData = [
   { id: 3, product: products[2], location: locations[0], quantity: 0 },
 ];
 const alerts = [
-  { id: 1, message: "Product B is low on stock!", severity: "high", created_at: new Date() },
-  { id: 2, message: "Product C is out of stock!", severity: "critical", created_at: new Date() },
+  { id: 1, message: 'Product B is low on stock!', severity: 'high', created_at: new Date() },
+  { id: 2, message: 'Product C is out of stock!', severity: 'critical', created_at: new Date() },
 ];
 
 const DashboardPage = () => {
@@ -53,9 +53,9 @@ const DashboardPage = () => {
               <Link to="/inventory">
                 <button
                   className={`px-5 py-2.5 rounded-lg shadow transition-all flex items-center font-semibold
-                    ${location.pathname === "/inventory"
-                      ? "bg-blue-700 text-white border-2 border-blue-800 scale-105"
-                      : "bg-blue-600 hover:bg-blue-700 text-white border border-blue-600"}
+                    ${location.pathname === '/inventory'
+                      ? 'bg-blue-700 text-white border-2 border-blue-800 scale-105'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-600'}
                   `}
                 >
                   <Package className="h-4 w-4 mr-2" />
@@ -65,9 +65,9 @@ const DashboardPage = () => {
               <Link to="/ai-assistant">
                 <button
                   className={`px-5 py-2.5 rounded-lg shadow-sm transition-all flex items-center font-semibold
-                    ${location.pathname === "/ai-assistant"
-                      ? "bg-green-600 text-white border-2 border-green-700 scale-105"
-                      : "border border-blue-600 text-blue-600 hover:bg-blue-50"}
+                    ${location.pathname === '/ai-assistant'
+                      ? 'bg-green-600 text-white border-2 border-green-700 scale-105'
+                      : 'border border-blue-600 text-blue-600 hover:bg-blue-50'}
                   `}
                 >
                   <Activity className="h-4 w-4 mr-2" />
@@ -220,18 +220,18 @@ const DashboardPage = () => {
 // Simple StatsCard component for demonstration
 function StatsCard({ title, value, icon, trend, trendValue, variant, animate }) {
   const trendColor =
-    variant === "danger"
-      ? "text-red-500"
-      : variant === "warning"
-        ? "text-yellow-500"
-        : trend === "up"
-          ? "text-green-500"
-          : "text-gray-500";
+    variant === 'danger'
+      ? 'text-red-500'
+      : variant === 'warning'
+        ? 'text-yellow-500'
+        : trend === 'up'
+          ? 'text-green-500'
+          : 'text-gray-500';
   return (
     <div className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8 flex flex-col items-start transition-all duration-300 ${animate ? 'hover:scale-105 hover:shadow-xl' : ''}`}>
       <div className="flex items-center mb-3">
         <span className="mr-3 text-blue-600">{icon}</span>
-        <span className={`text-sm font-semibold ${trendColor}`}>{trend === "up" ? "▲" : "▼"} {trendValue}</span>
+        <span className={`text-sm font-semibold ${trendColor}`}>{trend === 'up' ? '▲' : '▼'} {trendValue}</span>
       </div>
       <div className="text-3xl font-extrabold text-gray-900 mb-1 drop-shadow-sm">{value}</div>
       <div className="text-base text-gray-500 font-medium">{title}</div>

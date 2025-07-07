@@ -9,7 +9,7 @@ import {
   createTransporter,
   updateProfile,
   resetUserSlice,
-  clearSelectedUser
+  clearSelectedUser,
 } from '../app/slices/userSlice';
 
 /**
@@ -66,7 +66,7 @@ export const useUserFilters = () => {
     return users.filter(user =>
       user.fullName.toLowerCase().includes(term) ||
       user.email.toLowerCase().includes(term) ||
-      user.role.toLowerCase().includes(term)
+      user.role.toLowerCase().includes(term),
     );
   };
 

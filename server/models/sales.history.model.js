@@ -1,51 +1,54 @@
-// models/SalesHistory.js
 import mongoose from "mongoose";
 
 const SalesHistorySchema = new mongoose.Schema(
   {
-    productId: {
+    packageId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
+      ref: "Package",
+      required: true
     },
-    batchId: {
+    orderId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Batch",
+      ref: "Order",
+      required: true
     },
+    products: [{
+      productId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+        required: true
+      },
+      batchId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Batch",
+        required: true
+      },
+      quantity: {
+        type: Number,
+        required: true,
+        min: 1
+      },
+      itemIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Item"
+      }]
+    }],
     warehouseId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Warehouse",
-      required: true,
+      required: true
     },
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-    saleDate: {
+    saleConfirmationDate: {
       type: Date,
-      default: Date.now,
+      required: true
     },
-    action: {
-      type: String,
-      enum: ["dispatched", "returned"],
-      required: true,
+    deliveryDate: {
+      type: Date,
+      required: true
     },
-    referenceItemIds: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Item",
-      },
-    ],
     notes: {
-      type: String,
-    },
-    packageId: {
-      type: String,
-      required: function () { return this.action === "dispatched"; },
-      unique: true,
-      sparse: true,
-    },
+      type: String
+    }
   },
   { timestamps: true }
 );

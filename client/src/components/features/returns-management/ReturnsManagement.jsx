@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { config } from '../../../../config/config.js';
 import './ReturnsManagement.css';
 
 const ReturnsManagement = () => {
@@ -20,10 +18,8 @@ const ReturnsManagement = () => {
     reason: '',
     returnType: 'customer_request',
     refundAmount: 0,
-    orderId: ''
+    orderId: '',
   });
-
-  const API_BASE_URL = config.apiBaseUrl;
 
   useEffect(() => {
     fetchData();
@@ -32,22 +28,52 @@ const ReturnsManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+      // TODO: Replace with your new backend API calls
+      // Mock returns data for now
+      const mockReturns = [
+        {
+          _id: '1',
+          productId: { _id: '1', productName: 'Sample Product 1' },
+          batchId: 'B001',
+          quantity: 2,
+          reason: 'Defective item',
+          returnType: 'customer_request',
+          refundAmount: 59.98,
+          orderId: 'ORDER001',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          _id: '2',
+          productId: { _id: '2', productName: 'Sample Product 2' },
+          batchId: 'B002',
+          quantity: 1,
+          reason: 'Wrong item delivered',
+          returnType: 'customer_request',
+          refundAmount: 49.99,
+          orderId: 'ORDER002',
+          status: 'processed',
+          createdAt: new Date().toISOString(),
+        },
+      ];
 
-      const [returnsRes, productsRes] = await Promise.allSettled([
-        axios.get(`${API_BASE_URL}/return`, { headers }),
-        axios.get(`${API_BASE_URL}/product/all`, { headers })
-      ]);
+      const mockProducts = [
+        {
+          _id: '1',
+          productName: 'Sample Product 1',
+          sku: 'SP001',
+          price: 29.99,
+        },
+        {
+          _id: '2',
+          productName: 'Sample Product 2',
+          sku: 'SP002',
+          price: 49.99,
+        },
+      ];
 
-      if (returnsRes.status === 'fulfilled') {
-        setReturns(returnsRes.value.data || []);
-      }
-      if (productsRes.status === 'fulfilled') {
-        setProducts(productsRes.value.data.products || []);
-      }
+      setReturns(mockReturns);
+      setProducts(mockProducts);
     } catch (err) {
       setError('Failed to fetch returns data');
       console.error('Fetch error:', err);
@@ -60,34 +86,21 @@ const ReturnsManagement = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleCreateReturn = async (e) => {
     e.preventDefault();
     try {
-      const returnData = {
-        ...formData,
-        warehouseId: user.assignedWarehouseId?._id || user.assignedWarehouseId,
-        quantity: parseInt(formData.quantity),
-        refundAmount: parseFloat(formData.refundAmount) || 0,
-        returnedBy: user._id
-      };
-
-      const response = await axios.post(`${API_BASE_URL}/return`, returnData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
+      // TODO: Replace with your new backend API call
+      console.log('Creating return:', formData);
       alert('Return recorded successfully!');
       setShowCreateForm(false);
       resetForm();
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to record return');
+      alert('Failed to record return');
     }
   };
 
@@ -99,7 +112,7 @@ const ReturnsManagement = () => {
       reason: '',
       returnType: 'customer_request',
       refundAmount: 0,
-      orderId: ''
+      orderId: '',
     });
   };
 
@@ -132,7 +145,7 @@ const ReturnsManagement = () => {
     { value: 'damaged', label: 'Damaged' },
     { value: 'wrong_item', label: 'Wrong Item' },
     { value: 'customer_request', label: 'Customer Request' },
-    { value: 'quality_issue', label: 'Quality Issue' }
+    { value: 'quality_issue', label: 'Quality Issue' },
   ];
 
   const statusOptions = ['pending', 'received', 'inspected', 'approved', 'rejected', 'refunded'];

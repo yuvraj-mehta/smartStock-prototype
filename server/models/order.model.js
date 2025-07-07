@@ -9,10 +9,10 @@ const orderSchema = new mongoose.Schema({
       return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     }
   },
-  customerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer',
-    required: true
+  platformOrderId: {
+    type: String,
+    required: true,
+    unique: true
   },
   items: [{
     productId: {
@@ -20,90 +20,24 @@ const orderSchema = new mongoose.Schema({
       ref: 'Product',
       required: true
     },
-    batchId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Batch'
-    },
     quantity: {
       type: Number,
       required: true,
       min: 1
-    },
-    unitPrice: {
-      type: Number,
-      required: true
-    },
-    totalPrice: {
-      type: Number,
-      required: true
-    },
-    itemIds: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Item'
-    }]
+    }
   }],
   orderStatus: {
     type: String,
-    enum: ['pending', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled', 'returned'],
+    enum: ['pending', 'processing', 'packaged', 'dispatched', 'delivered', 'sale_confirmed', 'returned'],
     default: 'pending'
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'paid', 'failed', 'refunded'],
-    default: 'pending'
-  },
-  shippingAddress: {
-    street: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    zipcode: { type: String, required: true },
-    country: { type: String, required: true }
-  },
-  billingAddress: {
-    street: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    zipcode: { type: String, required: true },
-    country: { type: String, required: true }
-  },
-  totalAmount: {
-    type: Number,
-    required: true
-  },
-  taxAmount: {
-    type: Number,
-    default: 0
-  },
-  shippingCost: {
-    type: Number,
-    default: 0
-  },
-  finalAmount: {
-    type: Number,
-    required: true
-  },
-  packageId: {
-    type: String
-  },
-  trackingNumber: {
-    type: String
-  },
-  transportId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Transport'
-  },
-  orderDate: {
-    type: Date,
-    default: Date.now
-  },
-  expectedDeliveryDate: {
-    type: Date
-  },
-  actualDeliveryDate: {
-    type: Date
   },
   notes: {
     type: String
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
   statusHistory: [{
     status: {

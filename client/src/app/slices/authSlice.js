@@ -1,8 +1,5 @@
-import { createSlice } from "@reduxjs/toolkit";
-import axios from "axios";
-import { config } from "../../../config/config.js";
-
-const API_BASE_URL = config.apiBaseUrl;
+import { createSlice } from '@reduxjs/toolkit';
+import { authAPI } from '../../services/api';
 
 const initialState = {
   loading: false,
@@ -11,10 +8,10 @@ const initialState = {
   user: null,
   token: null,
   isAuthenticated: false,
-}
+};
 
 const authSlice = createSlice({
-  name: "auth",
+  name: 'auth',
   initialState,
   reducers: {
     loginRequest(state) {
@@ -67,7 +64,7 @@ const authSlice = createSlice({
       state.user = { ...state.user, ...action.payload };
       // Update localStorage as well
       if (state.user) {
-        localStorage.setItem("user", JSON.stringify(state.user));
+        localStorage.setItem('user', JSON.stringify(state.user));
       }
     },
 
@@ -79,51 +76,68 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
     },
-  }
-})
+  },
+});
 
-
+// Login function with backend integration
 export const login = (data) => async (dispatch) => {
   dispatch(authSlice.actions.loginRequest());
   try {
-    const res = await axios.post(`${API_BASE_URL}/auth/login`, data, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    // Store token in localStorage
-    if (res.data.token) {
-      localStorage.setItem("token", res.data.token);
-    }
-    if (res.data.user) {
-      localStorage.setItem("user", JSON.stringify(res.data.user));
-    }
-    dispatch(authSlice.actions.loginSuccess(res.data));
-    console.log(initialState);
+    const response = await authAPI.login(data);
+    const { user, token, message } = response.data;
 
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+
+    dispatch(authSlice.actions.loginSuccess({
+      user: user,
+      token: token,
+      message: message || 'Login successful'
+    }));
   } catch (error) {
-    dispatch(authSlice.actions.loginFailed(error.response?.data?.message || error.message));
+    const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+    dispatch(authSlice.actions.loginFailed(errorMessage));
   }
 };
 
-export const logout = () => async (dispatch, getState) => {
+export const logout = () => async (dispatch) => {
   dispatch(authSlice.actions.logoutRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem("token");
-    const res = await axios.get(`${API_BASE_URL}/auth/logout`, {
-      withCredentials: true,
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
-    // Clear localStorage
-    console.log(res);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    dispatch(authSlice.actions.logoutSuccess(res.data.message));
+    // Call backend logout endpoint
+    await authAPI.logout();
+
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    dispatch(authSlice.actions.logoutSuccess('Logout successful'));
     dispatch(authSlice.actions.resetAuthSlice());
   } catch (error) {
-    dispatch(authSlice.actions.logoutFailed(error.response?.data?.message || error.message));
+    // Even if backend logout fails, clear local storage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    dispatch(authSlice.actions.logoutSuccess('Logout successful'));
+    dispatch(authSlice.actions.resetAuthSlice());
+  }
+};
+
+// Refresh user details function
+export const refreshUserDetails = () => async (dispatch) => {
+  dispatch(authSlice.actions.loginRequest()); // Reuse loading state
+  try {
+    const response = await authAPI.getMyDetails();
+    const user = response.data.user;
+
+    // Update localStorage with fresh user data
+    localStorage.setItem('user', JSON.stringify(user));
+
+    dispatch(authSlice.actions.updateUserData(user));
+    dispatch(authSlice.actions.loginSuccess({
+      user: user,
+      token: localStorage.getItem('token'), // Keep existing token
+      message: 'User details refreshed successfully'
+    }));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to refresh user details';
+    dispatch(authSlice.actions.loginFailed(errorMessage));
   }
 };
 

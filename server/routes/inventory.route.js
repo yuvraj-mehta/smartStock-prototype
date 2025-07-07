@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated, isAuthorized } from "../middlewares/index.js";
 import { addInventorySupply, viewInventory, getInventoryByProduct, markDamagedInventory, getRealTimeInventoryStatus, trackBatchByNumber } from "../controllers/index.js";
 import { addSupplyValidation } from "../validators/index.js";
+import handleValidationErrors from "../middlewares/validationErrors.middleware.js";
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.post(
   "/add-supply",
   isAuthenticated,
   addSupplyValidation,
+  handleValidationErrors,
   addInventorySupply
 );
 

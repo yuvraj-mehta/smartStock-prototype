@@ -9,7 +9,7 @@ import {
   createSupplier,
   createTransporter,
   resetUserSlice,
-  clearSelectedUser
+  clearSelectedUser,
 } from '../../../app/slices/userSlice';
 
 const UserManagement = () => {
@@ -23,7 +23,7 @@ const UserManagement = () => {
     phone: '',
     wagePerHour: 0,
     role: 'viewer',
-    shift: 'morning'
+    shift: 'morning',
   });
 
   useEffect(() => {
@@ -41,7 +41,7 @@ const UserManagement = () => {
       phone: '',
       wagePerHour: 0,
       role: 'viewer',
-      shift: 'morning'
+      shift: 'morning',
     });
     setShowCreateForm(false);
   };
@@ -72,7 +72,7 @@ const UserManagement = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 

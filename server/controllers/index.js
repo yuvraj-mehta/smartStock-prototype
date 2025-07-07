@@ -40,11 +40,29 @@ export {
 } from "./inventory.controller.js";
 
 export {
-  createTransport,
-  getAllTransports,
-  updateTransportStatus
-} from "./transport.controller.js";
+  createOrder,
+  processOrder,
+  assignTransport,
+  dispatchPackage,
+  markDelivered,
+  autoConfirmSale,
+  getAllOrders,
+  getOrderById
+} from "./order.controller.js";
 
+export {
+  getAllPackages,
+  getPackageById,
+  getPackagesByOrderId,
+  updatePackageStatus
+} from "./package.controller.js";
+
+export {
+  getAllTransports,
+  getTransportById,
+  updateTransportStatus,
+  getTransportsByPackageId
+} from "./transport.controller.js";
 
 export {
   getAllItems,
@@ -61,7 +79,10 @@ export {
 } from "./sales.controller.js";
 
 export {
-  createReturn,
+  initiateReturn,
+  schedulePickup,
+  markPickedUp,
+  processReturn,
   getAllReturns,
-  getReturnById,
+  getReturnById
 } from "./return.controller.js";

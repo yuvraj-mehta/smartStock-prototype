@@ -1,25 +1,25 @@
-import React, { useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
-import LandingPage from "./pages/LandingPage";
-import LoginPage from "./pages/LoginPage";
-import DashboardPage from "./pages/Dashboard.jsx";
-import HomePage from "./pages/HomePage";
-import ProductsPage from "./pages/ProductsPage.jsx";
-import InventoryPage from "./pages/InventoryPage.jsx";
-import AdminPage from "./pages/AdminPage.jsx";
-import AIAssistantPage from "./pages/AIAssistantPage.jsx";
-import UserPage from "./pages/UserPage.jsx";
-import { NotFound, Footer, NavigationBar } from "./components";
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/Dashboard.jsx';
+import HomePage from './pages/HomePage';
+import ProductsPage from './pages/ProductsPage.jsx';
+import InventoryPage from './pages/InventoryPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
+import AIAssistantPage from './pages/AIAssistantPage.jsx';
+import UserPage from './pages/UserPage.jsx';
+import { NotFound, Footer, NavigationBar } from './components';
 
 const App = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userStr = localStorage.getItem("user");
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
     let user = null;
     try {
       user = userStr ? JSON.parse(userStr) : null;
@@ -29,15 +29,15 @@ const App = () => {
     // Only rehydrate if user is a valid object with at least an email or id
     if (token && user && (user.email || user.id)) {
       dispatch({
-        type: "auth/rehydrate",
-        payload: { token, user }
+        type: 'auth/rehydrate',
+        payload: { token, user },
       });
     }
   }, [dispatch]);
 
   return (
     <Router>
-      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <NavigationBar />
         <div style={{ flex: 1 }}>
           <Routes>

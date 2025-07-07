@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { config } from '../../../../config/config';
+import api, { userAPI, productAPI } from '../../../services/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -17,12 +17,10 @@ const AdminDashboard = () => {
     recentActivities: [],
     inventoryHealth: {},
     salesTrend: [],
-    topProducts: []
+    topProducts: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const API_BASE_URL = config.apiBaseUrl;
 
   useEffect(() => {
     fetchDashboardData();
@@ -31,119 +29,30 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      // Fetch data from available endpoints with individual error handling
-      const apiCalls = [
-        { name: 'users', call: () => axios.get(`${API_BASE_URL}/user/all`, { headers }) },
-        { name: 'products', call: () => axios.get(`${API_BASE_URL}/product/all`, { headers }) },
-        { name: 'inventory', call: () => axios.get(`${API_BASE_URL}/inventory/all`, { headers }) },
-        { name: 'sales', call: () => axios.get(`${API_BASE_URL}/sales/all`, { headers }) },
-        { name: 'externalUsers', call: () => axios.get(`${API_BASE_URL}/user/external/all`, { headers }) },
-        { name: 'inventoryStatus', call: () => axios.get(`${API_BASE_URL}/inventory/status`, { headers }) }
-      ];
-
-      const results = await Promise.allSettled(apiCalls.map(api => api.call()));
-
-      // Process results with individual error handling
-      const getData = (index, fallback = []) => {
-        return results[index].status === 'fulfilled' ? results[index].value.data : { error: true, data: fallback };
-      };
-
-      const usersData = getData(0, []);
-      const productsData = getData(1, []);
-      const inventoryData = getData(2, []);
-      const salesData = getData(3, []);
-      const externalUsersData = getData(4, []);
-      const inventoryStatusData = getData(5, {});
-
-      // Process users data
-      const totalUsers = usersData.totalUsers || (usersData.users ? usersData.users.length : 0);
-
-      // Process products data
-      const products = productsData.products || [];
-      const totalProducts = products.length;
-
-      // Process inventory data
-      const inventory = inventoryData.products || inventoryData.inventory || [];
-      const totalInventory = inventory.length;
-
-      // Process sales data
-      const sales = salesData.sales || [];
-      const totalSales = sales.length;
-
-      // Process external users data
-      const externalUsers = externalUsersData.externalUsers || [];
-      const totalExternalUsers = externalUsers.length;
-
-      // Process inventory status for low stock items
-      const lowStockItems = inventory.filter(item =>
-        item.status === 'low_stock' ||
-        (item.totalQuantity !== undefined && item.thresholdLimit !== undefined && item.totalQuantity <= item.thresholdLimit)
-      ).length;
-
-      // Generate recent activities based on actual data
-      const recentActivities = [];
-
-      // Add recent users (last 2)
-      if (usersData.users && Array.isArray(usersData.users)) {
-        const recentUsers = usersData.users
-          .sort((a, b) => new Date(b.createdAt || b.updatedAt || Date.now()) - new Date(a.createdAt || a.updatedAt || Date.now()))
-          .slice(0, 2);
-        recentUsers.forEach(user => {
-          recentActivities.push(`New user ${user.fullName || user.email || 'Unknown'} was created`);
-        });
-      }
-
-      // Add recent products (last 2)
-      if (products.length > 0) {
-        const recentProducts = products
-          .sort((a, b) => new Date(b.createdAt || b.updatedAt || Date.now()) - new Date(a.createdAt || a.updatedAt || Date.now()))
-          .slice(0, 2);
-        recentProducts.forEach(product => {
-          recentActivities.push(`Product "${product.productName || product.name || 'Unknown'}" was added to catalog`);
-        });
-      }
-
-      // Add recent sales (last 2)
-      if (sales.length > 0) {
-        const recentSales = sales
-          .sort((a, b) => new Date(b.createdAt || b.updatedAt || Date.now()) - new Date(a.createdAt || a.updatedAt || Date.now()))
-          .slice(0, 2);
-        recentSales.forEach((sale) => {
-          recentActivities.push(`Sale recorded - ${sale.action || 'transaction'} ${sale.quantity || 'N/A'} units`);
-        });
-      }
-
-      // Add low stock alerts
-      if (lowStockItems > 0) {
-        recentActivities.push(`⚠️ ${lowStockItems} items are low on stock`);
-      }
-
-      // If no activities, add default message
-      if (recentActivities.length === 0) {
-        recentActivities.push('Dashboard is ready - start by adding users, products, or inventory');
-      }
+      // Fetch users
+      const [usersRes, productsRes, externalUsersRes, salesRes, inventoryRes] = await Promise.all([
+        userAPI.getAllUsers(),
+        productAPI.getAllProducts(),
+        userAPI.getAllExternalUsers(),
+        api.get('/sales/all').catch(() => ({ data: [] })),
+        api.get('/inventory/all').catch(() => ({ data: [] })),
+      ]);
 
       setStats({
-        totalUsers,
-        totalProducts,
-        totalInventory,
-        totalSales,
-        lowStockItems,
-        totalExternalUsers,
-        recentActivities: recentActivities.slice(0, 6), // Limit to 6 activities
-        inventoryHealth: inventoryStatusData,
-        salesTrend: sales.slice(-7), // Last 7 sales for trend
-        topProducts: products.slice(0, 5) // Top 5 products
+        totalUsers: Array.isArray(usersRes?.data?.users) ? usersRes.data.users.length : 0,
+        totalProducts: Array.isArray(productsRes?.data?.products) ? productsRes.data.products.length : 0,
+        totalInventory: Array.isArray(inventoryRes?.data?.inventory) ? inventoryRes.data.inventory.length : 0,
+        totalSales: Array.isArray(salesRes?.data?.sales) ? salesRes.data.sales.length : 0,
+        lowStockItems: 'upcoming feature',
+        totalExternalUsers: Array.isArray(externalUsersRes?.data?.externalUsers) ? externalUsersRes.data.externalUsers.length : 0,
+        recentActivities: 'upcoming feature',
+        inventoryHealth: 'upcoming feature',
+        salesTrend: 'upcoming feature',
+        topProducts: 'upcoming feature',
       });
-
     } catch (err) {
-      setError('Failed to fetch dashboard data');
-      console.error('Dashboard fetch error:', err);
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
@@ -179,40 +88,40 @@ const AdminDashboard = () => {
   const statCards = [
     {
       title: 'Total Users',
-      value: stats.totalUsers,
+      value: stats.totalUsers ?? 'upcoming feature',
       icon: '👥',
       color: '#667eea',
       description: 'Active warehouse users',
       link: '/admin?tab=users',
-      available: true
+      available: typeof stats.totalUsers === 'number',
     },
     {
       title: 'Total Products',
-      value: stats.totalProducts,
+      value: stats.totalProducts ?? 'upcoming feature',
       icon: '📦',
       color: '#f093fb',
       description: 'Products in catalog',
       link: '/admin?tab=products',
-      available: true
+      available: typeof stats.totalProducts === 'number',
     },
     {
       title: 'Total Sales',
-      value: stats.totalSales,
+      value: stats.totalSales ?? 'upcoming feature',
       icon: '💰',
       color: '#43e97b',
       description: 'Sales recorded',
       link: '/sales',
-      available: true
+      available: typeof stats.totalSales === 'number',
     },
     {
       title: 'External Users',
-      value: stats.totalExternalUsers,
+      value: stats.totalExternalUsers ?? 'upcoming feature',
       icon: '🏢',
       color: '#764ba2',
       description: 'Suppliers & Transporters',
       link: '/admin?tab=external',
-      available: true
-    }
+      available: typeof stats.totalExternalUsers === 'number',
+    },
   ];
 
   const upcomingFeatures = [
@@ -220,26 +129,26 @@ const AdminDashboard = () => {
       title: 'Revenue Analytics',
       icon: '📊',
       description: 'Detailed financial reports and trends',
-      status: 'Coming Soon'
+      status: 'Coming Soon',
     },
     {
       title: 'Predictive Analytics',
       icon: '🔮',
       description: 'AI-powered demand forecasting',
-      status: 'Coming Soon'
+      status: 'Coming Soon',
     },
     {
       title: 'Performance Metrics',
       icon: '🎯',
       description: 'KPI tracking and benchmarking',
-      status: 'Coming Soon'
+      status: 'Coming Soon',
     },
     {
       title: 'Automated Reports',
       icon: '📋',
       description: 'Scheduled email reports',
-      status: 'Coming Soon'
-    }
+      status: 'Coming Soon',
+    },
   ];
 
   return (
@@ -300,17 +209,23 @@ const AdminDashboard = () => {
                   </span>
                 </div>
               </div>
-              {stats.recentActivities.slice(0, 3).map((activity, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border-l-4 border-gray-200 opacity-50">
-                  <div className="text-lg opacity-80 mt-1">📝</div>
-                  <div className="flex-1">
-                    <p className="text-gray-800 font-medium mb-1 leading-relaxed m-0 text-sm">{activity}</p>
-                    <span className="text-xs text-gray-500 font-normal">
-                      {new Date(Date.now() - index * 3600000).toLocaleTimeString()}
-                    </span>
+              {stats.recentActivities === 'upcoming feature' ? (
+                <div className="text-center text-gray-400 italic py-4">Upcoming feature</div>
+              ) : (
+                stats.recentActivities.slice(0, 3).map((activity, index) => (
+                  <div key={activity.id || index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border-l-4 border-gray-200 opacity-50">
+                    <div className="text-lg opacity-80 mt-1">📝</div>
+                    <div className="flex-1">
+                      <p className="text-gray-800 font-medium mb-1 leading-relaxed m-0 text-sm">
+                        {activity.action} by {activity.user}
+                      </p>
+                      <span className="text-xs text-gray-500 font-normal">
+                        {activity.time}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
               <div className="text-center py-2">
                 <p className="text-xs text-gray-500 italic">
                   📊 Full activity logging coming soon!

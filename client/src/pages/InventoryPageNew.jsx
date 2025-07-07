@@ -17,7 +17,7 @@ import {
   FaSyncAlt,
   FaTachometerAlt,
   FaWarehouse,
-  FaClipboardList
+  FaClipboardList,
 } from 'react-icons/fa';
 import {
   fetchInventory,
@@ -25,9 +25,9 @@ import {
   markDamagedInventory,
   fetchRealTimeInventoryStatus,
   trackBatchByNumber,
-  clearInventoryMessages
+  clearInventoryMessages,
 } from '../app/slices/inventorySlice';
-import { fetchProducts } from '../app/slices/productSlice';
+import { getAllProducts } from '../app/slices/productSlice';
 import { fetchSuppliers } from '../app/slices/supplierSlice';
 import './InventoryPage.css';
 
@@ -40,7 +40,7 @@ const InventoryPage = () => {
     error,
     message,
     realTimeStatus,
-    batchTracking
+    batchTracking,
   } = useSelector(state => state.inventory);
   const { user } = useSelector(state => state.auth);
   const { products: allProducts } = useSelector(state => state.products);
@@ -61,20 +61,20 @@ const InventoryPage = () => {
     quantity: '',
     mfgDate: '',
     expDate: '',
-    notes: ''
+    notes: '',
   });
 
   const [damagedForm, setDamagedForm] = useState({
     productId: '',
     batchId: '',
     quantity: '',
-    reason: ''
+    reason: '',
   });
 
   // Load data on component mount
   useEffect(() => {
     dispatch(fetchInventory());
-    dispatch(fetchProducts());
+    dispatch(getAllProducts());
     dispatch(fetchRealTimeInventoryStatus());
     dispatch(fetchSuppliers());
   }, [dispatch]);
@@ -99,7 +99,7 @@ const InventoryPage = () => {
       quantity: '',
       mfgDate: '',
       expDate: '',
-      notes: ''
+      notes: '',
     });
   };
 
@@ -110,7 +110,7 @@ const InventoryPage = () => {
       productId: '',
       batchId: '',
       quantity: '',
-      reason: ''
+      reason: '',
     });
   };
 
@@ -135,7 +135,7 @@ const InventoryPage = () => {
     totalItems: products.reduce((sum, p) => sum + p.totalQuantity, 0),
     totalProducts: products.length,
     lowStockItems: products.filter(p => p.totalQuantity < 10).length,
-    outOfStockItems: products.filter(p => p.totalQuantity === 0).length
+    outOfStockItems: products.filter(p => p.totalQuantity === 0).length,
   };
 
   // Filter products based on search and filters
