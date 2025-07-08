@@ -4,10 +4,10 @@ import { Button } from '../../ui';
 
 /**
  * PackageManagement Component
- *
+ * 
  * Manages the creation, tracking, and management of packages.
  * Handles package assembly from orders and preparation for transport.
- *
+ * 
  * @component
  * @param {Object} props - Component props
  * @param {string} [props.className=''] - Additional CSS classes
@@ -28,40 +28,40 @@ const PackageManagement = ({ className = '' }) => {
         status: 'pending',
         items: [
           { productId: 'PROD-001', productName: 'Laptop Pro', quantity: 2 },
-          { productId: 'PROD-002', productName: 'Wireless Mouse', quantity: 2 },
+          { productId: 'PROD-002', productName: 'Wireless Mouse', quantity: 2 }
         ],
         weight: '5.2 kg',
         dimensions: '40x30x15 cm',
         createdDate: new Date('2024-01-15'),
         preparationDeadline: new Date('2024-01-17'),
-        assignedStaff: 'John Doe',
+        assignedStaff: 'John Doe'
       },
       {
         id: 'PKG-002',
         orderId: 'ORD-002',
         status: 'ready',
         items: [
-          { productId: 'PROD-003', productName: 'Office Chair', quantity: 1 },
+          { productId: 'PROD-003', productName: 'Office Chair', quantity: 1 }
         ],
         weight: '12.5 kg',
         dimensions: '65x65x110 cm',
         createdDate: new Date('2024-01-14'),
         preparationDeadline: new Date('2024-01-16'),
-        assignedStaff: 'Jane Smith',
+        assignedStaff: 'Jane Smith'
       },
       {
         id: 'PKG-003',
         orderId: 'ORD-003',
         status: 'in-transit',
         items: [
-          { productId: 'PROD-004', productName: 'Smartphone', quantity: 3 },
+          { productId: 'PROD-004', productName: 'Smartphone', quantity: 3 }
         ],
         weight: '1.8 kg',
         dimensions: '25x15x10 cm',
         createdDate: new Date('2024-01-13'),
         preparationDeadline: new Date('2024-01-15'),
-        assignedStaff: 'Mike Johnson',
-      },
+        assignedStaff: 'Mike Johnson'
+      }
     ];
     setPackages(mockPackages);
   }, []);
@@ -74,8 +74,8 @@ const PackageManagement = ({ className = '' }) => {
   const handleStatusUpdate = (packageId, newStatus) => {
     setPackages(prev =>
       prev.map(pkg =>
-        pkg.id === packageId ? { ...pkg, status: newStatus } : pkg,
-      ),
+        pkg.id === packageId ? { ...pkg, status: newStatus } : pkg
+      )
     );
   };
 

@@ -5,10 +5,10 @@ import { Button, LoadingSpinner, Modal } from '../../ui';
 
 /**
  * Order Management Component
- *
+ * 
  * Handles manual order entry, order tracking, and package creation.
  * Follows the business flow: Order Entry → Package Creation → Transport Assignment
- *
+ * 
  * @returns {React.ReactElement} The order management interface
  */
 const OrderManagement = () => {
@@ -96,7 +96,7 @@ const OrderManagement = () => {
 
     const updateOrderItem = (index, field, value) => {
       const updated = orderItems.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item,
+        i === index ? { ...item, [field]: value } : item
       );
       setOrderItems(updated);
     };

@@ -28,7 +28,7 @@ const TransportList = () => {
       t._id.toLowerCase().includes(s) ||
       (t.status && t.status.toLowerCase().includes(s)) ||
       (t.transporterId?.fullName && t.transporterId.fullName.toLowerCase().includes(s)) ||
-      (t.packageId?.packageId && t.packageId.packageId.toLowerCase().includes(s)),
+      (t.packageId?.packageId && t.packageId.packageId.toLowerCase().includes(s))
     );
   }
   if (statusFilter) filtered = filtered.filter(t => t.status === statusFilter);

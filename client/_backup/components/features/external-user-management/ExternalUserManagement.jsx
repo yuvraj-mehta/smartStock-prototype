@@ -21,7 +21,7 @@ const ExternalUserManagement = ({ triggerAction }) => {
     email: '',
     phone: '',
     address: '',
-    contactPerson: '',
+    contactPerson: ''
   });
 
   // Filter users to get suppliers and transporters
@@ -84,7 +84,7 @@ const ExternalUserManagement = ({ triggerAction }) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
   };
 
@@ -120,7 +120,7 @@ const ExternalUserManagement = ({ triggerAction }) => {
       email: '',
       phone: '',
       address: '',
-      contactPerson: '',
+      contactPerson: ''
     });
   };
 
@@ -139,14 +139,14 @@ const ExternalUserManagement = ({ triggerAction }) => {
       email: user.email || '',
       phone: user.phone || '',
       address: user.address || '',
-      contactPerson: user.contactPerson || '',
+      contactPerson: user.contactPerson || ''
     });
     setShowCreateForm(true);
   };
 
   const handleDeleteUser = async (user) => {
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete ${user.fullName} (${user.companyName})? This action cannot be undone.`,
+      `Are you sure you want to delete ${user.fullName} (${user.companyName})? This action cannot be undone.`
     );
 
     if (!confirmDelete) return;

@@ -61,7 +61,7 @@ export default function OrderList({ products }) {
     setError('');
     try {
       const data = await getAllOrders();
-      const ordersArr = Array.isArray(data) ? data : (Array.isArray(data.orders) ? data.orders : []);
+      let ordersArr = Array.isArray(data) ? data : (Array.isArray(data.orders) ? data.orders : []);
       if (!Array.isArray(ordersArr)) {
         setError('Unexpected response from server.');
         setOrders([]);
