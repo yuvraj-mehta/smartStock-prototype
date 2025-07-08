@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getAllOrders, processOrder } from '../../services/orderService';
 import { getPackagesByOrderId, updatePackageStatus } from '../../services/packageService';
-import { assignTransport, getTransportsByPackageId, updateTransportStatus } from '../../services/transportService';
+import { assignTransport } from '../../services/transportService';
 import { userAPI } from '../../services/api';
 
 export default function OrderList({ products }) {
@@ -15,13 +15,46 @@ export default function OrderList({ products }) {
   const [showPacking, setShowPacking] = useState(null); // orderId for which packing UI is shown
   const [packError, setPackError] = useState('');
 
-  // Delivery logic
+
+  // Delivery logic (assign transport feature restored)
   const [showAssignTransport, setShowAssignTransport] = useState(null); // packageId for which assign UI is shown
   const [assignTransporterId, setAssignTransporterId] = useState('');
   const [assignTransportError, setAssignTransportError] = useState('');
   const [assigningTransport, setAssigningTransport] = useState(false);
   const [externalUsers, setExternalUsers] = useState([]);
-  const [packageTransports, setPackageTransports] = useState({}); // { [packageId]: transportDoc }
+
+  useEffect(() => {
+    // Fetch only transporters for delivery assignment
+    const fetchExternalUsers = async () => {
+      try {
+        const res = await userAPI.getAllExternalUsers('transporter');
+        setExternalUsers(res.data?.externalUsers || res.data?.users || []);
+      } catch {
+        setExternalUsers([]);
+      }
+    };
+    fetchExternalUsers();
+  }, []);
+
+  const handleShowAssignTransport = (packageId) => {
+    setShowAssignTransport(packageId);
+    setAssignTransporterId('');
+    setAssignTransportError('');
+  };
+
+  const handleAssignTransport = async (packageId) => {
+    setAssigningTransport(true);
+    setAssignTransportError('');
+    try {
+      await assignTransport(packageId, assignTransporterId);
+      await fetchOrders();
+      setShowAssignTransport(null);
+    } catch (err) {
+      setAssignTransportError(err?.response?.data?.message || 'Failed to assign transporter');
+    } finally {
+      setAssigningTransport(false);
+    }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -55,44 +88,26 @@ export default function OrderList({ products }) {
     fetchAll();
   }, []);
 
-  // Fetch packages and their transports for all orders when orders change
+  // Fetch packages for all orders when orders change (transport feature removed)
   useEffect(() => {
-    const fetchPackagesAndTransports = async () => {
+    const fetchPackages = async () => {
       if (!orders.length) return;
       const pkgs = {};
-      const transports = {};
       for (const order of orders) {
         try {
           const pkgRes = await getPackagesByOrderId(order._id);
           const packageDoc = Array.isArray(pkgRes.packages) ? pkgRes.packages[0] : (Array.isArray(pkgRes) ? pkgRes[0] : null);
           if (packageDoc && packageDoc._id) {
             pkgs[order._id] = packageDoc;
-            // Fetch transport for this package
-            const tRes = await getTransportsByPackageId(packageDoc._id);
-            if (Array.isArray(tRes.transports) && tRes.transports.length > 0) {
-              transports[packageDoc._id] = tRes.transports[0];
-            }
           }
         } catch { }
       }
       setOrderPackages(pkgs);
-      setPackageTransports(transports);
     };
-    fetchPackagesAndTransports();
+    fetchPackages();
   }, [orders]);
 
-  useEffect(() => {
-    // Fetch only transporters for delivery assignment
-    const fetchExternalUsers = async () => {
-      try {
-        const res = await userAPI.getAllExternalUsers('transporter');
-        setExternalUsers(res.data?.externalUsers || res.data?.users || []);
-      } catch {
-        setExternalUsers([]);
-      }
-    };
-    fetchExternalUsers();
-  }, []);
+  // Removed transporter fetching logic
 
   const handleProcess = async (orderId) => {
     setProcessingId(orderId);
@@ -135,65 +150,9 @@ export default function OrderList({ products }) {
     }
   };
 
-  // Delivery logic
-  const handleShowAssignTransport = (packageId) => {
-    setShowAssignTransport(packageId);
-    setAssignTransporterId('');
-    setAssignTransportError('');
-  };
+  // Delivery logic removed
 
-  const handleAssignTransport = async (packageId) => {
-    setAssigningTransport(true);
-    setAssignTransportError('');
-    try {
-      await assignTransport(packageId, assignTransporterId);
-      await fetchOrders();
-      // Immediately refresh package and transport info for this order
-      const orderId = Object.keys(orderPackages).find(key => orderPackages[key]?._id === packageId);
-      if (orderId) {
-        try {
-          const pkgRes = await getPackagesByOrderId(orderId);
-          const packageDoc = Array.isArray(pkgRes.packages) ? pkgRes.packages[0] : (Array.isArray(pkgRes) ? pkgRes[0] : null);
-          if (packageDoc && packageDoc._id) {
-            setOrderPackages(prev => ({ ...prev, [orderId]: packageDoc }));
-            const tRes = await getTransportsByPackageId(packageDoc._id);
-            if (Array.isArray(tRes.transports) && tRes.transports.length > 0) {
-              setPackageTransports(prev => ({ ...prev, [packageDoc._id]: tRes.transports[0] }));
-            }
-          }
-        } catch { }
-      }
-      setShowAssignTransport(null);
-    } catch (err) {
-      setAssignTransportError(err?.response?.data?.message || 'Failed to assign transporter');
-    } finally {
-      setAssigningTransport(false);
-    }
-  };
-
-  // Mark package as in transit
-  const handleMarkInTransit = async (packageId) => {
-    const transport = packageTransports[packageId];
-    if (!transport) return;
-    try {
-      await updateTransportStatus(transport._id, { status: 'in_transit' });
-      await fetchOrders();
-    } catch (err) {
-      alert('Failed to mark as in transit');
-    }
-  };
-
-  // Mark package as delivered
-  const handleMarkDelivered = async (packageId) => {
-    const transport = packageTransports[packageId];
-    if (!transport) return;
-    try {
-      await updateTransportStatus(transport._id, { status: 'delivered' });
-      await fetchOrders();
-    } catch (err) {
-      alert('Failed to mark as delivered');
-    }
-  };
+  // Mark in transit/delivered logic removed
 
   if (loading) return <div className="flex items-center justify-center min-h-[20vh]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mr-3"></div><span className="text-lg text-purple-700 font-semibold">Loading orders...</span></div>;
   if (error) return <div className="text-red-600 font-medium text-center py-4">{error}</div>;
@@ -288,7 +247,7 @@ export default function OrderList({ products }) {
                     )}
                   </>
                 )}
-                {/* Show a badge or button for packaged orders based on package status */}
+                {/* Show assign transport UI for ready_for_dispatch packages, badge for others */}
                 {order.orderStatus === 'packaged' && (() => {
                   const pkg = orderPackages[order._id];
                   if (!pkg) {
@@ -319,7 +278,7 @@ export default function OrderList({ products }) {
                           <button
                             onClick={() => handleAssignTransport(showAssignTransport)}
                             className="px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700 mr-2"
-                            disabled={assigningTransport}
+                            disabled={assigningTransport || !assignTransporterId}
                           >
                             {assigningTransport ? 'Assigning...' : 'Confirm Assign'}
                           </button>
@@ -332,26 +291,10 @@ export default function OrderList({ products }) {
                     </>;
                   }
                   if (pkg.packageStatus === 'dispatched') {
-                    return <>
-                      <span className="inline-block px-3 py-1 bg-green-200 text-green-800 rounded shadow text-xs font-semibold ml-2">Dispatched</span>
-                      <button
-                        onClick={() => handleMarkInTransit(pkg._id)}
-                        className="px-3 py-1 bg-yellow-600 text-white rounded shadow hover:bg-yellow-700 ml-2"
-                      >
-                        Mark In Transit
-                      </button>
-                    </>;
+                    return <span className="inline-block px-3 py-1 bg-green-200 text-green-800 rounded shadow text-xs font-semibold ml-2">Dispatched</span>;
                   }
                   if (pkg.packageStatus === 'in_transit') {
-                    return <>
-                      <span className="inline-block px-3 py-1 bg-yellow-200 text-yellow-800 rounded shadow text-xs font-semibold ml-2">In Transit</span>
-                      <button
-                        onClick={() => handleMarkDelivered(pkg._id)}
-                        className="px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700 ml-2"
-                      >
-                        Mark Delivered
-                      </button>
-                    </>;
+                    return <span className="inline-block px-3 py-1 bg-yellow-200 text-yellow-800 rounded shadow text-xs font-semibold ml-2">In Transit</span>;
                   }
                   if (pkg.packageStatus === 'delivered') {
                     return <span className="inline-block px-3 py-1 bg-blue-200 text-blue-800 rounded shadow text-xs font-semibold ml-2">Delivered</span>;

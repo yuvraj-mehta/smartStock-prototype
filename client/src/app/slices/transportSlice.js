@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-// No default export from transportService.js, use named imports directly
+import * as transportService from '../../services/transportService';
 
 // Thunks
 export const fetchAllTransports = createAsyncThunk(

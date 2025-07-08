@@ -7,6 +7,7 @@ const TransportDetails = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
   const { transportDetails, loading, error } = useSelector(state => state.transport);
+  const user = useSelector(state => state.auth.user);
 
   useEffect(() => {
     dispatch(fetchTransportById(id));
@@ -38,23 +39,27 @@ const TransportDetails = () => {
           ))}
         </ul>
       </div>
-      <form onSubmit={handleStatusUpdate} style={{ marginTop: 20 }}>
-        <label>
-          Update Status:
-          <select name="status" defaultValue={transportDetails.status} required>
-            <option value="dispatched">Dispatched</option>
-            <option value="in_transit">In Transit</option>
-            <option value="delivered">Delivered</option>
-          </select>
-        </label>
-        <br />
-        <label>
-          Notes:
-          <input name="notes" type="text" placeholder="Optional notes" />
-        </label>
-        <br />
-        <button type="submit">Update Status</button>
-      </form>
+      {user?.role === 'admin' ? (
+        <form onSubmit={handleStatusUpdate} style={{ marginTop: 20 }}>
+          <label>
+            Update Status:
+            <select name="status" defaultValue={transportDetails.status} required>
+              <option value="dispatched">Dispatched</option>
+              <option value="in_transit">In Transit</option>
+              <option value="delivered">Delivered</option>
+            </select>
+          </label>
+          <br />
+          <label>
+            Notes:
+            <input name="notes" type="text" placeholder="Optional notes" />
+          </label>
+          <br />
+          <button type="submit">Update Status</button>
+        </form>
+      ) : (
+        <div style={{ marginTop: 20, color: 'gray' }}><i>Only admins can update transport status.</i></div>
+      )}
     </div>
   );
 };
