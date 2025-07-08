@@ -1,6 +1,7 @@
 import { Return, Package, Order, Product, Batch, Item, Inventory, Transport } from "../models/index.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import mongoose from "mongoose";
+import { logAudit } from '../utils/auditLogger.js';
 
 // Initiate return within 10 days of delivery
 export const initiateReturn = catchAsyncErrors(async (req, res) => {
@@ -65,6 +66,16 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
     returnStatus: 'initiated',
     warehouseId: req.user.assignedWarehouseId,
     notes
+  });
+
+  // Audit log for return creation
+  await logAudit({
+    userId: req.user?._id,
+    action: 'CREATE_RETURN',
+    entityType: 'Return',
+    entityId: returnRecord._id,
+    value: returnedItems.reduce((sum, item) => sum + (item.quantity || 0), 0),
+    details: { packageId, returnedItems, returnReason, notes }
   });
 
   // Update order status
