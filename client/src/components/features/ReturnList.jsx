@@ -155,8 +155,8 @@ const ReturnList = () => {
                 <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={r.transportId?.transporterId?.fullName || r.transportId?.transporterId?.name || '-'}>
                   {r.transportId?.transporterId?.fullName || r.transportId?.transporterId?.name || '-'}
                 </td>
-                <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={r.warehouseId?.name || r.warehouseId || '-'}>
-                  {r.warehouseId?.name || r.warehouseId || '-'}
+                <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={typeof r.warehouseId === 'object' ? (r.warehouseId?.warehouseName || r.warehouseId?._id) : (r.warehouseId || '-') }>
+                  {typeof r.warehouseId === 'object' ? (r.warehouseId?.warehouseName || r.warehouseId?._id) : (r.warehouseId || '-')}
                 </td>
                 <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={r.processedBy?.fullName || '-'}>
                   {r.processedBy?.fullName || '-'}

@@ -16,6 +16,12 @@ const inventorySchema = new mongoose.Schema({
     ref: 'Warehouse',
     required: true,
   },
+  // Financial Tracking (optional)
+  inventoryValue: {
+    type: Number,
+    min: 0,
+    required: false
+  }
 }, { timestamps: true });
 
 export const Inventory = mongoose.model('Inventory', inventorySchema);

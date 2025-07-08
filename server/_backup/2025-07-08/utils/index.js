@@ -1,0 +1,1 @@
+export { generateToken } from './token/generate.token.js';

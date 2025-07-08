@@ -1,4 +1,5 @@
 import { Batch, Inventory, IncomingSupply, Item, Product } from "../models/index.js";
+import { logAudit } from "../utils/auditLogger.js";
 import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
 import { catchAsyncErrors } from "../middlewares/index.js";
@@ -12,10 +13,12 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     mfgDate,
     expDate,
     notes,
-    warehouseId: incomingWarehouseId,
+    unitCost,
+    currency = 'INR',
+    purchaseOrderId
   } = req.body;
 
-  if (!productId || !supplierId || !quantity || !mfgDate || !expDate) {
+  if (!productId || !supplierId || !quantity || !mfgDate || !expDate || unitCost === undefined) {
     return res.status(400).json({ message: "All required fields must be provided." });
   }
 
@@ -29,7 +32,10 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
   const product = await Product.findById(productId);
   if (!product) return res.status(404).json({ message: "Product not found." });
 
-  // 1. Create a new Batch
+  // Calculate total cost
+  const totalCost = unitCost * quantity;
+
+  // 1. Create a new Batch with financial fields
   const batch = await Batch.create({
     batchNumber: `BATCH-${Date.now()}`,
     productId,
@@ -38,6 +44,10 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     quantity,
     mfgDate,
     expDate,
+    unitCost,
+    totalCost,
+    currency,
+    purchaseOrderId
   });
 
   // 2. Log Incoming Supply
@@ -47,11 +57,12 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     notes,
   });
 
-  // 3. Add to Inventory
+  // 3. Add to Inventory (with inventoryValue)
   await Inventory.create({
     batchId: batch._id,
     quantity,
     warehouseId,
+    inventoryValue: totalCost
   });
 
   // 4. Create individual Items
@@ -70,6 +81,7 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
           notes: "Item received via supply",
         },
       ],
+      purchasePrice: unitCost
     });
   }
 
@@ -85,6 +97,9 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     message: "Supply added to inventory successfully.",
     batchId: batch._id,
     itemsCreated: quantity,
+    totalCost,
+    currency,
+    purchaseOrderId: purchaseOrderId || null
   });
 });
 
@@ -180,6 +195,26 @@ export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
     return res.status(400).json({ message: "Not enough in-stock items to mark damaged" });
   }
 
+  // Calculate financial loss
+  let totalLoss = 0;
+  let missingPurchasePrice = false;
+  for (const item of items) {
+    if (typeof item.purchasePrice === 'number') {
+      totalLoss += item.purchasePrice;
+    } else {
+      missingPurchasePrice = true;
+    }
+  }
+  // If any item is missing purchasePrice, fallback to batch.unitCost
+  if (missingPurchasePrice) {
+    const batch = await Batch.findById(batchId);
+    if (batch && typeof batch.unitCost === 'number') {
+      totalLoss = batch.unitCost * quantity;
+    } else {
+      totalLoss = 0;
+    }
+  }
+
   const itemIds = items.map(item => item._id);
   const now = new Date();
   const historyEntry = {
@@ -200,8 +235,19 @@ export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
 
   console.log(`Marked ${items.length} items as damaged for batch ${batchId}`);
 
+  // Audit log
+  await logAudit({
+    userId: req.user?._id,
+    action: "MARK_DAMAGED",
+    entityType: "Batch",
+    entityId: batchId,
+    value: totalLoss,
+    details: `${quantity} item(s) marked as damaged. Reason: ${reason || 'N/A'}`
+  });
+
   return res.status(200).json({
     message: `${quantity} item(s) marked as damaged and inventory adjusted.`,
+    financialLoss: totalLoss
   });
 });
 

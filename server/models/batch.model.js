@@ -48,6 +48,26 @@ const batchSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'used', 'expired'],
     default: 'active'
+  },
+  // Financial Tracking Fields
+  unitCost: {
+    type: Number,
+    min: 0,
+    required: false
+  },
+  totalCost: {
+    type: Number,
+    min: 0,
+    required: false
+  },
+  currency: {
+    type: String,
+    default: 'INR'
+  },
+  purchaseOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PurchaseOrder',
+    required: false
   }
 }, { timestamps: true });
 

@@ -37,6 +37,12 @@ const itemSchema = new mongoose.Schema(
         notes: { type: String },
       },
     ],
+    // Financial Tracking (optional)
+    purchasePrice: {
+      type: Number,
+      min: 0,
+      required: false
+    }
   },
   { timestamps: true }
 );
