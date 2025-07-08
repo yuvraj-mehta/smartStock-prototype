@@ -6,9 +6,16 @@ import mongoose from "mongoose";
 export const initiateReturn = catchAsyncErrors(async (req, res) => {
   const { packageId, returnedItems, returnReason, notes } = req.body;
 
+
   // Validate input
   if (!packageId || !returnedItems || returnedItems.length === 0 || !returnReason) {
     return res.status(400).json({ message: "Package ID, returned items, and return reason are required" });
+  }
+
+  // Check if a return already exists for this package
+  const existingReturn = await Return.findOne({ packageId });
+  if (existingReturn) {
+    return res.status(409).json({ message: "A return already exists for this package." });
   }
 
   const packageDoc = await Package.findById(packageId).populate('orderId');

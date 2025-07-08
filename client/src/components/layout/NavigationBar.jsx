@@ -27,6 +27,7 @@ const Navbar = () => {
     { path: '/products', icon: Settings, label: 'Products' },
     { path: '/ai-assistant', icon: Brain, label: 'AI Assistant' },
     { path: '/transports', icon: Truck, label: 'Transport' },
+    { path: '/returns', icon: RotateCcw, label: 'Returns' },
     ...(user?.role === 'admin' ? [{ path: '/admin', icon: Users, label: 'Admin Panel' }] : []),
   ];
   const toggleMenu = () => setIsMobileMenuOpen((v) => !v);

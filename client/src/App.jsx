@@ -14,6 +14,7 @@ import UserPage from './pages/UserPage.jsx';
 import { NotFound, Footer, NavigationBar } from './components';
 import TransportList from './components/features/TransportList';
 import TransportDetails from './components/features/TransportDetails';
+import ReturnList from './components/features/ReturnList';
 import OrderManagementPage from './pages/OrderManagementPage.jsx';
 
 const App = () => {
@@ -78,6 +79,10 @@ const App = () => {
               element={isAuthenticated ? <UserPage /> : <Navigate to="/login" replace />}
             />
             {/* Add more routes here as needed */}
+            <Route
+              path="/returns"
+              element={isAuthenticated ? <ReturnList /> : <Navigate to="/login" replace />}
+            />
             <Route
               path="/transports"
               element={isAuthenticated ? <TransportList /> : <Navigate to="/login" replace />}
