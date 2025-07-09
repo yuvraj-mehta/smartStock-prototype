@@ -167,6 +167,9 @@ export default function OrderList({ products }) {
             <th className="px-4 py-2 text-left font-bold text-blue-700">Platform ID</th>
             <th className="px-4 py-2 text-left font-bold text-blue-700">Status</th>
             <th className="px-4 py-2 text-left font-bold text-blue-700">Items</th>
+            <th className="px-4 py-2 text-left font-bold text-blue-700">Order Value</th>
+            <th className="px-4 py-2 text-left font-bold text-blue-700">Created By</th>
+            <th className="px-4 py-2 text-left font-bold text-blue-700">Created At</th>
             <th className="px-4 py-2 text-left font-bold text-blue-700">Notes</th>
             <th className="px-4 py-2 text-left font-bold text-blue-700">Actions</th>
           </tr>
@@ -200,6 +203,20 @@ export default function OrderList({ products }) {
                     return <li key={idx}>{productLabel} <span className="text-xs text-gray-500">x {item.quantity}</span></li>;
                   })}
                 </ul>
+              </td>
+              {/* Order Value from related package */}
+              <td className="px-4 py-2 text-green-700 font-semibold text-right">
+                {orderPackages[order._id] && typeof orderPackages[order._id].totalValue === 'number'
+                  ? orderPackages[order._id].totalValue.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })
+                  : '-'}
+              </td>
+              {/* Created By */}
+              <td className="px-4 py-2 text-blue-900">
+                {order.createdBy?.fullName || '-'}
+              </td>
+              {/* Created At */}
+              <td className="px-4 py-2 text-gray-600">
+                {order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
               </td>
               <td className="px-4 py-2 text-gray-700 max-w-xs truncate">{order.notes}</td>
               <td className="px-4 py-2">

@@ -13,6 +13,7 @@ import itemRouter from './routes/item.route.js';
 import orderRouter from './routes/order.route.js';
 import packageRouter from './routes/package.route.js';
 import transportRouter from './routes/transport.route.js';
+import inventoryAnalyticsRouter from './routes/inventoryAnalytics.route.js';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/v1/return', returnRouter);
 app.use('/api/v1/product', productRouter);
 app.use('/api/v1/transport', transportRouter);
 app.use('/api/v1/inventory', inventoryRouter);
+app.use('/api/v1/inventory-analytics', inventoryAnalyticsRouter);
 
 // Financial tracking routes
 app.use('/api/v1/purchase-order', purchaseOrderRouter);
