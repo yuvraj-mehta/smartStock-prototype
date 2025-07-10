@@ -268,7 +268,14 @@ export const getAllReturns = catchAsyncErrors(async (req, res) => {
   if (status) filter.returnStatus = status;
 
   const returns = await Return.find(filter)
-    .populate('packageId', 'packageId')
+    .populate({
+      path: 'packageId',
+      select: 'packageId allocatedItems',
+      populate: {
+        path: 'allocatedItems.productId',
+        select: 'productName price',
+      }
+    })
     .populate('orderId', 'orderNumber')
     .populate('processedBy', 'fullName')
     .sort({ createdAt: -1 })

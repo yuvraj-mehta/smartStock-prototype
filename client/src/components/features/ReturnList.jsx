@@ -9,8 +9,6 @@ import ProcessReturnModal from './ProcessReturnModal';
 const ReturnList = () => {
   const dispatch = useDispatch();
   const { returns, loading, error } = useSelector(state => state.returns);
-  // Get global product list from Redux
-  const products = useSelector(state => state.products.products || []);
   // Pagination and filter state
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -173,35 +171,22 @@ const ReturnList = () => {
                 </td>
                 <td className="px-6 py-3 whitespace-nowrap max-w-[120px] text-right font-semibold text-green-700">
                   {/* Calculate return value using best available logic */}
-                  {Array.isArray(r.returnedItems)
+                  {Array.isArray(r.returnedItems) && r.packageId && typeof r.packageId === 'object' && Array.isArray(r.packageId.allocatedItems)
                     ? (() => {
-                      // Build a map of (productId+batchId) to price from allocatedItems if available
-                      let priceMap = {};
-                      if (r.packageId && typeof r.packageId === 'object' && Array.isArray(r.packageId.allocatedItems)) {
-                        r.packageId.allocatedItems.forEach(ai => {
-                          const key = `${ai.productId?._id || ai.productId}-${ai.batchId?._id || ai.batchId}`;
-                          let price = 0;
-                          if (ai.productId && typeof ai.productId === 'object' && (ai.productId.price || ai.productId.costPrice)) price = ai.productId.price || ai.productId.costPrice;
-                          priceMap[key] = price;
-                        });
-                      }
+                      // Build a map of (productId+batchId) to price from allocatedItems
+                      const priceMap = {};
+                      r.packageId.allocatedItems.forEach(ai => {
+                        const key = `${ai.productId?._id || ai.productId}-${ai.batchId?._id || ai.batchId}`;
+                        let price = 0;
+                        if (ai.productId && typeof ai.productId === 'object' && ai.productId.price) price = ai.productId.price;
+                        priceMap[key] = price;
+                      });
                       // Calculate total value for returned items
                       const total = r.returnedItems.reduce((sum, item) => {
-                        let price = 0;
-                        if (item.productId && typeof item.productId === 'object' && (item.productId.price || item.productId.costPrice)) {
-                          price = item.productId.price || item.productId.costPrice;
-                        }
+                        let price = item.productId && typeof item.productId === 'object' && item.productId.price ? item.productId.price : 0;
                         if (!price) {
                           const key = `${item.productId?._id || item.productId}-${item.batchId?._id || item.batchId}`;
                           price = priceMap[key] || 0;
-                        }
-                        // Fallback: lookup in global product list by _id
-                        if (!price) {
-                          const prodId = item.productId?._id || item.productId;
-                          const prod = products.find(p => p._id === prodId);
-                          if (prod) {
-                            price = prod.price || prod.costPrice || 0;
-                          }
                         }
                         return sum + price * (item.quantity || 0);
                       }, 0);
