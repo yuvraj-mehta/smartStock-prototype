@@ -117,16 +117,27 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
 
   // Group inventory by product using Item status as source of truth
   const productMap = {};
+  let totalInventoryValue = 0;
+  let totalDamagedValue = 0;
+  let totalSoldValue = 0;
+
   for (const entry of inventory) {
     const batch = entry.batchId;
     if (!batch || !batch.productId) continue;
     const productId = batch.productId._id.toString();
+    const price = batch.productId.price || 0;
 
-    // Get damaged and in-stock item counts for this batch
-    const [damagedItemCount, inStockItemCount] = await Promise.all([
+    // Get damaged, in-stock, and sold item counts for this batch
+    const [damagedItemCount, inStockItemCount, soldItemCount] = await Promise.all([
       Item.countDocuments({ batchId: batch._id, status: "damaged" }),
-      Item.countDocuments({ batchId: batch._id, status: "in_stock" })
+      Item.countDocuments({ batchId: batch._id, status: "in_stock" }),
+      Item.countDocuments({ batchId: batch._id, status: "delivered" })
     ]);
+
+    // Calculate values
+    totalInventoryValue += price * inStockItemCount;
+    totalDamagedValue += price * damagedItemCount;
+    totalSoldValue += price * soldItemCount;
 
     if (!productMap[productId]) {
       productMap[productId] = {
@@ -154,6 +165,9 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
     message: "Inventory fetched successfully.",
     totalProducts: products.length,
     products,
+    totalInventoryValue,
+    totalDamagedValue,
+    totalSoldValue,
   });
 });
 

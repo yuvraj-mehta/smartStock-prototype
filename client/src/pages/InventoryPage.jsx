@@ -44,6 +44,9 @@ const InventoryPage = () => {
     message,
     realTimeStatus,
     batchTracking,
+    totalInventoryValue,
+    totalDamagedValue,
+    totalSoldValue,
   } = useSelector(state => state.inventory);
   const { user } = useSelector(state => state.auth);
   const { products: allProducts } = useSelector(state => state.products);
@@ -303,6 +306,48 @@ const InventoryPage = () => {
               <p className="text-sm font-medium text-gray-600 mb-1">Damaged Items</p>
               <p className="text-2xl font-bold text-orange-600">
                 {inventoryStats.damagedItems.toLocaleString()}
+              </p>
+            </div>
+            <div className="p-3 bg-orange-500 rounded-lg">
+              <FaExclamationCircle className="text-white text-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div className="bg-white p-6 rounded-lg border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Inventory Value</p>
+              <p className="text-2xl font-bold text-green-700">
+                {totalInventoryValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+              </p>
+            </div>
+            <div className="p-3 bg-green-500 rounded-lg">
+              <FaWarehouse className="text-white text-xl" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Value of Goods Sold</p>
+              <p className="text-2xl font-bold text-blue-700">
+                {totalSoldValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-500 rounded-lg">
+              <FaCheckCircle className="text-white text-xl" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Value of Damaged Items</p>
+              <p className="text-2xl font-bold text-orange-700">
+                {totalDamagedValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
               </p>
             </div>
             <div className="p-3 bg-orange-500 rounded-lg">

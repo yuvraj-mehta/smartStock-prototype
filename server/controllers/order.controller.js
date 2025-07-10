@@ -283,6 +283,28 @@ export const markDelivered = catchAsyncErrors(async (req, res) => {
   order.orderStatus = 'delivered';
   await order.save();
 
+  // Update all items in the package to status 'delivered'
+  if (Array.isArray(packageDoc.allocatedItems)) {
+    for (const alloc of packageDoc.allocatedItems) {
+      if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
+        await Item.updateMany(
+          { _id: { $in: alloc.itemIds } },
+          {
+            $set: { status: 'delivered' },
+            $push: {
+              history: {
+                action: 'delivered',
+                location: 'Customer',
+                notes: `Delivered via package ${packageDoc.packageId}`,
+                date: new Date()
+              }
+            }
+          }
+        );
+      }
+    }
+  }
+
   res.status(200).json({
     message: "Package marked as delivered successfully",
     package: packageDoc,
