@@ -18,6 +18,12 @@ export const conf = {
   emailPort: process.env.EMAIL_PORT,
   emailUser: process.env.EMAIL_USER,
   emailPass: process.env.EMAIL_PASS,
+
+  // AI Configuration
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  aiModel: process.env.AI_MODEL || 'gpt-3.5-turbo',
+  aiTemperature: parseFloat(process.env.AI_TEMPERATURE) || 0.3,
+  aiMaxTokens: parseInt(process.env.AI_MAX_TOKENS) || 2000,
 }
 
 // CORS configuration

@@ -14,6 +14,7 @@ import transportRouter from './routes/transport.route.js';
 import healthRouter from './routes/health.route.js'
 import salesRouter from './routes/sales.route.js';
 import returnRouter from './routes/return.route.js';
+import aiRouter from './routes/ai.route.js';
 
 app.use(cors(corsConfig));
 app.use(express.json());
@@ -31,6 +32,7 @@ app.use('/api/v1/return', returnRouter);
 app.use('/api/v1/product', productRouter);
 app.use('/api/v1/transport', transportRouter);
 app.use('/api/v1/inventory', inventoryRouter);
+app.use('/api/v1/ai', aiRouter);
 
 // 404 handler for undefined routes
 app.use(notFound);
