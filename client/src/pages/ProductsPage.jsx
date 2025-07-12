@@ -166,7 +166,7 @@ const ProductsPage = () => {
                   </button>
                   <h2 className="text-2xl font-bold mb-4 gradient-text">Edit Product</h2>
                   <form
-                    onSubmit={e => { e.preventDefault(); alert('Edit Product feature coming soon!'); }}
+                    onSubmit={e => { e.preventDefault(); /* Edit Product feature coming soon! */ }}
                     className="space-y-4"
                   >
                     <div>
@@ -260,7 +260,7 @@ const ProductsPage = () => {
         <button
           className="fixed bottom-8 right-8 z-50 bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-full shadow-lg hover:scale-105 hover:shadow-2xl transition-all duration-200 w-16 h-16 flex items-center justify-center text-3xl border-4 border-white/60"
           title="Add Product"
-          onClick={() => alert('Add Product feature coming soon!')}
+          onClick={() => {/* Add Product feature coming soon! */ }}
         >
           +
         </button>

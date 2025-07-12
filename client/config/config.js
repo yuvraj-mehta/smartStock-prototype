@@ -1,5 +1,5 @@
 
 export const config = {
   // TODO: Replace with your new backend URL when ready
-  apiBaseUrl: 'https://smartstock-prototype.onrender.com/api/v1', // Placeholder URL
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL
 };

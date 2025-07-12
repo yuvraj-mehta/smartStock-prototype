@@ -63,7 +63,7 @@ const LandingPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="bg-white/80 backdrop-blur-sm border-0 shadow-lg p-8 rounded-lg">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">Smart Inventory Tracking</h3>
-                <p className="text-gray-600 leading-relaxed">Real-time tracking across all your locations with intelligent alerts and notifications.</p>
+                <p className="text-gray-600 leading-relaxed">Real-time tracking across all your locations with intelligent notifications.</p>
               </div>
               <div className="bg-white/80 backdrop-blur-sm border-0 shadow-lg p-8 rounded-lg">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">Predictive Analytics</h3>

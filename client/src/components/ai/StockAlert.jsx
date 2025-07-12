@@ -39,8 +39,6 @@ const StockAlerts = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Inventory data for alerts:', data);
-
         const inventoryItems = data.products || [];
         generateAlerts(inventoryItems);
       } else {
@@ -54,7 +52,6 @@ const StockAlerts = () => {
         }
       }
     } catch (err) {
-      console.error('Error fetching stock alerts:', err);
       setError('Network error while fetching stock alerts.');
     } finally {
       setLoading(false);
@@ -209,8 +206,8 @@ const StockAlerts = () => {
             key={tab.key}
             onClick={() => setFilter(tab.key)}
             className={`flex-1 flex items-center justify-center space-x-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${filter === tab.key
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
               }`}
           >
             <span>{tab.label}</span>
@@ -275,8 +272,8 @@ const StockAlerts = () => {
                             {alert.timestamp.toLocaleString()}
                           </span>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${alert.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                              alert.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-blue-100 text-blue-800'
+                            alert.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-blue-100 text-blue-800'
                             }`}>
                             {alert.severity}
                           </span>
