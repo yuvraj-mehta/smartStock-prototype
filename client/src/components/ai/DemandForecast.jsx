@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ChartBarIcon, 
-  CalendarIcon, 
+import {
+  ChartBarIcon,
+  CalendarIcon,
   ArrowTrendingUpIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
@@ -29,7 +29,7 @@ const DemandForecast = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         setError('No authentication token found. Please log in.');
         return;
@@ -37,7 +37,7 @@ const DemandForecast = () => {
 
       console.log('Fetching products with token:', token ? 'Token exists' : 'No token');
 
-      const response = await fetch('/api/v1/product/all', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/product/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -50,20 +50,20 @@ const DemandForecast = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Products API response:', data); // Debug log
-        
+
         // Handle different response formats
         const productsArray = data.products || data.data || data || [];
         console.log('Extracted products array:', productsArray);
-        
+
         setProducts(productsArray);
-        
+
         if (productsArray.length === 0) {
           setError('No products found in the database. Please add some products first.');
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to fetch products:', response.status, errorData);
-        
+
         if (response.status === 401) {
           setError('Authentication failed. Please log in again.');
         } else if (response.status === 403) {
@@ -89,9 +89,9 @@ const DemandForecast = () => {
     try {
       setForecasting(true);
       setError(null);
-      
+
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         setError('No authentication token found. Please log in.');
         return;
@@ -100,7 +100,7 @@ const DemandForecast = () => {
       console.log('Generating forecast for product:', selectedProduct);
       console.log('Forecast params:', forecastParams);
 
-      const response = await fetch('/api/v1/ai/forecast/demand', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/ai/forecast/demand`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -122,7 +122,7 @@ const DemandForecast = () => {
 
       const data = await response.json();
       console.log('Forecast response data:', data);
-      
+
       // Check if the response has the expected structure
       if (data.success && data.data) {
         setForecastData(data.data);
@@ -189,7 +189,7 @@ const DemandForecast = () => {
       {/* Forecast Configuration */}
       <div className="bg-white rounded-lg shadow border p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Forecast Configuration</h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Product Selection */}
           <div>
@@ -223,7 +223,7 @@ const DemandForecast = () => {
             </label>
             <select
               value={forecastParams.periodType}
-              onChange={(e) => setForecastParams({...forecastParams, periodType: e.target.value})}
+              onChange={(e) => setForecastParams({ ...forecastParams, periodType: e.target.value })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="weekly">Weekly</option>
@@ -239,7 +239,7 @@ const DemandForecast = () => {
             </label>
             <select
               value={forecastParams.daysBack}
-              onChange={(e) => setForecastParams({...forecastParams, daysBack: parseInt(e.target.value)})}
+              onChange={(e) => setForecastParams({ ...forecastParams, daysBack: parseInt(e.target.value) })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value={30}>30 Days</option>
@@ -289,7 +289,7 @@ const DemandForecast = () => {
           {/* Forecast Summary */}
           <div className="bg-white rounded-lg shadow border p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Forecast Summary</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-blue-50 p-4 rounded-md">
                 <div className="flex items-center">
@@ -313,8 +313,8 @@ const DemandForecast = () => {
                         {forecastData.aiResponse?.forecast30Days?.confidence || 0}%
                       </span>
                       <span className={`px-2 py-1 rounded-full text-xs ${getConfidenceColor(forecastData.aiResponse?.forecast30Days?.confidence || 0)}`}>
-                        {forecastData.aiResponse?.forecast30Days?.confidence >= 80 ? 'High' : 
-                         forecastData.aiResponse?.forecast30Days?.confidence >= 60 ? 'Medium' : 'Low'}
+                        {forecastData.aiResponse?.forecast30Days?.confidence >= 80 ? 'High' :
+                          forecastData.aiResponse?.forecast30Days?.confidence >= 60 ? 'Medium' : 'Low'}
                       </span>
                     </div>
                   </div>
@@ -365,7 +365,7 @@ const DemandForecast = () => {
           {/* Risk Assessment */}
           <div className="bg-white rounded-lg shadow border p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Risk Assessment</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 border rounded-md">
                 <div className="flex items-center justify-between mb-2">

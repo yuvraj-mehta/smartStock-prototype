@@ -34,17 +34,17 @@ const AIAssistantPage = () => {
     try {
       setSaving(true);
       setSaveMessage('');
-      
+
       // Save to localStorage
       localStorage.setItem('inventoryThresholdSettings', JSON.stringify(thresholdSettings));
-      
+
       // Here you could also send to backend API
-      // await fetch('/api/v1/settings/thresholds', {
+      // await fetch(`${import.meta.env.VITE_API_BASE_URL}/settings/thresholds`, {
       //   method: 'POST',
       //   headers: { 'Content-Type': 'application/json' },
       //   body: JSON.stringify(thresholdSettings)
       // });
-      
+
       setSaveMessage('Settings saved successfully!');
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (error) {
@@ -69,7 +69,7 @@ const AIAssistantPage = () => {
         <h2>Threshold Settings</h2>
         <p>Configure automated inventory thresholds and alerts</p>
       </div>
-      
+
       <div className="bg-white rounded-lg shadow border p-6">
         <div className="space-y-6">
           <div>
@@ -103,7 +103,7 @@ const AIAssistantPage = () => {
               </div>
             </div>
           </div>
-          
+
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-4">AI Settings</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -111,7 +111,7 @@ const AIAssistantPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Demand Sensitivity
                 </label>
-                <select 
+                <select
                   value={thresholdSettings.demandSensitivity}
                   onChange={(e) => handleThresholdChange('demandSensitivity', e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -125,7 +125,7 @@ const AIAssistantPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Forecast Period
                 </label>
-                <select 
+                <select
                   value={thresholdSettings.forecastPeriod}
                   onChange={(e) => handleThresholdChange('forecastPeriod', e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -137,15 +137,15 @@ const AIAssistantPage = () => {
               </div>
             </div>
           </div>
-          
+
           {saveMessage && (
             <div className={`p-3 rounded-md ${saveMessage.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
               {saveMessage}
             </div>
           )}
-          
+
           <div className="flex justify-end">
-            <button 
+            <button
               onClick={handleSaveSettings}
               disabled={saving}
               className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"

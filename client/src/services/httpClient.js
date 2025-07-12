@@ -13,7 +13,7 @@ import { getStorageItem, removeStorageItem } from '../utils/storage';
 
 // Create axios instance with default configuration
 const httpClient = axios.create({
-  baseURL: 'http://localhost:3500/api/v1', // TODO: Replace with your new backend URL
+  baseURL: import.meta.env.VITE_API_BASE_URL, // Only use env variable
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

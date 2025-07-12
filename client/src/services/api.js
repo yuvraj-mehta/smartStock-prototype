@@ -9,7 +9,7 @@ import { API_CONFIG } from '../constants';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',

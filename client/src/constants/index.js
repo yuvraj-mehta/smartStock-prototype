@@ -9,7 +9,7 @@
 
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:3500/api/v1', // Updated to match the running backend
+  BASE_URL: import.meta.env.VITE_API_BASE_URL, // Only use env variable
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
 };

@@ -1,7 +1,7 @@
 // AI-Powered Inventory Management System Test
 // This file demonstrates how to use the ChatGPT integration for inventory management
 
-const API_BASE_URL = 'http://localhost:3500/api/v1';
+const API_BASE_URL = 'https://smartstock-prototype.onrender.com/api/v1';
 let authToken = '';
 
 // Sample login function to get authentication token
@@ -36,7 +36,7 @@ async function login() {
 // Test AI Demand Forecasting
 async function testDemandForecast(productId) {
   console.log('\n🔮 Testing AI Demand Forecasting...');
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/forecast/${productId}`, {
       method: 'POST',
@@ -58,7 +58,7 @@ async function testDemandForecast(productId) {
         reorderQuantity: data.data.forecast?.recommendations?.reorderQuantity,
         confidenceLevel: data.data.forecast?.recommendations?.confidenceLevel
       });
-      
+
       return data.data;
     } else {
       const error = await response.json();
@@ -74,7 +74,7 @@ async function testDemandForecast(productId) {
 // Test Stock Optimization
 async function testStockOptimization() {
   console.log('\n📈 Testing AI Stock Optimization...');
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/optimization`, {
       method: 'POST',
@@ -92,7 +92,7 @@ async function testStockOptimization() {
         totalValue: data.data.optimization?.totalValue,
         recommendationsCount: data.data.optimization?.recommendations?.length || 0
       });
-      
+
       if (data.data.optimization?.insights) {
         console.log('💡 Generated Insights:');
         const insights = data.data.optimization.insights;
@@ -103,7 +103,7 @@ async function testStockOptimization() {
           console.log(`   - Fast moving items: ${insights.fastMoving.length}`);
         }
       }
-      
+
       return data.data;
     } else {
       const error = await response.json();
@@ -119,7 +119,7 @@ async function testStockOptimization() {
 // Test Intelligent Inventory Insights (Reorder Suggestions)
 async function testIntelligentInsights() {
   console.log('\n🧠 Testing Intelligent Reorder Suggestions...');
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/reorder-suggestions`, {
       method: 'POST',
@@ -137,14 +137,14 @@ async function testIntelligentInsights() {
         totalCost: data.data.suggestions?.summary?.estimatedTotalCost || 0,
         criticalItems: data.data.suggestions?.summary?.criticalItems || 0
       });
-      
+
       if (data.data.suggestions?.reorderSuggestions?.length > 0) {
         console.log('� Reorder Suggestions:');
         data.data.suggestions.reorderSuggestions.slice(0, 3).forEach((suggestion, index) => {
           console.log(`   ${index + 1}. ${suggestion.productName} - ${suggestion.urgency} (Qty: ${suggestion.recommendedQuantity})`);
         });
       }
-      
+
       return data.data;
     } else {
       const error = await response.json();
@@ -160,7 +160,7 @@ async function testIntelligentInsights() {
 // Test Sales Trend Analysis
 async function testSeasonalAnalysis(days = 30) {
   console.log(`\n🌟 Testing Sales Trend Analysis for ${days} days...`);
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/sales-trends?days=${days}`, {
       headers: {
@@ -176,14 +176,14 @@ async function testSeasonalAnalysis(days = 30) {
         growthRate: data.data.analysis?.trends?.growthRate,
         topProductsCount: data.data.analysis?.topProducts?.length || 0
       });
-      
+
       if (data.data.analysis?.insights?.length > 0) {
         console.log('💡 Key Insights:');
         data.data.analysis.insights.slice(0, 3).forEach((insight, index) => {
           console.log(`   ${index + 1}. ${insight}`);
         });
       }
-      
+
       return data.data;
     } else {
       const error = await response.json();
@@ -199,7 +199,7 @@ async function testSeasonalAnalysis(days = 30) {
 // Test AI Dashboard
 async function testAIDashboard() {
   console.log('\n📱 Testing AI Dashboard...');
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/dashboard`, {
       headers: {
@@ -211,10 +211,10 @@ async function testAIDashboard() {
       const data = await response.json();
       console.log('✅ AI Dashboard loaded successfully');
       console.log('📊 Dashboard Summary:', data.data.summary);
-      
+
       console.log('📈 Recent Forecasts:', data.data.recentForecasts.length);
       console.log('🚨 Critical Alerts:', data.data.criticalAlerts.length);
-      
+
       return data.data;
     } else {
       const error = await response.json();
@@ -230,7 +230,7 @@ async function testAIDashboard() {
 // Test Product-specific AI Prediction
 async function testProductAIPrediction(productId, forecastDays = 30) {
   console.log(`\n🎯 Testing AI Prediction for specific product (${forecastDays} days)...`);
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/forecast/${productId}`, {
       headers: {
@@ -247,7 +247,7 @@ async function testProductAIPrediction(productId, forecastDays = 30) {
         confidenceLevel: data.data?.recommendations?.confidenceLevel,
         reorderQuantity: data.data?.recommendations?.reorderQuantity
       });
-      
+
       return data.data;
     } else {
       const error = await response.json();
@@ -284,7 +284,7 @@ async function getProducts() {
 async function runAITests() {
   console.log('🚀 Starting AI-Powered Inventory Management Tests');
   console.log('================================================');
-  
+
   // Step 1: Login
   const loginSuccess = await login();
   if (!loginSuccess) {
@@ -295,12 +295,12 @@ async function runAITests() {
   // Step 2: Get products for testing
   console.log('\n📦 Fetching available products...');
   const products = await getProducts();
-  
+
   if (products.length === 0) {
     console.log('⚠️  No products found. Please add products to test AI features.');
     return;
   }
-  
+
   console.log(`✅ Found ${products.length} products`);
   const testProductId = products[0]._id; // Use first product for testing
   console.log(`🎯 Using product: ${products[0].name} (${products[0]._id})`);

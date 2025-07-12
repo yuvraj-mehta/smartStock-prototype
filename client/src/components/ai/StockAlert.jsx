@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   ExclamationTriangleIcon,
   BellIcon,
   ChartBarIcon,
@@ -23,14 +23,14 @@ const StockAlerts = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         setError('No authentication token found. Please log in.');
         return;
       }
 
       // Fetch inventory data to generate alerts
-      const response = await fetch('/api/v1/inventory/all', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/inventory/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -40,7 +40,7 @@ const StockAlerts = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Inventory data for alerts:', data);
-        
+
         const inventoryItems = data.products || [];
         generateAlerts(inventoryItems);
       } else {
@@ -68,7 +68,7 @@ const StockAlerts = () => {
     inventoryItems.forEach(productItem => {
       const product = productItem.product;
       const totalQuantity = productItem.totalQuantity;
-      
+
       // Low stock alert
       if (totalQuantity <= 10) {
         generatedAlerts.push({
@@ -89,7 +89,7 @@ const StockAlerts = () => {
         if (batch.expDate) {
           const expiryDate = new Date(batch.expDate);
           const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-          
+
           if (daysUntilExpiry <= 0) {
             generatedAlerts.push({
               id: `expired-${batch.batchId}`,
@@ -186,7 +186,7 @@ const StockAlerts = () => {
             <p className="text-gray-600">Monitor critical inventory levels and expiry dates</p>
           </div>
         </div>
-        
+
         <button
           onClick={fetchStockAlerts}
           disabled={loading}
@@ -208,17 +208,15 @@ const StockAlerts = () => {
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className={`flex-1 flex items-center justify-center space-x-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              filter === tab.key 
-                ? 'bg-white text-blue-600 shadow-sm' 
+            className={`flex-1 flex items-center justify-center space-x-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${filter === tab.key
+                ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
-            }`}
+              }`}
           >
             <span>{tab.label}</span>
             {tab.count > 0 && (
-              <span className={`px-2 py-0.5 rounded-full text-xs ${
-                filter === tab.key ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'
-              }`}>
+              <span className={`px-2 py-0.5 rounded-full text-xs ${filter === tab.key ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'
+                }`}>
                 {tab.count}
               </span>
             )}
@@ -252,7 +250,7 @@ const StockAlerts = () => {
               <CheckCircleIcon className="w-16 h-16 text-green-600 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Alerts</h3>
               <p className="text-gray-600">
-                {filter === 'all' 
+                {filter === 'all'
                   ? 'Great! All your inventory levels are within normal ranges.'
                   : `No ${filter} alerts at this time.`
                 }
@@ -276,11 +274,10 @@ const StockAlerts = () => {
                           <span className="text-sm text-gray-500">
                             {alert.timestamp.toLocaleString()}
                           </span>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                            alert.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                            alert.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${alert.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                              alert.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                            }`}>
                             {alert.severity}
                           </span>
                         </div>

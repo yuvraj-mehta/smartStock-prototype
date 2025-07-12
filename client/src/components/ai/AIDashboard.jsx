@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowTrendingUpIcon, 
-  ExclamationTriangleIcon, 
+import {
+  ArrowTrendingUpIcon,
+  ExclamationTriangleIcon,
   ChartBarIcon,
   CpuChipIcon,
   ArrowPathIcon,
@@ -24,7 +24,7 @@ const AIDashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/ai/dashboard', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/ai/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -86,7 +86,7 @@ const AIDashboard = () => {
           <div className="ml-3">
             <h3 className="text-sm font-medium text-red-800">Error Loading AI Dashboard</h3>
             <p className="mt-2 text-sm text-red-700">{error}</p>
-            <button 
+            <button
               onClick={fetchDashboardData}
               className="mt-3 bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
             >
@@ -179,11 +179,10 @@ const AIDashboard = () => {
                       <p className="text-sm text-gray-600">Forecast: {forecast.forecastQuantity} units</p>
                     </div>
                     <div className="text-right">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        forecast.confidence > 80 ? 'bg-green-100 text-green-800' :
-                        forecast.confidence > 60 ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${forecast.confidence > 80 ? 'bg-green-100 text-green-800' :
+                          forecast.confidence > 60 ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                        }`}>
                         {forecast.confidence}% confidence
                       </span>
                       <p className="text-xs text-gray-500 mt-1">

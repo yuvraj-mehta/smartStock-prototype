@@ -1,7 +1,7 @@
 // Test JSON Inventory Data Analysis
 // This file tests the new AI analysis feature with your specific JSON data format
 
-const API_BASE_URL = 'http://localhost:3500/api/v1';
+const API_BASE_URL = 'https://smartstock-prototype.onrender.com/api/v1';
 let authToken = '';
 
 // Your sample inventory data
@@ -98,7 +98,7 @@ async function login() {
     });
 
     const data = await response.json();
-    
+
     if (data.success && data.token) {
       authToken = data.token;
       console.log('✅ Login successful');
@@ -116,7 +116,7 @@ async function login() {
 // Test JSON data analysis
 async function testJSONDataAnalysis() {
   console.log('\n🧠 Testing AI Analysis of JSON Inventory Data...');
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/ai/analyze/json-data`, {
       method: 'POST',
@@ -138,7 +138,7 @@ async function testJSONDataAnalysis() {
       console.log('- Analysis ID:', data.data.analysisId);
       console.log('- Products Analyzed:', data.data.metadata.productsAnalyzed);
       console.log('- Overall Risk Level:', data.data.summary?.riskLevel || 'Unknown');
-      
+
       if (data.data.summary?.mainConcerns) {
         console.log('\n⚠️ Main Concerns:');
         data.data.summary.mainConcerns.forEach((concern, index) => {
@@ -154,7 +154,7 @@ async function testJSONDataAnalysis() {
           console.log(`  - Current Status: ${product.stockOptimization?.currentStatus || 'N/A'}`);
           console.log(`  - 30-Day Forecast: ${product.demandForecast?.next30Days || 'N/A'}`);
           console.log(`  - Confidence: ${product.demandForecast?.confidence || 'N/A'}`);
-          
+
           if (product.recommendations && product.recommendations.length > 0) {
             console.log('  - Recommendations:');
             product.recommendations.forEach(rec => {
@@ -181,7 +181,7 @@ async function testJSONDataAnalysis() {
 
       console.log('\n✨ Analysis completed and saved to database!');
       return data.data.analysisId;
-      
+
     } else {
       console.error('❌ JSON Data Analysis failed:', data.message);
       if (data.error) {
@@ -198,12 +198,12 @@ async function testJSONDataAnalysis() {
 // Test different analysis types
 async function testDifferentAnalysisTypes() {
   console.log('\n🔄 Testing Different Analysis Types...');
-  
+
   const analysisTypes = ['comprehensive', 'demand_focus', 'risk_focus', 'optimization_focus'];
-  
+
   for (const analysisType of analysisTypes) {
     console.log(`\n📊 Testing ${analysisType} analysis...`);
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/ai/analyze/json-data`, {
         method: 'POST',
@@ -218,7 +218,7 @@ async function testDifferentAnalysisTypes() {
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         console.log(`✅ ${analysisType} analysis completed`);
         console.log(`   Analysis ID: ${data.data.analysisId}`);
@@ -236,7 +236,7 @@ async function testDifferentAnalysisTypes() {
 async function runJSONAnalysisTests() {
   console.log('🚀 Starting JSON Inventory Data Analysis Tests');
   console.log('================================================');
-  
+
   // Step 1: Login
   const loginSuccess = await login();
   if (!loginSuccess) {
@@ -246,13 +246,13 @@ async function runJSONAnalysisTests() {
 
   // Step 2: Test comprehensive analysis
   const analysisId = await testJSONDataAnalysis();
-  
+
   if (analysisId) {
     console.log('\n✅ Basic analysis completed successfully!');
-    
+
     // Step 3: Test different analysis types
     await testDifferentAnalysisTypes();
-    
+
     console.log('\n🎉 All JSON analysis tests completed!');
     console.log('\n📋 What you can do next:');
     console.log('1. Check the database for saved AI insights');
