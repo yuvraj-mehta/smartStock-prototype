@@ -96,6 +96,28 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
     } else if (status === "delivered") {
       packageDoc.packageStatus = 'delivered';
       packageDoc.orderId.orderStatus = 'delivered';
+      // Update all items in the package to status 'delivered'
+      if (Array.isArray(packageDoc.allocatedItems)) {
+        const { Item } = await import('../models/item.model.js');
+        for (const alloc of packageDoc.allocatedItems) {
+          if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
+            await Item.updateMany(
+              { _id: { $in: alloc.itemIds } },
+              {
+                $set: { status: 'delivered' },
+                $push: {
+                  history: {
+                    action: 'delivered',
+                    location: 'Customer',
+                    notes: `Delivered via package ${packageDoc.packageId}`,
+                    date: new Date()
+                  }
+                }
+              }
+            );
+          }
+        }
+      }
     }
 
     await packageDoc.save();

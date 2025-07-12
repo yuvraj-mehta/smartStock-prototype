@@ -2,6 +2,7 @@ import { Order, Package, Product, Batch, Item, Inventory, Transport, SalesHistor
 import { catchAsyncErrors } from "../middlewares/index.js";
 import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
+import { logAudit } from '../utils/auditLogger.js';
 
 // Create new order (manually entered by staff)
 export const createOrder = catchAsyncErrors(async (req, res) => {
@@ -33,6 +34,16 @@ export const createOrder = catchAsyncErrors(async (req, res) => {
     notes,
     createdBy: req.user._id,
     orderStatus: 'pending'
+  });
+
+  // Audit log for order creation
+  await logAudit({
+    userId: req.user?._id,
+    action: 'CREATE_ORDER',
+    entityType: 'Order',
+    entityId: order._id,
+    value: order.items.reduce((sum, item) => sum + (item.totalPrice || 0), 0),
+    details: { platformOrderId, items, notes }
   });
 
   res.status(201).json({
@@ -271,6 +282,28 @@ export const markDelivered = catchAsyncErrors(async (req, res) => {
   const order = packageDoc.orderId;
   order.orderStatus = 'delivered';
   await order.save();
+
+  // Update all items in the package to status 'delivered'
+  if (Array.isArray(packageDoc.allocatedItems)) {
+    for (const alloc of packageDoc.allocatedItems) {
+      if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
+        await Item.updateMany(
+          { _id: { $in: alloc.itemIds } },
+          {
+            $set: { status: 'delivered' },
+            $push: {
+              history: {
+                action: 'delivered',
+                location: 'Customer',
+                notes: `Delivered via package ${packageDoc.packageId}`,
+                date: new Date()
+              }
+            }
+          }
+        );
+      }
+    }
+  }
 
   res.status(200).json({
     message: "Package marked as delivered successfully",

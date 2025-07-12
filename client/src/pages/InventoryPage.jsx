@@ -28,6 +28,9 @@ import {
   trackBatchByNumber,
   clearInventoryMessages,
 } from '../app/slices/inventorySlice';
+
+// All inventory stats and UI are derived from Item status fields (in_stock, damaged, etc.)
+// Do not use deprecated product/inventory quantity fields.
 import { getAllProducts } from '../app/slices/productSlice';
 import { fetchSuppliers } from '../app/slices/supplierSlice';
 
@@ -41,6 +44,9 @@ const InventoryPage = () => {
     message,
     realTimeStatus,
     batchTracking,
+    totalInventoryValue,
+    totalDamagedValue,
+    totalSoldValue,
   } = useSelector(state => state.inventory);
   const { user } = useSelector(state => state.auth);
   const { products: allProducts } = useSelector(state => state.products);
@@ -55,20 +61,36 @@ const InventoryPage = () => {
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   // Form states
+  // Set default dates: mfgDate = today, expDate = one year from today
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+  const nextYear = new Date(today);
+  nextYear.setFullYear(today.getFullYear() + 1);
+  const nextYearStr = `${nextYear.getFullYear()}-${String(nextYear.getMonth() + 1).padStart(2, '0')}-${String(nextYear.getDate()).padStart(2, '0')}`;
+
   const [supplyForm, setSupplyForm] = useState({
     productId: '',
     supplierId: '',
     quantity: '',
-    mfgDate: '',
-    expDate: '',
+    mfgDate: todayStr,
+    expDate: nextYearStr,
+    unitCost: '',
+    currency: 'INR',
+    purchaseOrderId: '',
     notes: '',
   });
   const [damagedForm, setDamagedForm] = useState({
-    productId: '',
     batchId: '',
     quantity: '',
     reason: '',
   });
+  // For displaying financial loss after marking damaged
+  const [financialLoss, setFinancialLoss] = useState(null);
+  // For displaying add supply details
+  const [addSupplyDetails, setAddSupplyDetails] = useState(null);
   const [batchTrackingForm, setBatchTrackingForm] = useState({
     batchNumber: '',
   });
@@ -102,8 +124,8 @@ const InventoryPage = () => {
   const handleAddSupply = async (e) => {
     e.preventDefault();
     // Frontend validation
-    const { productId, supplierId, quantity, mfgDate, expDate } = supplyForm;
-    if (!productId || !supplierId || !quantity || !mfgDate || !expDate) {
+    const { productId, supplierId, quantity, mfgDate, expDate, unitCost } = supplyForm;
+    if (!productId || !supplierId || !quantity || !mfgDate || !expDate || !unitCost) {
       alert('All required fields must be provided.');
       return;
     }
@@ -111,28 +133,60 @@ const InventoryPage = () => {
       alert('Quantity must be a positive number.');
       return;
     }
-    // Ensure quantity is sent as a number and supplierId as a string
+    if (isNaN(Number(unitCost)) || Number(unitCost) <= 0) {
+      alert('Unit cost must be a positive number.');
+      return;
+    }
+    // Ensure correct types for backend
     const payload = {
       ...supplyForm,
       quantity: Number(supplyForm.quantity),
       supplierId: String(supplyForm.supplierId),
+      unitCost: Number(supplyForm.unitCost),
+      currency: supplyForm.currency || 'INR',
+      purchaseOrderId: supplyForm.purchaseOrderId || undefined,
     };
-    await dispatch(addInventorySupply(payload));
+    const result = await dispatch(addInventorySupply(payload));
+    if (result && result.payload) {
+      setAddSupplyDetails({
+        batchId: result.payload.batchId,
+        itemsCreated: result.payload.itemsCreated,
+        totalCost: result.payload.totalCost,
+        currency: result.payload.currency,
+        purchaseOrderId: result.payload.purchaseOrderId,
+        message: result.payload.message,
+      });
+    } else {
+      setAddSupplyDetails(null);
+    }
     setSupplyForm({
       productId: '',
       supplierId: '',
       quantity: '',
       mfgDate: '',
       expDate: '',
+      unitCost: '',
+      currency: 'INR',
+      purchaseOrderId: '',
       notes: '',
     });
   };
 
   const handleMarkDamaged = async (e) => {
     e.preventDefault();
-    await dispatch(markDamagedInventory(damagedForm));
+    // Only send what the backend expects
+    const payload = {
+      batchId: damagedForm.batchId,
+      quantity: Number(damagedForm.quantity),
+      reason: damagedForm.reason,
+    };
+    const result = await dispatch(markDamagedInventory(payload));
+    if (result && result.payload && typeof result.payload.financialLoss !== 'undefined') {
+      setFinancialLoss(result.payload.financialLoss);
+    } else {
+      setFinancialLoss(null);
+    }
     setDamagedForm({
-      productId: '',
       batchId: '',
       quantity: '',
       reason: '',
@@ -163,7 +217,7 @@ const InventoryPage = () => {
     setExpandedRows(newExpandedRows);
   };
 
-  // Calculate inventory stats
+  // Calculate inventory stats (all derived from item status fields)
   const inventoryStats = {
     totalItems: products.reduce((sum, p) => sum + p.totalQuantity, 0),
     totalProducts: products.length,
@@ -252,6 +306,48 @@ const InventoryPage = () => {
               <p className="text-sm font-medium text-gray-600 mb-1">Damaged Items</p>
               <p className="text-2xl font-bold text-orange-600">
                 {inventoryStats.damagedItems.toLocaleString()}
+              </p>
+            </div>
+            <div className="p-3 bg-orange-500 rounded-lg">
+              <FaExclamationCircle className="text-white text-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div className="bg-white p-6 rounded-lg border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Inventory Value</p>
+              <p className="text-2xl font-bold text-green-700">
+                {totalInventoryValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+              </p>
+            </div>
+            <div className="p-3 bg-green-500 rounded-lg">
+              <FaWarehouse className="text-white text-xl" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Value of Goods Sold</p>
+              <p className="text-2xl font-bold text-blue-700">
+                {totalSoldValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-500 rounded-lg">
+              <FaCheckCircle className="text-white text-xl" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">Total Value of Damaged Items</p>
+              <p className="text-2xl font-bold text-orange-700">
+                {totalDamagedValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
               </p>
             </div>
             <div className="p-3 bg-orange-500 rounded-lg">
@@ -531,128 +627,184 @@ const InventoryPage = () => {
       </div>
     </div>
   );  // Render Add Supply Tab
-  const renderAddSupplyTab = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-blue-500 rounded-lg">
-            <FaPlus className="text-white text-lg" />
+  const renderAddSupplyTab = () => {
+    // Find selected product from allProducts
+    const selectedProduct = allProducts.find(p => p._id === supplyForm.productId);
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-blue-500 rounded-lg">
+              <FaPlus className="text-white text-lg" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900">Add Inventory Supply</h3>
           </div>
-          <h3 className="text-xl font-semibold text-gray-900">Add Inventory Supply</h3>
-        </div>
-        <form onSubmit={handleAddSupply} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
-              <select
-                value={supplyForm.productId}
-                onChange={(e) => setSupplyForm({ ...supplyForm, productId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select Product</option>
-                {allProducts.map(product => (
-                  <option key={product._id} value={product._id}>
-                    {product.productName} ({product.sku})
-                  </option>
-                ))}
-              </select>
+          <form onSubmit={handleAddSupply} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
+                <select
+                  value={supplyForm.productId}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, productId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select Product</option>
+                  {allProducts.map(product => (
+                    <option key={product._id} value={product._id}>
+                      {product.productName} ({product.sku})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
+                <select
+                  value={supplyForm.supplierId}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, supplierId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select Supplier</option>
+                  {suppliers && suppliers.length > 0 ? suppliers.map(supplier => (
+                    <option key={supplier.id || supplier._id} value={supplier.id || supplier._id}>
+                      {supplier.companyName} - {supplier.fullName}
+                    </option>
+                  )) : (
+                    <option value="" disabled>
+                      {suppliersLoading ? 'Loading suppliers...' : 'No suppliers available'}
+                    </option>
+                  )}
+                </select>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
-              <select
-                value={supplyForm.supplierId}
-                onChange={(e) => setSupplyForm({ ...supplyForm, supplierId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select Supplier</option>
-                {suppliers && suppliers.length > 0 ? suppliers.map(supplier => (
-                  <option key={supplier.id || supplier._id} value={supplier.id || supplier._id}>
-                    {supplier.companyName} - {supplier.fullName}
-                  </option>
-                )) : (
-                  <option value="" disabled>
-                    {suppliersLoading ? 'Loading suppliers...' : 'No suppliers available'}
-                  </option>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={supplyForm.quantity}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, quantity: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter quantity"
+                  required
+                />
+              </div>
+              <div>
+                {/* Show cost price and selling price from DB above unit cost */}
+                {selectedProduct && selectedProduct.costPrice !== undefined && (
+                  <div className="mb-1 text-xs text-gray-500">
+                    <span className="font-semibold">Cost Price (from DB): </span>
+                    {selectedProduct.costPrice} {selectedProduct.currency || supplyForm.currency || 'INR'}
+                  </div>
                 )}
-              </select>
+                {selectedProduct && selectedProduct.price !== undefined && (
+                  <div className="mb-1 text-xs text-gray-500">
+                    <span className="font-semibold">Selling Price (from DB): </span>
+                    {selectedProduct.price} {selectedProduct.currency || supplyForm.currency || 'INR'}
+                  </div>
+                )}
+                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Cost</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={supplyForm.unitCost}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, unitCost: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter unit cost"
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-            <input
-              type="number"
-              min="1"
-              value={supplyForm.quantity}
-              onChange={(e) => setSupplyForm({ ...supplyForm, quantity: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter quantity"
-              required
-            />
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Manufacturing Date</label>
+                <input
+                  type="date"
+                  value={supplyForm.mfgDate}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, mfgDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date</label>
+                <input
+                  type="date"
+                  value={supplyForm.expDate}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, expDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+                <input
+                  type="text"
+                  value={supplyForm.currency}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, currency: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="INR"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Purchase Order ID (Optional)</label>
+                <input
+                  type="text"
+                  value={supplyForm.purchaseOrderId}
+                  onChange={(e) => setSupplyForm({ ...supplyForm, purchaseOrderId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter PO ID (if any)"
+                />
+              </div>
+            </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Manufacturing Date</label>
-              <input
-                type="date"
-                value={supplyForm.mfgDate}
-                onChange={(e) => setSupplyForm({ ...supplyForm, mfgDate: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+              <textarea
+                value={supplyForm.notes}
+                onChange={(e) => setSupplyForm({ ...supplyForm, notes: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
+                rows="3"
+                placeholder="Enter any additional notes..."
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date</label>
-              <input
-                type="date"
-                value={supplyForm.expDate}
-                onChange={(e) => setSupplyForm({ ...supplyForm, expDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setSupplyForm({ productId: '', supplierId: '', quantity: '', mfgDate: '', expDate: '', notes: '' });
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Clear Form
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading && <FaSpinner className="animate-spin" />}
+                <FaPlus className="text-sm" />
+                Add Supply
+              </button>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-            <textarea
-              value={supplyForm.notes}
-              onChange={(e) => setSupplyForm({ ...supplyForm, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows="3"
-              placeholder="Enter any additional notes..."
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setSupplyForm({ productId: '', supplierId: '', quantity: '', mfgDate: '', expDate: '', notes: '' });
-              }}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              Clear Form
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {loading && <FaSpinner className="animate-spin" />}
-              <FaPlus className="text-sm" />
-              Add Supply
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
-    </div>
-  );  // Render Mark Damaged Tab
+    );
+  };
+  // ...existing code...
   const renderMarkDamagedTab = () => (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -738,6 +890,7 @@ const InventoryPage = () => {
               type="button"
               onClick={() => {
                 setDamagedForm({ productId: '', batchId: '', quantity: '', reason: '' });
+                setFinancialLoss(null);
               }}
               className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
             >
@@ -754,6 +907,15 @@ const InventoryPage = () => {
             </button>
           </div>
         </form>
+        {/* Show financial loss if available */}
+        {typeof financialLoss === 'number' && (
+          <div className="mt-4 bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg">
+            <div className="flex items-center gap-2">
+              <FaExclamationCircle className="text-orange-600" />
+              <span>Estimated Financial Loss: <b>{financialLoss.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</b></span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1069,8 +1231,30 @@ const InventoryPage = () => {
       </div>
 
       {/* Simplified Messages */}
-      {(message || error) && (
+      {(message || error || addSupplyDetails) && (
         <div className="max-w-7xl mx-auto px-6 py-4">
+          {addSupplyDetails && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-lg mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <FaCheckCircle className="text-blue-600" />
+                <span>{addSupplyDetails.message || 'Supply added to inventory successfully.'}</span>
+              </div>
+              <div className="text-sm mt-1">
+                <div><b>Batch ID:</b> {addSupplyDetails.batchId}</div>
+                <div><b>Items Created:</b> {addSupplyDetails.itemsCreated}</div>
+                <div><b>Total Cost:</b> {addSupplyDetails.totalCost?.toLocaleString('en-IN', { style: 'currency', currency: addSupplyDetails.currency || 'INR' })}</div>
+                {addSupplyDetails.purchaseOrderId && (
+                  <div><b>Purchase Order ID:</b> {addSupplyDetails.purchaseOrderId}</div>
+                )}
+              </div>
+              <button
+                className="mt-2 text-xs text-blue-700 underline"
+                onClick={() => setAddSupplyDetails(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {message && (
             <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-4">
               <div className="flex items-center gap-2">

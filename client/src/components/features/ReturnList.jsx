@@ -116,6 +116,7 @@ const ReturnList = () => {
               <th className="px-6 py-3 text-left font-bold uppercase tracking-wider">Items</th>
               <th className="px-6 py-3 text-left font-bold uppercase tracking-wider">Transporter</th>
               <th className="px-6 py-3 text-left font-bold uppercase tracking-wider">Warehouse</th>
+              <th className="px-6 py-3 text-left font-bold uppercase tracking-wider">Return Value</th>
               <th className="px-6 py-3 text-left font-bold uppercase tracking-wider">Processed By</th>
               <th className="px-6 py-3 text-left font-bold uppercase tracking-wider">Actions</th>
             </tr>
@@ -126,8 +127,11 @@ const ReturnList = () => {
                 <td className="px-6 py-3 font-mono text-xs text-blue-900 whitespace-nowrap max-w-[180px] overflow-hidden text-ellipsis">
                   <a href="#" className="text-blue-700 underline break-all" title={r._id}>{r._id.slice(0, 8)}...{r._id.slice(-4)}</a>
                 </td>
-                <td className="px-6 py-3 whitespace-nowrap max-w-[180px] overflow-hidden text-ellipsis" title={r.packageId?.packageId || r.packageId}>
-                  {r.packageId?.packageId || r.packageId}
+                <td className="px-6 py-3 whitespace-nowrap max-w-[180px] overflow-hidden text-ellipsis" title={typeof r.packageId === 'object' ? `ID: ${r.packageId?.packageId || r.packageId?._id}` : r.packageId}>
+                  <div>{r.packageId?.packageId || r.packageId}</div>
+                  {typeof r.packageId === 'object' && typeof r.packageId.totalValue === 'number' && (
+                    <div className="text-xs text-green-700 font-semibold">Total Value: {r.packageId.totalValue.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</div>
+                  )}
                 </td>
                 <td className="px-6 py-3 whitespace-nowrap">
                   <span className={`px-2 py-1 rounded text-xs font-semibold 
@@ -143,20 +147,52 @@ const ReturnList = () => {
                 <td className="px-6 py-3 whitespace-nowrap capitalize">{r.returnReason?.replace('_', ' ')}</td>
                 <td className="px-6 py-3 whitespace-nowrap max-w-[220px] overflow-x-auto">
                   <ul className="list-disc pl-4">
-                    {Array.isArray(r.returnedItems) && r.returnedItems.map((item, idx) => (
-                      <li key={idx} className="truncate" title={`${item.productId?.productName || item.productId} (Batch: ${item.batchId?.batchNumber || item.batchId}) x ${item.quantity}`}>
-                        <span className="font-medium text-gray-700">{item.productId?.productName || item.productId}</span>
-                        <span className="text-gray-400"> (Batch: {item.batchId?.batchNumber || item.batchId})</span>
-                        <span className="text-gray-600"> × {item.quantity}</span>
-                      </li>
-                    ))}
+                    {Array.isArray(r.returnedItems) && r.returnedItems.map((item, idx) => {
+                      const price = item.productId && typeof item.productId === 'object' && item.productId.price ? item.productId.price : 0;
+                      const value = price * (item.quantity || 0);
+                      return (
+                        <li key={idx} className="truncate" title={`${item.productId?.productName || item.productId} (Batch: ${item.batchId?.batchNumber || item.batchId}) x ${item.quantity}`}>
+                          <span className="font-medium text-gray-700">{item.productId?.productName || item.productId}</span>
+                          <span className="text-gray-400"> (Batch: {item.batchId?.batchNumber || item.batchId})</span>
+                          <span className="text-gray-600"> × {item.quantity}</span>
+                          {price > 0 && (
+                            <span className="ml-2 text-green-700 font-semibold">{value.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </td>
                 <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={r.transportId?.transporterId?.fullName || r.transportId?.transporterId?.name || '-'}>
                   {r.transportId?.transporterId?.fullName || r.transportId?.transporterId?.name || '-'}
                 </td>
-                <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={r.warehouseId?.name || r.warehouseId || '-'}>
-                  {r.warehouseId?.name || r.warehouseId || '-'}
+                <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={typeof r.warehouseId === 'object' ? (r.warehouseId?.warehouseName || r.warehouseId?._id) : (r.warehouseId || '-')}>
+                  {typeof r.warehouseId === 'object' ? (r.warehouseId?.warehouseName || r.warehouseId?._id) : (r.warehouseId || '-')}
+                </td>
+                <td className="px-6 py-3 whitespace-nowrap max-w-[120px] text-right font-semibold text-green-700">
+                  {/* Calculate return value using best available logic */}
+                  {Array.isArray(r.returnedItems) && r.packageId && typeof r.packageId === 'object' && Array.isArray(r.packageId.allocatedItems)
+                    ? (() => {
+                      // Build a map of (productId+batchId) to price from allocatedItems
+                      const priceMap = {};
+                      r.packageId.allocatedItems.forEach(ai => {
+                        const key = `${ai.productId?._id || ai.productId}-${ai.batchId?._id || ai.batchId}`;
+                        let price = 0;
+                        if (ai.productId && typeof ai.productId === 'object' && ai.productId.price) price = ai.productId.price;
+                        priceMap[key] = price;
+                      });
+                      // Calculate total value for returned items
+                      const total = r.returnedItems.reduce((sum, item) => {
+                        let price = item.productId && typeof item.productId === 'object' && item.productId.price ? item.productId.price : 0;
+                        if (!price) {
+                          const key = `${item.productId?._id || item.productId}-${item.batchId?._id || item.batchId}`;
+                          price = priceMap[key] || 0;
+                        }
+                        return sum + price * (item.quantity || 0);
+                      }, 0);
+                      return total > 0 ? total.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : '-';
+                    })()
+                    : '-'}
                 </td>
                 <td className="px-6 py-3 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis" title={r.processedBy?.fullName || '-'}>
                   {r.processedBy?.fullName || '-'}

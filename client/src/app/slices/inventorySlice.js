@@ -13,6 +13,10 @@ const initialState = {
   realTimeStatus: null,
   batchTracking: null,
   productInventory: null, // For specific product inventory
+  // Add new totals
+  totalInventoryValue: 0,
+  totalDamagedValue: 0,
+  totalSoldValue: 0,
 };
 
 const inventorySlice = createSlice({
@@ -30,6 +34,10 @@ const inventorySlice = createSlice({
       state.products = action.payload.products;
       state.totalProducts = action.payload.totalProducts;
       state.message = action.payload.message;
+      // Add new totals from backend
+      state.totalInventoryValue = action.payload.totalInventoryValue;
+      state.totalDamagedValue = action.payload.totalDamagedValue;
+      state.totalSoldValue = action.payload.totalSoldValue;
     },
     fetchInventoryFailed(state, action) {
       state.loading = false;
