@@ -76,4 +76,11 @@ export const productAPI = {
   deleteProduct: (productId) => api.delete(`/product/delete/${productId}`),
 };
 
+// Dashboard API functions
+export const dashboardAPI = {
+  getInventory: () => api.get('/inventory/all'),
+  getAIDashboard: (warehouseId) => api.get(`/ai/dashboard${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+  getAIInsights: (warehouseId) => api.get(`/ai/insights/intelligent${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+};
+
 export default api;

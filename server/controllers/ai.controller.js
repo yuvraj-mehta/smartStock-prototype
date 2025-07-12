@@ -163,9 +163,9 @@ export const generateStockOptimization = catchAsyncErrors(async (req, res) => {
   try {
     // Get inventory analytics
     const inventoryData = await AnalyticsService.getInventoryAnalytics(warehouseId);
-    
+
     // Filter by specific products if provided
-    const filteredData = productIds 
+    const filteredData = productIds
       ? inventoryData.filter(item => productIds.includes(item.productId.toString()))
       : inventoryData;
 
@@ -269,12 +269,12 @@ export const getSeasonalDemandPrediction = catchAsyncErrors(async (req, res) => 
     const seasonalFactors = await AnalyticsService.calculateSeasonalFactors(productCategory);
     const historicalData = await AnalyticsService.getSeasonalSalesData(productCategory, 2);
 
-    const categoryData = { 
-      category: productCategory, 
-      seasonalFactors, 
-      historicalData 
+    const categoryData = {
+      category: productCategory,
+      seasonalFactors,
+      historicalData
     };
-    
+
     if (!categoryData) {
       return res.status(404).json({
         success: false,
@@ -349,14 +349,14 @@ export const getSeasonalDemandPrediction = catchAsyncErrors(async (req, res) => 
 
 // Get all AI insights for dashboard
 export const getAIInsights = catchAsyncErrors(async (req, res) => {
-  const { 
-    type, 
-    severity, 
-    status = 'active', 
-    limit = 10, 
-    page = 1 
+  const {
+    type,
+    severity,
+    status = 'active',
+    limit = 10,
+    page = 1
   } = req.query;
-  
+
   const warehouseId = req.user.assignedWarehouseId;
 
   try {
@@ -381,13 +381,13 @@ export const getAIInsights = catchAsyncErrors(async (req, res) => {
     // Mark insights as viewed
     await AIInsight.updateMany(
       { _id: { $in: insights.map(insight => insight._id) } },
-      { 
-        $addToSet: { 
-          viewedBy: { 
-            userId: req.user._id, 
-            viewedAt: new Date() 
-          } 
-        } 
+      {
+        $addToSet: {
+          viewedBy: {
+            userId: req.user._id,
+            viewedAt: new Date()
+          }
+        }
       }
     );
 
@@ -455,15 +455,15 @@ export const updateInsightFeedback = catchAsyncErrors(async (req, res) => {
 export const getIntelligentInventoryInsights = catchAsyncErrors(async (req, res) => {
   const { warehouseId } = req.query;
   const userWarehouseId = req.user.assignedWarehouseId;
-  
+
   // Use user's assigned warehouse if not specified
   const targetWarehouseId = warehouseId || userWarehouseId;
 
   try {
     // Generate AI-powered insights
     const insights = await AnalyticsService.generateIntelligentInsights(targetWarehouseId);
-    
-    // Save insights to database
+
+    // Save insights to database with required fields
     const aiInsight = new AIInsight({
       insightType: 'stock_optimization',
       title: 'AI Inventory Analysis',
@@ -478,6 +478,13 @@ export const getIntelligentInventoryInsights = catchAsyncErrors(async (req, res)
       data: {
         analysis: insights,
         generatedAt: new Date()
+      },
+      aiAnalysis: {
+        response: insights, // required field
+        model: 'gpt-3.5-turbo'
+      },
+      validity: {
+        validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // required field: 1 week from now
       },
       generatedBy: req.user._id,
       status: 'active'
@@ -512,15 +519,15 @@ export const getAIDemandPrediction = catchAsyncErrors(async (req, res) => {
   const { forecastDays = 30 } = req.query;
 
   if (!productId) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Product ID is required' 
+    return res.status(400).json({
+      success: false,
+      message: 'Product ID is required'
     });
   }
 
   try {
     const prediction = await AnalyticsService.predictDemandWithAI(productId, parseInt(forecastDays));
-    
+
     // Save as demand forecast
     const demandForecast = new DemandForecast({
       productId,
@@ -572,7 +579,7 @@ export const getSeasonalTrendsAnalysis = catchAsyncErrors(async (req, res) => {
 
   try {
     const seasonalAnalysis = await AnalyticsService.analyzeSeasonalTrends(productCategory);
-    
+
     // Save as AI insight
     const aiInsight = new AIInsight({
       insightType: 'seasonal_analysis',
@@ -629,21 +636,21 @@ export const getAIInventoryDashboard = catchAsyncErrors(async (req, res) => {
       criticalAlerts
     ] = await Promise.all([
       AnalyticsService.generateIntelligentInsights(targetWarehouseId),
-      DemandForecast.find({ 
+      DemandForecast.find({
         warehouseId: targetWarehouseId,
         status: 'active',
         createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
       })
-      .populate('productId')
-      .limit(10)
-      .sort({ createdAt: -1 }),
+        .populate('productId')
+        .limit(10)
+        .sort({ createdAt: -1 }),
       AIInsight.find({
         'targetEntity.entityId': targetWarehouseId,
         status: 'active',
         severity: { $in: ['critical', 'high'] }
       })
-      .limit(5)
-      .sort({ createdAt: -1 })
+        .limit(5)
+        .sort({ createdAt: -1 })
     ]);
 
     // Calculate summary metrics
@@ -701,7 +708,7 @@ export const analyzeJSONInventoryData = catchAsyncErrors(async (req, res) => {
           {
             productId: "string",
             productName: "string",
-            sku: "string", 
+            sku: "string",
             category: "string",
             price: "number",
             inventory: {
@@ -725,7 +732,7 @@ export const analyzeJSONInventoryData = catchAsyncErrors(async (req, res) => {
 
     // Import OpenAI service
     const OpenAIService = (await import('../services/ai/openai.service.js')).default;
-    
+
     // Get AI analysis
     const aiAnalysis = await OpenAIService.analyzeJSONInventoryData(inventoryData, analysisType);
 
@@ -740,7 +747,7 @@ export const analyzeJSONInventoryData = catchAsyncErrors(async (req, res) => {
 
     // Save insights to database for future reference
     const { AIInsight } = await import('../models/index.js');
-    
+
     const insight = new AIInsight({
       type: 'json_inventory_analysis',
       category: 'inventory',
