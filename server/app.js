@@ -24,6 +24,7 @@ app.use('/api/v1/payment-received', paymentReceivedRouter);
 import healthRouter from './routes/health.route.js';
 import salesRouter from './routes/sales.route.js';
 import returnRouter from './routes/return.route.js';
+import aiRouter from './routes/ai.route.js';
 import purchaseOrderRouter from './routes/purchaseOrder.route.js';
 import invoiceRouter from './routes/invoice.route.js';
 import paymentRouter from './routes/payment.route.js';
@@ -45,6 +46,7 @@ app.use('/api/v1/return', returnRouter);
 app.use('/api/v1/product', productRouter);
 app.use('/api/v1/transport', transportRouter);
 app.use('/api/v1/inventory', inventoryRouter);
+app.use('/api/v1/ai', aiRouter);
 app.use('/api/v1/inventory-analytics', inventoryAnalyticsRouter);
 
 // Financial tracking routes

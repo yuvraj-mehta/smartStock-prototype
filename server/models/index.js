@@ -12,6 +12,8 @@ export { Transport } from "./transport.model.js";
 export { User } from "./user.model.js";
 export { Wage } from "./wage.model.js";
 export { Warehouse } from "./warehouse.model.js";
+export { DemandForecast } from "./demandForecast.model.js";
+export { AIInsight } from "./aiInsight.model.js";
 export { PurchaseOrder } from "./purchaseOrder.model.js";
 export { Invoice } from "./invoice.model.js";
 export { Payment } from "./payment.model.js";

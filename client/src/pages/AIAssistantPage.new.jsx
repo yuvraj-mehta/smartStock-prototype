@@ -1,60 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import DemandForecast from '../components/ai/DemandForecast';
-import StockAlert from '../components/ai/StockAlert';
+import StockAlerts from '../components/ai/StockAlerts';
 import AIDashboard from '../components/ai/AIDashboard';
 import './AIAssistantPage.css';
 
 const AIAssistantPage = () => {
   const [activeTab, setActiveTab] = useState('demand-prediction');
-  const [thresholdSettings, setThresholdSettings] = useState({
-    lowStockThreshold: 10,
-    criticalStockThreshold: 5,
-    demandSensitivity: 'medium',
-    forecastPeriod: '30'
-  });
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
-
-  // Load settings from localStorage on component mount
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('inventoryThresholdSettings');
-    if (savedSettings) {
-      setThresholdSettings(JSON.parse(savedSettings));
-    }
-  }, []);
-
-  const handleThresholdChange = (field, value) => {
-    setThresholdSettings(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleSaveSettings = async () => {
-    try {
-      setSaving(true);
-      setSaveMessage('');
-      
-      // Save to localStorage
-      localStorage.setItem('inventoryThresholdSettings', JSON.stringify(thresholdSettings));
-      
-      // Here you could also send to backend API
-      // await fetch('/api/v1/settings/thresholds', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(thresholdSettings)
-      // });
-      
-      setSaveMessage('Settings saved successfully!');
-      setTimeout(() => setSaveMessage(''), 3000);
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      setSaveMessage('Error saving settings. Please try again.');
-      setTimeout(() => setSaveMessage(''), 3000);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const tabs = [
     { id: 'demand-prediction', label: 'Demand Prediction', icon: '🔮' },
@@ -81,10 +32,8 @@ const AIAssistantPage = () => {
                 </label>
                 <input
                   type="number"
-                  value={thresholdSettings.lowStockThreshold}
-                  onChange={(e) => handleThresholdChange('lowStockThreshold', parseInt(e.target.value) || 0)}
+                  defaultValue={10}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
                 />
                 <p className="text-sm text-gray-500 mt-1">Alert when stock falls below this level</p>
               </div>
@@ -94,10 +43,8 @@ const AIAssistantPage = () => {
                 </label>
                 <input
                   type="number"
-                  value={thresholdSettings.criticalStockThreshold}
-                  onChange={(e) => handleThresholdChange('criticalStockThreshold', parseInt(e.target.value) || 0)}
+                  defaultValue={5}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
                 />
                 <p className="text-sm text-gray-500 mt-1">Critical alert threshold</p>
               </div>
@@ -111,11 +58,7 @@ const AIAssistantPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Demand Sensitivity
                 </label>
-                <select 
-                  value={thresholdSettings.demandSensitivity}
-                  onChange={(e) => handleThresholdChange('demandSensitivity', e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
@@ -125,11 +68,7 @@ const AIAssistantPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Forecast Period
                 </label>
-                <select 
-                  value={thresholdSettings.forecastPeriod}
-                  onChange={(e) => handleThresholdChange('forecastPeriod', e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="7">7 Days</option>
                   <option value="30">30 Days</option>
                   <option value="90">90 Days</option>
@@ -138,25 +77,9 @@ const AIAssistantPage = () => {
             </div>
           </div>
           
-          {saveMessage && (
-            <div className={`p-3 rounded-md ${saveMessage.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-              {saveMessage}
-            </div>
-          )}
-          
           <div className="flex justify-end">
-            <button 
-              onClick={handleSaveSettings}
-              disabled={saving}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {saving && (
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              )}
-              {saving ? 'Saving...' : 'Save Settings'}
+            <button className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">
+              Save Settings
             </button>
           </div>
         </div>
@@ -191,7 +114,7 @@ const AIAssistantPage = () => {
         {activeTab === 'demand-prediction' && <DemandForecast />}
 
         {/* Stock Alerts Tab */}
-        {activeTab === 'stock-alerts' && <StockAlert />}
+        {activeTab === 'stock-alerts' && <StockAlerts />}
 
         {/* Sales Analysis Tab */}
         {activeTab === 'sales-analysis' && <AIDashboard />}
