@@ -179,7 +179,7 @@ const ProductsPage = () => {
                     </div>
                     <div className="flex gap-2">
                       <div className="flex-1">
-                        <label className="block text-sm font-semibold mb-1">Price</label>
+                        <label className="block text-sm font-semibold mb-1">Price (₹)</label>
                         <input className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50" value={editProduct.price} readOnly />
                       </div>
                       <div className="flex-1">

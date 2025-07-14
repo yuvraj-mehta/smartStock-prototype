@@ -698,13 +698,13 @@ const InventoryPage = () => {
                 {selectedProduct && selectedProduct.costPrice !== undefined && (
                   <div className="mb-1 text-xs text-gray-500">
                     <span className="font-semibold">Cost Price (from DB): </span>
-                    {selectedProduct.costPrice} {selectedProduct.currency || supplyForm.currency || 'INR'}
+                    ₹{selectedProduct.costPrice}
                   </div>
                 )}
                 {selectedProduct && selectedProduct.price !== undefined && (
                   <div className="mb-1 text-xs text-gray-500">
                     <span className="font-semibold">Selling Price (from DB): </span>
-                    {selectedProduct.price} {selectedProduct.currency || supplyForm.currency || 'INR'}
+                    ₹{selectedProduct.price}
                   </div>
                 )}
                 <label className="block text-sm font-medium text-gray-700 mb-2">Unit Cost</label>

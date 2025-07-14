@@ -159,8 +159,8 @@ export default function OrderList({ products }) {
   if (!Array.isArray(orders) || orders.length === 0) return <div className="text-gray-500 text-center py-8">No orders to display.</div>;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full bg-white rounded-lg shadow border border-gray-200">
+    <div className="w-full h-full overflow-x-auto">
+      <table className="w-full bg-white rounded-lg shadow border border-gray-200">
         <thead className="bg-gradient-to-r from-blue-100 to-purple-100">
           <tr>
             <th className="px-4 py-2 text-left font-bold text-blue-700">Order #</th>

@@ -40,7 +40,7 @@ export default function OrderCreateForm({ products, onOrderCreated }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <label className="block font-semibold text-blue-700">Platform Order ID</label>
+        <label className="block font-semibold text-blue-700">Platform ID</label>
         <input
           className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={platformOrderId}

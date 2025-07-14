@@ -439,7 +439,7 @@ const ProductManagement = ({ triggerAction }) => {
               <p className="product-sku">SKU: {product.sku}</p>
               <p className="product-category">Category: {product.productCategory}</p>
               <p className="product-manufacturer">Manufacturer: {product.manufacturer}</p>
-              <p className="product-price">Price: ${product.price}</p>
+              <p className="product-price">Price: ₹{product.price}</p>
               <p className="product-quantity">Quantity: {product.quantity} {product.unit}</p>
               <p className="product-weight">Weight: {product.weight} kg</p>
               <p className="product-dimensions">

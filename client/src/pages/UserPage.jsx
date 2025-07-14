@@ -378,7 +378,7 @@ const UserPage = () => {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                <div className="text-3xl font-bold">${user.wagePerHour || 0}</div>
+                <div className="text-3xl font-bold">₹{user.wagePerHour || 0}</div>
                 <div className="text-sm text-white/80 mt-1">Per Hour</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
@@ -386,7 +386,7 @@ const UserPage = () => {
                 <div className="text-sm text-white/80 mt-1">Hours This Month</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                <div className="text-3xl font-bold">${((user.wagePerHour || 0) * (user.hoursThisMonth || 0)).toFixed(0)}</div>
+                <div className="text-3xl font-bold">₹{((user.wagePerHour || 0) * (user.hoursThisMonth || 0)).toFixed(0)}</div>
                 <div className="text-sm text-white/80 mt-1">Monthly Earnings</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
@@ -494,7 +494,7 @@ const UserPage = () => {
               <div className="p-6 space-y-6">
                 <ReadOnlyField
                   label="Hourly Wage"
-                  value={`$${user.wagePerHour || 0}`}
+                  value={`₹${user.wagePerHour || 0}`}
                   icon={DollarSign}
                   note="Contact admin to update"
                 />
@@ -506,7 +506,7 @@ const UserPage = () => {
                 />
                 <ReadOnlyField
                   label="Monthly Earnings"
-                  value={`$${((user.wagePerHour || 0) * (user.hoursThisMonth || 0)).toFixed(2)}`}
+                  value={`₹${((user.wagePerHour || 0) * (user.hoursThisMonth || 0)).toFixed(2)}`}
                   icon={DollarSign}
                   note="Calculated automatically"
                 />

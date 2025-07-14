@@ -242,7 +242,7 @@ const UserManagement = ({ triggerAction }) => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Wage Per Hour ($)</label>
+                  <label>Wage Per Hour (₹)</label>
                   <input
                     type="number"
                     name="wagePerHour"
@@ -350,7 +350,7 @@ const UserManagement = ({ triggerAction }) => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Wage Per Hour ($)</label>
+                  <label>Wage Per Hour (₹)</label>
                   <input
                     type="number"
                     name="wagePerHour"
@@ -440,7 +440,7 @@ const UserManagement = ({ triggerAction }) => {
                   </span>
                 </td>
                 <td>{user.shift || 'Not Set'}</td>
-                <td>${user.wagePerHour || 0}/hr</td>
+                <td>₹{user.wagePerHour || 0}/hr</td>
                 <td>
                   {user.lastLogin
                     ? new Date(user.lastLogin).toLocaleDateString()

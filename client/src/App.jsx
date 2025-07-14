@@ -42,7 +42,7 @@ const App = () => {
   return (
     <Router>
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <NavigationBar />
+        {isAuthenticated && <NavigationBar />}
         <div style={{ flex: 1 }}>
           <Routes>
             <Route path="/" element={isAuthenticated ? <HomePage /> : <LandingPage />} />
@@ -94,7 +94,7 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
-        <Footer />
+        {isAuthenticated && <Footer />}
       </div>
     </Router>
   );
