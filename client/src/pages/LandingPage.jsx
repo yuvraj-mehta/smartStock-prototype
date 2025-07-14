@@ -122,7 +122,7 @@ const LandingPage = () => (
         <a href="#techstack" className="hover:text-orange-500 transition">Tech Stack</a>
       </nav>
       <a href="/login">
-        <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition-all duration-200">Get Started</button>
+        <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition-all duration-200">Login</button>
       </a>
     </header>
 
