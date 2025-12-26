@@ -1,5 +1,6 @@
 import { DemandForecast, AIInsight, Product, SalesHistory } from '../models/index.js';
-import OpenAIService from '../services/ai/openai.service.js';
+import GeminiService from '../services/ai/gemini.service.js';
+import { conf } from '../config/config.js';
 import AnalyticsService from '../services/analytics.service.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
 
@@ -42,7 +43,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
     };
 
     // Generate AI forecast
-    const aiResponse = await OpenAIService.generateDemandForecast(
+    const aiResponse = await GeminiService.generateDemandForecast(
       productData,
       salesHistory,
       seasonalData
@@ -70,7 +71,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
       aiPrediction: {
         forecastQuantity: aiResponse.forecast30Days?.quantity || 0,
         confidenceLevel: aiResponse.forecast30Days?.confidence || 50,
-        predictionModel: 'gpt-3.5-turbo',
+        predictionModel: conf.aiModel,
         keyFactors: aiResponse.keyFactors?.map(factor => ({
           factor,
           impact: 'medium',
@@ -118,7 +119,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
         productId
       },
       aiAnalysis: {
-        model: 'gpt-3.5-turbo',
+        model: conf.aiModel,
         response: aiResponse,
         confidence: aiResponse.forecast30Days?.confidence || 50
       },
@@ -188,7 +189,7 @@ export const generateStockOptimization = catchAsyncErrors(async (req, res) => {
     }));
 
     // Generate AI optimization
-    const aiResponse = await OpenAIService.generateStockOptimization(
+    const aiResponse = await GeminiService.generateStockOptimization(
       optimizationData,
       filteredData,
       seasonalFactors
@@ -209,7 +210,7 @@ export const generateStockOptimization = catchAsyncErrors(async (req, res) => {
             productId: item.productId
           },
           aiAnalysis: {
-            model: 'gpt-3.5-turbo',
+            model: conf.aiModel,
             response: aiResponse,
             confidence: 75
           },
@@ -294,7 +295,7 @@ export const getSeasonalDemandPrediction = catchAsyncErrors(async (req, res) => 
     }));
 
     // Generate AI seasonal prediction
-    const aiResponse = await OpenAIService.predictSeasonalDemand(
+    const aiResponse = await GeminiService.predictSeasonalDemand(
       productCategory,
       aiHistoricalData,
       getCurrentSeason()
@@ -313,7 +314,7 @@ export const getSeasonalDemandPrediction = catchAsyncErrors(async (req, res) => 
         productCategory
       },
       aiAnalysis: {
-        model: 'gpt-3.5-turbo',
+        model: conf.aiModel,
         response: aiResponse,
         confidence: 70
       },
@@ -481,7 +482,7 @@ export const getIntelligentInventoryInsights = catchAsyncErrors(async (req, res)
       },
       aiAnalysis: {
         response: insights, // required field
-        model: 'gpt-3.5-turbo'
+        model: conf.aiModel
       },
       validity: {
         validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // required field: 1 week from now
@@ -730,11 +731,11 @@ export const analyzeJSONInventoryData = catchAsyncErrors(async (req, res) => {
   try {
     console.log(`🤖 Analyzing JSON inventory data for ${inventoryData.products.length} products...`);
 
-    // Import OpenAI service
-    const OpenAIService = (await import('../services/ai/openai.service.js')).default;
+    // Import Gemini service
+    const GeminiServiceDynamic = (await import('../services/ai/gemini.service.js')).default;
 
     // Get AI analysis
-    const aiAnalysis = await OpenAIService.analyzeJSONInventoryData(inventoryData, analysisType);
+    const aiAnalysis = await GeminiServiceDynamic.analyzeJSONInventoryData(inventoryData, analysisType);
 
     if (!aiAnalysis.success) {
       return res.status(500).json({
@@ -760,7 +761,7 @@ export const analyzeJSONInventoryData = catchAsyncErrors(async (req, res) => {
         analysisType
       },
       aiAnalysis: {
-        model: 'gpt-3.5-turbo',
+        model: conf.aiModel,
         response: aiAnalysis.analysis,
         confidence: 85
       },

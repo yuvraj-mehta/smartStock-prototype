@@ -20,8 +20,8 @@ export const conf = {
   emailPass: process.env.EMAIL_PASS,
 
   // AI Configuration
-  openaiApiKey: process.env.OPENAI_API_KEY,
-  aiModel: process.env.AI_MODEL || 'gpt-3.5-turbo',
+  geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+  aiModel: process.env.AI_MODEL || 'gemini-2.5-flash',
   aiTemperature: parseFloat(process.env.AI_TEMPERATURE) || 0.3,
   aiMaxTokens: parseInt(process.env.AI_MAX_TOKENS) || 2000,
 }

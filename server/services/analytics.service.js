@@ -2,7 +2,7 @@ import { Inventory, Product, Order, Batch, SalesHistory } from '../models/index.
 import mongoose from 'mongoose';
 
 class AnalyticsService {
-  
+
   // Get comprehensive sales history for a product
   async getProductSalesHistory(productId, daysBack = 90) {
     try {
@@ -13,10 +13,10 @@ class AnalyticsService {
         'products.productId': productId,
         saleConfirmationDate: { $gte: cutoffDate }
       })
-      .populate('products.productId')
-      .populate('packageId')
-      .populate('orderId')
-      .sort({ saleConfirmationDate: -1 });
+        .populate('products.productId')
+        .populate('packageId')
+        .populate('orderId')
+        .sort({ saleConfirmationDate: -1 });
 
       return salesHistory.map(sale => ({
         saleId: sale._id,
@@ -41,10 +41,10 @@ class AnalyticsService {
   async calculateSalesVelocity(productId, periodDays = 30) {
     try {
       const salesHistory = await this.getProductSalesHistory(productId, periodDays);
-      
+
       const totalQuantity = salesHistory.reduce((sum, sale) => sum + sale.quantitySold, 0);
       const avgDailySales = totalQuantity / periodDays;
-      
+
       // Calculate weekly trends
       const weeklyData = {};
       salesHistory.forEach(sale => {
@@ -59,7 +59,7 @@ class AnalyticsService {
         const recentWeeks = weeks.slice(-3);
         const oldAvg = recentWeeks.slice(0, 2).reduce((sum, week) => sum + weeklyData[week], 0) / 2;
         const recentAvg = weeklyData[recentWeeks[2]];
-        
+
         if (recentAvg > oldAvg * 1.2) trend = 'increasing';
         else if (recentAvg < oldAvg * 0.8) trend = 'decreasing';
       }
@@ -84,7 +84,7 @@ class AnalyticsService {
   async getInventoryAnalytics(warehouseId = null) {
     try {
       const matchCondition = warehouseId ? { warehouseId } : {};
-      
+
       const inventoryData = await Inventory.aggregate([
         { $match: matchCondition },
         {
@@ -170,7 +170,7 @@ class AnalyticsService {
   async calculateSeasonalFactors(productCategory = null) {
     try {
       const matchCondition = productCategory ? { 'products.productId': { $exists: true } } : {};
-      
+
       const seasonalData = await SalesHistory.aggregate([
         { $match: matchCondition },
         { $unwind: '$products' },
@@ -211,7 +211,7 @@ class AnalyticsService {
       ]);
 
       const totalAvg = seasonalData.reduce((sum, month) => sum + month.avgMonthlyQuantity, 0) / 12;
-      
+
       return seasonalData.map(month => ({
         month: month._id,
         monthName: new Date(2024, month._id - 1, 1).toLocaleString('default', { month: 'long' }),
@@ -229,7 +229,7 @@ class AnalyticsService {
   async generateIntelligentInsights(warehouseId = null) {
     try {
       const inventoryData = await this.getInventoryAnalytics(warehouseId);
-      
+
       // Prepare data for AI analysis
       const analyticsData = {
         inventory: inventoryData,
@@ -237,11 +237,11 @@ class AnalyticsService {
         warehouseId
       };
 
-      // Import OpenAI service here to avoid circular dependencies
-      const OpenAIService = (await import('./ai/openai.service.js')).default;
-      
-      const aiInsights = await OpenAIService.analyzeInventoryOptimization(analyticsData);
-      
+      // Import Gemini service here to avoid circular dependencies
+      const GeminiService = (await import('./ai/gemini.service.js')).default;
+
+      const aiInsights = await GeminiService.analyzeInventoryOptimization(analyticsData);
+
       return {
         summary: aiInsights.summary || 'AI analysis completed',
         criticalItems: aiInsights.criticalItems || [],
@@ -269,9 +269,9 @@ class AnalyticsService {
       const salesVelocity = await this.calculateSalesVelocity(productId);
       const seasonalFactors = await this.calculateSeasonalFactors(product.productCategory);
 
-      const OpenAIService = (await import('./ai/openai.service.js')).default;
-      
-      const forecastData = await OpenAIService.generateDemandForecast(
+      const GeminiService = (await import('./ai/gemini.service.js')).default;
+
+      const forecastData = await GeminiService.generateDemandForecast(
         {
           productId,
           productName: product.productName,
@@ -295,7 +295,7 @@ class AnalyticsService {
         aiPrediction: {
           forecastQuantity: forecastData.forecast30Days?.quantity || 0,
           confidenceLevel: forecastData.forecast30Days?.confidence || 0,
-          predictionModel: 'gpt-4',
+          predictionModel: process.env.AI_MODEL || 'gemini-1.5-flash',
           keyFactors: forecastData.keyFactors || []
         },
         recommendations: {
@@ -368,10 +368,10 @@ class AnalyticsService {
   async analyzeSeasonalTrends(productCategory) {
     try {
       const historicalData = await this.getSeasonalSalesData(productCategory);
-      
-      const OpenAIService = (await import('./ai/openai.service.js')).default;
-      
-      const seasonalInsights = await OpenAIService.getSeasonalInsights({
+
+      const GeminiService = (await import('./ai/gemini.service.js')).default;
+
+      const seasonalInsights = await GeminiService.getSeasonalInsights({
         category: productCategory,
         historicalData,
         currentMonth: new Date().getMonth() + 1,
