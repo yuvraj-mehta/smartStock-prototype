@@ -9,7 +9,7 @@ const LoginPage = () => {
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   // Login form state
-  const [loginData, setLoginData] = useState({ email: 'admin@smartstock.com', password: 'admin123' });
+  const [loginData, setLoginData] = useState({ email: '', password: '' });
   // Signup form state
   const [signupData, setSignupData] = useState({ fullName: '', email: '', password: '' });
 
@@ -157,7 +157,7 @@ const LoginPage = () => {
               </div>
             </form>
           )}
-          <p className='text-center text-sm text-gray-600'>click on login to login the credentials are prefilled for demo for the walmart Hackathon.</p>
+
         </div>
       </div>
     </div>
