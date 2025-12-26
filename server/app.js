@@ -17,6 +17,11 @@ import inventoryAnalyticsRouter from './routes/inventoryAnalytics.route.js';
 
 const app = express();
 
+// Health check endpoint for Render/uptime checks
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'SmartStock API is running' });
+});
+
 // Sales/revenue routes
 app.use('/api/v1/sales-order', salesOrderRouter);
 app.use('/api/v1/sales-invoice', salesInvoiceRouter);

@@ -11,8 +11,11 @@ class GeminiService {
   }
 
   async generateContent(prompt) {
+    // Ensure model name is properly formatted for Gemini API
+    const modelName = conf.aiModel.startsWith('models/') ? conf.aiModel : `models/${conf.aiModel}`;
+
     const result = await this.ai.models.generateContent({
-      model: conf.aiModel,
+      model: modelName,
       contents: prompt,
       config: {
         temperature: conf.aiTemperature,
