@@ -43,7 +43,7 @@ const aiInsightSchema = new mongoose.Schema({
   aiAnalysis: {
     model: {
       type: String,
-      default: 'gpt-3.5-turbo',
+      default: 'gemini-2.5-flash',
     },
     prompt: String,
     response: {

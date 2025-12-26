@@ -39,7 +39,7 @@ const demandForecastSchema = new mongoose.Schema({
     },
     predictionModel: {
       type: String,
-      default: 'gpt-3.5-turbo',
+      default: 'gemini-2.5-flash',
     },
     keyFactors: [{
       factor: String,
