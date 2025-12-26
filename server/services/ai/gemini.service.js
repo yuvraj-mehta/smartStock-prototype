@@ -12,7 +12,20 @@ class GeminiService {
 
   async generateContent(prompt) {
     // Ensure model name is properly formatted for Gemini API
-    const modelName = conf.aiModel.startsWith('models/') ? conf.aiModel : `models/${conf.aiModel}`;
+    let modelName = conf.aiModel;
+
+    // Convert OpenAI models to Gemini equivalents
+    if (modelName.includes('gpt-3.5') || modelName.includes('gpt-4')) {
+      console.warn(`Converting OpenAI model '${modelName}' to Gemini model`);
+      modelName = 'gemini-2.5-flash';
+    }
+
+    // Add 'models/' prefix if not present
+    if (!modelName.startsWith('models/')) {
+      modelName = `models/${modelName}`;
+    }
+
+    console.log(`Using Gemini model: ${modelName}`);
 
     const result = await this.ai.models.generateContent({
       model: modelName,
