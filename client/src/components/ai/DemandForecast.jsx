@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ChartBarIcon,
   CalendarIcon,
@@ -8,6 +8,11 @@ import {
   CpuChipIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import { aiAPI, productAPI } from '../../services/api';
+
+const getApiErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
 
 const DemandForecast = () => {
   const [products, setProducts] = useState([]);
@@ -21,64 +26,30 @@ const DemandForecast = () => {
     daysBack: 90,
   });
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      setError(null);
+      const response = await productAPI.getAllProducts();
+      const data = response.data;
+      const productsArray = data.products || data.data || data || [];
+      const normalizedProducts = Array.isArray(productsArray) ? productsArray : [];
 
-      if (!token) {
-        setError('No authentication token found. Please log in.');
-        return;
-      }
+      setProducts(normalizedProducts);
 
-      console.log('Fetching products with token:', token ? 'Token exists' : 'No token');
-
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/product/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Products API response:', data); // Debug log
-
-        // Handle different response formats
-        const productsArray = data.products || data.data || data || [];
-        console.log('Extracted products array:', productsArray);
-
-        setProducts(productsArray);
-
-        if (productsArray.length === 0) {
-          setError('No products found in the database. Please add some products first.');
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to fetch products:', response.status, errorData);
-
-        if (response.status === 401) {
-          setError('Authentication failed. Please log in again.');
-        } else if (response.status === 403) {
-          setError('Access denied. You need admin or staff permissions to view products.');
-        } else {
-          setError(`Failed to fetch products: ${errorData.message || 'Unknown error'}`);
-        }
+      if (normalizedProducts.length === 0) {
+        setError('No products found in the database. Please add some products first.');
       }
     } catch (err) {
-      console.error('Error fetching products:', err);
-      setError('Network error while fetching products. Check if the server is running.');
+      setError(getApiErrorMessage(err, 'Network error while fetching products. Check if the server is running.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const generateForecast = async () => {
     if (!selectedProduct) {
@@ -90,38 +61,11 @@ const DemandForecast = () => {
       setForecasting(true);
       setError(null);
 
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        setError('No authentication token found. Please log in.');
-        return;
-      }
-
-      console.log('Generating forecast for product:', selectedProduct);
-      console.log('Forecast params:', forecastParams);
-
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/ai/forecast/demand`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          productId: selectedProduct,
-          ...forecastParams,
-        }),
+      const response = await aiAPI.generateDemandForecast({
+        productId: selectedProduct,
+        ...forecastParams,
       });
-
-      console.log('Forecast response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Forecast API error:', errorData);
-        throw new Error(errorData.message || `Failed to generate forecast (${response.status})`);
-      }
-
-      const data = await response.json();
-      console.log('Forecast response data:', data);
+      const data = response.data;
 
       // Check if the response has the expected structure
       if (data.success && data.data) {
@@ -132,8 +76,7 @@ const DemandForecast = () => {
         setForecastData(data);
       }
     } catch (err) {
-      console.error('Forecast generation error:', err);
-      setError(err.message);
+      setError(getApiErrorMessage(err, 'Failed to generate forecast.'));
     } finally {
       setForecasting(false);
     }
@@ -174,17 +117,6 @@ const DemandForecast = () => {
           </div>
         </div>
       )}
-
-      {/* Debug Info (temporary) */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-900 mb-2">Debug Info</h3>
-        <div className="text-xs text-gray-600 space-y-1">
-          <p>Products loaded: {products.length}</p>
-          <p>Selected product: {selectedProduct || 'None'}</p>
-          <p>Loading: {loading ? 'Yes' : 'No'}</p>
-          <p>Token available: {localStorage.getItem('token') ? 'Yes' : 'No'}</p>
-        </div>
-      </div>
 
       {/* Forecast Configuration */}
       <div className="bg-white rounded-lg shadow border p-6">

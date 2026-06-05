@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowTrendingUpIcon,
   ExclamationTriangleIcon,
@@ -9,6 +9,11 @@ import {
   XCircleIcon,
   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
+import { aiAPI } from '../../services/api';
+
+const getApiErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
 
 const AIDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -16,37 +21,31 @@ const AIDashboard = () => {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchDashboardData();
+  const fetchDashboardData = useCallback(async ({ showLoading = true } = {}) => {
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+      const response = await aiAPI.getDashboard();
+      const data = response.data;
+      setDashboardData(data.data || data);
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to fetch AI dashboard data'));
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
   }, []);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/ai/dashboard`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch AI dashboard data');
-      }
-
-      const data = await response.json();
-      setDashboardData(data.data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const refreshDashboard = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
+    await fetchDashboardData({ showLoading: false });
     setRefreshing(false);
   };
 

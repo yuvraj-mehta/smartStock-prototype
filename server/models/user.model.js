@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
+import { INTERNAL_USER_ROLES, ROLES } from '../services/policy/index.js';
 
-export const INTERNAL_USER_ROLES = Object.freeze(['admin', 'staff', 'viewer']);
+export { INTERNAL_USER_ROLES };
 
 const userSchema = new mongoose.Schema({
   fullName: {
@@ -30,7 +31,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: INTERNAL_USER_ROLES,
-    default: 'viewer',
+    default: ROLES.VIEWER,
   },
   shift: {
     type: String,

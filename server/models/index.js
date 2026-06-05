@@ -4,6 +4,7 @@ export { ExternalUser } from "./externalUsers.model.js";
 export { FulfillmentOrder } from "./fulfillmentOrder.model.js";
 export { IncomingSupply } from "./incomingSupply.model.js";
 export { Inventory } from "./inventory.model.js";
+export { InventoryMovement } from "./inventoryMovement.model.js";
 export { Item } from "./item.model.js";
 export { Order } from "./order.model.js";
 export { Package } from "./package.model.js";

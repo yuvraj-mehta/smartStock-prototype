@@ -1,8 +1,50 @@
 import { createSlice } from '@reduxjs/toolkit';
-import axios from 'axios';
-import { config } from '../../../config/config.js';
+import { inventoryAPI } from '../../services/api';
 
-const API_BASE_URL = config.apiBaseUrl;
+const getErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
+
+const toNumber = (value) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+};
+
+const normalizeRealTimeInventoryStatus = (payload = {}) => {
+  const source = payload.inventoryStatus ?? payload;
+  const items = Array.isArray(source)
+    ? source
+    : Array.isArray(source?.items)
+      ? source.items
+      : [];
+
+  const totalInStock = typeof source?.totalInStock === 'number'
+    ? source.totalInStock
+    : items.reduce((sum, item) => sum + toNumber(item.inStock ?? item.totalQuantity), 0);
+
+  const lowStockItems = typeof source?.lowStockItems === 'number'
+    ? source.lowStockItems
+    : items.filter((item) => {
+      const inStock = toNumber(item.inStock ?? item.totalQuantity);
+      const threshold = toNumber(item.thresholdLimit);
+      return item.stockStatus === 'low' || (inStock > 0 && threshold > 0 && inStock <= threshold);
+    }).length;
+
+  const outOfStockItems = typeof source?.outOfStockItems === 'number'
+    ? source.outOfStockItems
+    : items.filter((item) => (
+      item.stockStatus === 'out_of_stock' || toNumber(item.inStock ?? item.totalQuantity) === 0
+    )).length;
+
+  return {
+    ...(Array.isArray(source) ? {} : source),
+    timestamp: payload.timestamp ?? source?.timestamp ?? null,
+    items,
+    totalInStock,
+    lowStockItems,
+    outOfStockItems,
+  };
+};
 
 const initialState = {
   loading: false,
@@ -31,13 +73,13 @@ const inventorySlice = createSlice({
     },
     fetchInventorySuccess(state, action) {
       state.loading = false;
-      state.products = action.payload.products;
-      state.totalProducts = action.payload.totalProducts;
+      state.products = action.payload.products || [];
+      state.totalProducts = action.payload.totalProducts || action.payload.products?.length || 0;
       state.message = action.payload.message;
       // Add new totals from backend
-      state.totalInventoryValue = action.payload.totalInventoryValue;
-      state.totalDamagedValue = action.payload.totalDamagedValue;
-      state.totalSoldValue = action.payload.totalSoldValue;
+      state.totalInventoryValue = action.payload.totalInventoryValue || 0;
+      state.totalDamagedValue = action.payload.totalDamagedValue || 0;
+      state.totalSoldValue = action.payload.totalSoldValue || 0;
     },
     fetchInventoryFailed(state, action) {
       state.loading = false;
@@ -98,7 +140,7 @@ const inventorySlice = createSlice({
     },
     fetchRealTimeStatusSuccess(state, action) {
       state.loading = false;
-      state.realTimeStatus = action.payload.inventoryStatus;
+      state.realTimeStatus = normalizeRealTimeInventoryStatus(action.payload);
       state.message = action.payload.message;
     },
     fetchRealTimeStatusFailed(state, action) {
@@ -132,6 +174,9 @@ const inventorySlice = createSlice({
       state.realTimeStatus = null;
       state.batchTracking = null;
       state.productInventory = null;
+      state.totalInventoryValue = 0;
+      state.totalDamagedValue = 0;
+      state.totalSoldValue = 0;
     },
 
     // Clear messages
@@ -143,115 +188,93 @@ const inventorySlice = createSlice({
 });
 
 // Action creators (thunks)
-export const fetchInventory = () => async (dispatch, getState) => {
+export const fetchInventory = () => async (dispatch) => {
   dispatch(inventorySlice.actions.fetchInventoryRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const res = await axios.get(`${API_BASE_URL}/inventory/all`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
+    const res = await inventoryAPI.getAllInventory();
     dispatch(inventorySlice.actions.fetchInventorySuccess(res.data));
+    return res.data;
   } catch (error) {
     dispatch(inventorySlice.actions.fetchInventoryFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to fetch inventory.'),
     ));
+    return null;
   }
 };
 
-export const addInventorySupply = (supplyData) => async (dispatch, getState) => {
+export const addInventorySupply = (supplyData) => async (dispatch) => {
   dispatch(inventorySlice.actions.addInventorySupplyRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const res = await axios.post(`${API_BASE_URL}/inventory/add-supply`, supplyData, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-        'Content-Type': 'application/json',
-      },
-    });
+    const res = await inventoryAPI.addSupply(supplyData);
     dispatch(inventorySlice.actions.addInventorySupplySuccess(res.data));
     // Refresh inventory after adding supply
-    dispatch(fetchInventory());
+    await dispatch(fetchInventory());
+    await dispatch(fetchRealTimeInventoryStatus());
+    return res.data;
   } catch (error) {
     dispatch(inventorySlice.actions.addInventorySupplyFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to add inventory supply.'),
     ));
+    return null;
   }
 };
 
-export const markDamagedInventory = (damageData) => async (dispatch, getState) => {
+export const markDamagedInventory = (damageData) => async (dispatch) => {
   dispatch(inventorySlice.actions.markDamagedInventoryRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const res = await axios.post(`${API_BASE_URL}/inventory/mark-damaged`, damageData, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-        'Content-Type': 'application/json',
-      },
-    });
+    const res = await inventoryAPI.markDamaged(damageData);
     dispatch(inventorySlice.actions.markDamagedInventorySuccess(res.data));
     // Refresh inventory after marking damaged
-    dispatch(fetchInventory());
+    await dispatch(fetchInventory());
+    await dispatch(fetchRealTimeInventoryStatus());
+    return res.data;
   } catch (error) {
     dispatch(inventorySlice.actions.markDamagedInventoryFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to mark inventory as damaged.'),
     ));
+    return null;
   }
 };
 
-export const fetchProductInventory = (productId) => async (dispatch, getState) => {
+export const fetchProductInventory = (productId) => async (dispatch) => {
   dispatch(inventorySlice.actions.fetchProductInventoryRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const res = await axios.get(`${API_BASE_URL}/inventory/product/${productId}`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
+    const res = await inventoryAPI.getProductInventory(productId);
     dispatch(inventorySlice.actions.fetchProductInventorySuccess(res.data));
+    return res.data;
   } catch (error) {
     dispatch(inventorySlice.actions.fetchProductInventoryFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to fetch product inventory.'),
     ));
+    return null;
   }
 };
 
-export const fetchRealTimeInventoryStatus = (filters = {}) => async (dispatch, getState) => {
+export const fetchRealTimeInventoryStatus = (filters = {}) => async (dispatch) => {
   dispatch(inventorySlice.actions.fetchRealTimeStatusRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const queryParams = new URLSearchParams();
-    if (filters.warehouseId) queryParams.append('warehouseId', filters.warehouseId);
-    if (filters.productId) queryParams.append('productId', filters.productId);
-
-    const res = await axios.get(`${API_BASE_URL}/inventory/real-time?${queryParams}`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
+    const res = await inventoryAPI.getRealTimeStatus(filters);
     dispatch(inventorySlice.actions.fetchRealTimeStatusSuccess(res.data));
+    return res.data;
   } catch (error) {
     dispatch(inventorySlice.actions.fetchRealTimeStatusFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to fetch real-time inventory status.'),
     ));
+    return null;
   }
 };
 
-export const trackBatchByNumber = (batchNumber) => async (dispatch, getState) => {
+export const trackBatchByNumber = (batchNumber) => async (dispatch) => {
   dispatch(inventorySlice.actions.trackBatchRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const res = await axios.get(`${API_BASE_URL}/inventory/batch/track/${batchNumber}`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
+    const res = await inventoryAPI.trackBatchByNumber(batchNumber);
     dispatch(inventorySlice.actions.trackBatchSuccess(res.data));
+    return res.data;
   } catch (error) {
     dispatch(inventorySlice.actions.trackBatchFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to track batch.'),
     ));
+    return null;
   }
 };
 

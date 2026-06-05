@@ -9,10 +9,10 @@ import { isAuthenticated, isAuthorized } from '../middlewares/auth.middleware.js
 
 const router = express.Router();
 
-// Only admin or finance can create/update/delete invoices
-router.post('/', isAuthenticated, isAuthorized('admin', 'finance'), createInvoice);
-router.get('/', isAuthenticated, isAuthorized('admin', 'finance', 'staff'), getAllInvoices);
-router.put('/:id', isAuthenticated, isAuthorized('admin', 'finance'), updateInvoice);
-router.delete('/:id', isAuthenticated, isAuthorized('admin', 'finance'), deleteInvoice);
+// Only admin or staff can create/update/delete invoices
+router.post('/', isAuthenticated, isAuthorized('admin', 'staff'), createInvoice);
+router.get('/', isAuthenticated, isAuthorized('admin', 'staff'), getAllInvoices);
+router.put('/:id', isAuthenticated, isAuthorized('admin', 'staff'), updateInvoice);
+router.delete('/:id', isAuthenticated, isAuthorized('admin', 'staff'), deleteInvoice);
 
 export default router;

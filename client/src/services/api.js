@@ -40,10 +40,26 @@ export const productAPI = {
   deleteProduct: (productId) => api.delete(`/product/delete/${productId}`),
 };
 
+// Inventory API functions
+export const inventoryAPI = {
+  getAllInventory: () => api.get('/inventory/all'),
+  addSupply: (supplyData) => api.post('/inventory/add-supply', supplyData),
+  markDamaged: (damageData) => api.post('/inventory/mark-damaged', damageData),
+  getProductInventory: (productId) => api.get(`/inventory/product/${encodeURIComponent(productId)}`),
+  getRealTimeStatus: (filters = {}) => api.get('/inventory/real-time', { params: filters }),
+  trackBatchByNumber: (batchNumber) => api.get(`/inventory/batch/track/${encodeURIComponent(batchNumber)}`),
+};
+
+// AI API functions
+export const aiAPI = {
+  getDashboard: (warehouseId) => api.get(`/ai/dashboard${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+  generateDemandForecast: (forecastParams) => api.post('/ai/forecast/demand', forecastParams),
+};
+
 // Dashboard API functions
 export const dashboardAPI = {
-  getInventory: () => api.get('/inventory/all'),
-  getAIDashboard: (warehouseId) => api.get(`/ai/dashboard${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+  getInventory: inventoryAPI.getAllInventory,
+  getAIDashboard: aiAPI.getDashboard,
   getAIInsights: (warehouseId) => api.get(`/ai/insights/intelligent${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
 };
 

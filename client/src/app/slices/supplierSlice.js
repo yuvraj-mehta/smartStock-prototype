@@ -1,8 +1,9 @@
 import { createSlice } from '@reduxjs/toolkit';
-import axios from 'axios';
-import { config } from '../../../config/config.js';
+import { userAPI } from '../../services/api';
 
-const API_BASE_URL = config.apiBaseUrl;
+const getErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
 
 const initialState = {
   loading: false,
@@ -23,7 +24,7 @@ const supplierSlice = createSlice({
     },
     fetchSuppliersSuccess(state, action) {
       state.loading = false;
-      state.suppliers = action.payload.externalUsers;
+      state.suppliers = action.payload.externalUsers || [];
       state.message = action.payload.message;
     },
     fetchSuppliersFailed(state, action) {
@@ -48,20 +49,17 @@ const supplierSlice = createSlice({
 });
 
 // Action creators (thunks)
-export const fetchSuppliers = () => async (dispatch, getState) => {
+export const fetchSuppliers = () => async (dispatch) => {
   dispatch(supplierSlice.actions.fetchSuppliersRequest());
   try {
-    const token = getState().auth.token || localStorage.getItem('token');
-    const res = await axios.get(`${API_BASE_URL}/user/external/all?role=supplier`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : undefined,
-      },
-    });
+    const res = await userAPI.getAllExternalUsers('supplier');
     dispatch(supplierSlice.actions.fetchSuppliersSuccess(res.data));
+    return res.data;
   } catch (error) {
     dispatch(supplierSlice.actions.fetchSuppliersFailed(
-      error.response?.data?.message || error.message,
+      getErrorMessage(error, 'Failed to fetch suppliers.'),
     ));
+    return null;
   }
 };
 

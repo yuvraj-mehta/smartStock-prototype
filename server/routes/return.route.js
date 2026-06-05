@@ -48,7 +48,7 @@ router.post(
 router.post(
   "/picked-up/:returnId",
   isAuthenticated,
-  isAuthorized("admin", "staff", "transporter"),
+  isAuthorized("admin", "staff"),
   updateReturnStatusValidation,
   handleValidationErrors,
   markPickedUp

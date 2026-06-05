@@ -123,7 +123,6 @@ const ProductsPage = () => {
                     <div className="text-xs text-slate-400 mb-2 capitalize">{product.productCategory || 'Uncategorized'}</div>
                     <div className="flex flex-wrap gap-2 text-xs text-slate-600 mb-2">
                       <span>Price: <span className="font-semibold text-blue-700">₹{product.price}</span></span>
-                      <span>Qty: <span className="font-semibold">{product.quantity}</span></span>
                       <span>Unit: {product.unit}</span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-2">
@@ -177,15 +176,9 @@ const ProductsPage = () => {
                       <label className="block text-sm font-semibold mb-1">SKU</label>
                       <input className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50" value={editProduct.sku} readOnly />
                     </div>
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <label className="block text-sm font-semibold mb-1">Price (₹)</label>
-                        <input className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50" value={editProduct.price} readOnly />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-semibold mb-1">Quantity</label>
-                        <input className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50" value={editProduct.quantity} readOnly />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Price (₹)</label>
+                      <input className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50" value={editProduct.price} readOnly />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold mb-1">Category</label>

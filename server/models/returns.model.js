@@ -36,6 +36,10 @@ const returnSchema = new mongoose.Schema(
         required: true,
         min: 1
       },
+      disposition: {
+        type: String,
+        enum: ['restock', 'damaged', 'defective', 'quality_issue']
+      },
       itemIds: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Item"

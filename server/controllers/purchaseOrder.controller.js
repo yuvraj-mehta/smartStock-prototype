@@ -2,52 +2,73 @@ import mongoose from 'mongoose';
 import { PurchaseOrder, Invoice, Payment } from '../models/index.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
+import {
+  assertInvoiceCanBeAssignedToPurchaseOrder,
+  assertValidProcurementRelationship,
+  createProcurementError,
+  syncInvoiceStatus,
+  validatePurchaseOrderAmounts,
+  withSession,
+} from '../services/procurement/procurement.service.js';
 
 const UPDATE_OPTIONS = { new: true, runValidators: true };
 
-const withSession = (options, session) => ({ ...options, session });
-
-const invoiceStatusToPaymentStatus = (status) => {
-  if (status === 'paid') return 'paid';
-  if (status === 'partial') return 'partial';
-  return 'unpaid';
-};
-
-const syncPurchaseOrderFromInvoice = async (invoiceId, session) => {
-  const invoice = await Invoice.findById(invoiceId).session(session);
-
-  if (!invoice?.purchaseOrderId) {
-    return null;
+const assignDefined = (target, source, fields) => {
+  for (const field of fields) {
+    if (source[field] !== undefined) {
+      target[field] = source[field];
+    }
   }
-
-  return PurchaseOrder.findByIdAndUpdate(
-    invoice.purchaseOrderId,
-    {
-      $set: {
-        invoiceId: invoice._id,
-        paymentStatus: invoiceStatusToPaymentStatus(invoice.status),
-      },
-    },
-    withSession(UPDATE_OPTIONS, session)
-  );
+  return target;
 };
 
 // Create Purchase Order
 export const createPurchaseOrder = catchAsyncErrors(async (req, res) => {
-  const { supplierId, productId, quantity, unitCost, totalCost, status, paymentStatus, invoiceId } = req.body;
-  if (!supplierId || !productId || !quantity || !unitCost || !totalCost) {
+  const {
+    supplierId,
+    productId,
+    warehouseId,
+    quantity,
+    receivedQuantity = 0,
+    unitCost,
+    totalCost,
+    status,
+    paymentStatus,
+    invoiceId
+  } = req.body;
+  if (!supplierId || !productId || !warehouseId || quantity === undefined || unitCost === undefined || totalCost === undefined) {
     return res.status(400).json({ message: 'All required fields must be provided.' });
   }
-  if (quantity <= 0 || unitCost <= 0 || totalCost <= 0) {
-    return res.status(400).json({ message: 'Quantity, unit cost, and total cost must be positive numbers.' });
-  }
+
+  const normalizedAmounts = validatePurchaseOrderAmounts({
+    quantity,
+    receivedQuantity,
+    unitCost,
+    totalCost,
+  });
 
   const session = await mongoose.startSession();
   let po;
 
   try {
     await session.withTransaction(async () => {
-      po = new PurchaseOrder({ supplierId, productId, quantity, unitCost, totalCost, status, paymentStatus, invoiceId });
+      await assertValidProcurementRelationship({ supplierId, productId, warehouseId, session });
+      await assertInvoiceCanBeAssignedToPurchaseOrder({ invoiceId, session });
+
+      const purchaseOrderPayload = {
+        supplierId,
+        productId,
+        warehouseId,
+        ...normalizedAmounts,
+        status,
+        paymentStatus,
+      };
+
+      if (invoiceId) {
+        purchaseOrderPayload.invoiceId = invoiceId;
+      }
+
+      po = new PurchaseOrder(purchaseOrderPayload);
       await po.save({ session });
 
       if (invoiceId) {
@@ -57,7 +78,8 @@ export const createPurchaseOrder = catchAsyncErrors(async (req, res) => {
           withSession(UPDATE_OPTIONS, session)
         );
 
-        po = await syncPurchaseOrderFromInvoice(invoiceId, session) || po;
+        await syncInvoiceStatus(invoiceId, session);
+        po = await PurchaseOrder.findById(po._id).session(session) || po;
       }
     });
   } finally {
@@ -70,15 +92,15 @@ export const createPurchaseOrder = catchAsyncErrors(async (req, res) => {
     action: "CREATE_PURCHASE_ORDER",
     entityType: "PurchaseOrder",
     entityId: po._id,
-    value: totalCost,
-    details: `Supplier: ${supplierId}, Product: ${productId}, Quantity: ${quantity}`
+    value: normalizedAmounts.totalCost,
+    details: `Supplier: ${supplierId}, Product: ${productId}, Warehouse: ${warehouseId}, Quantity: ${normalizedAmounts.quantity}`
   });
   res.status(201).json({ message: 'Purchase order created', purchaseOrder: po });
 });
 
 // Get all Purchase Orders
 export const getAllPurchaseOrders = catchAsyncErrors(async (req, res) => {
-  const pos = await PurchaseOrder.find().populate('supplierId productId invoiceId');
+  const pos = await PurchaseOrder.find().populate('supplierId productId warehouseId invoiceId');
   res.json(pos);
 });
 
@@ -90,7 +112,45 @@ export const updatePurchaseOrder = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
-      po = await PurchaseOrder.findByIdAndUpdate(id, req.body, withSession(UPDATE_OPTIONS, session));
+      const existingPo = await PurchaseOrder.findById(id).session(session);
+      if (!existingPo) {
+        throw createProcurementError(404, 'Purchase order not found.');
+      }
+
+      const nextValues = {
+        supplierId: req.body.supplierId ?? existingPo.supplierId,
+        productId: req.body.productId ?? existingPo.productId,
+        warehouseId: req.body.warehouseId ?? existingPo.warehouseId,
+        quantity: req.body.quantity ?? existingPo.quantity,
+        receivedQuantity: req.body.receivedQuantity ?? existingPo.receivedQuantity,
+        unitCost: req.body.unitCost ?? existingPo.unitCost,
+        totalCost: req.body.totalCost ?? existingPo.totalCost,
+      };
+
+      const normalizedAmounts = validatePurchaseOrderAmounts(nextValues);
+      await assertValidProcurementRelationship({
+        supplierId: nextValues.supplierId,
+        productId: nextValues.productId,
+        warehouseId: nextValues.warehouseId,
+        session,
+      });
+
+      if (req.body.invoiceId !== undefined) {
+        await assertInvoiceCanBeAssignedToPurchaseOrder({
+          invoiceId: req.body.invoiceId,
+          purchaseOrderId: existingPo._id,
+          session,
+        });
+      }
+
+      const updatePayload = assignDefined({ ...req.body }, normalizedAmounts, [
+        'quantity',
+        'receivedQuantity',
+        'unitCost',
+        'totalCost',
+      ]);
+
+      po = await PurchaseOrder.findByIdAndUpdate(id, updatePayload, withSession(UPDATE_OPTIONS, session));
 
       if (po?.invoiceId) {
         await Invoice.findByIdAndUpdate(
@@ -99,7 +159,8 @@ export const updatePurchaseOrder = catchAsyncErrors(async (req, res) => {
           withSession(UPDATE_OPTIONS, session)
         );
 
-        po = await syncPurchaseOrderFromInvoice(po.invoiceId, session) || po;
+        await syncInvoiceStatus(po.invoiceId, session);
+        po = await PurchaseOrder.findById(po._id).session(session) || po;
       }
     });
   } finally {

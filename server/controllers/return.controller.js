@@ -11,6 +11,30 @@ const normalizeId = (id) => (id?._id || id)?.toString();
 
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
 
+const returnDispositionValues = ['restock', 'damaged', 'defective', 'quality_issue'];
+const nonRestockReturnReasons = new Set(['defective', 'damaged', 'quality_issue']);
+const nonRestockDispositions = new Set(['defective', 'damaged', 'quality_issue']);
+const normalizeString = (value) => (typeof value === "string" ? value.trim() : value);
+
+const defaultDispositionForReason = (returnReason) =>
+  nonRestockReturnReasons.has(normalizeString(returnReason)) ? normalizeString(returnReason) : 'restock';
+
+const normalizeDisposition = (disposition, returnReason) => {
+  const normalizedDisposition = normalizeString(disposition) || defaultDispositionForReason(returnReason);
+
+  if (!returnDispositionValues.includes(normalizedDisposition)) {
+    throw httpError(400, "Returned item disposition is invalid.");
+  }
+
+  return normalizedDisposition;
+};
+
+const formatDisposition = (disposition) => disposition.replace("_", " ");
+
+const requiresExplicitItemIds = (returnReason, disposition) =>
+  nonRestockReturnReasons.has(normalizeString(returnReason)) ||
+  nonRestockDispositions.has(disposition);
+
 const getInventoryValueForBatch = async (batchId, session) => {
   const items = await runWithOptionalSession(
     Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
@@ -102,11 +126,12 @@ const ensureTransporterWarehouseAccess = async (transporterId, assignedWarehouse
   }
 };
 
-const normalizeReturnedItems = (returnedItems, packageDoc) => {
+const normalizeReturnedItems = (returnedItems, packageDoc, returnReason) => {
   const usedItemIds = new Set();
 
   return returnedItems.map((returnItem) => {
     const quantity = Number(returnItem.quantity);
+    const disposition = normalizeDisposition(returnItem.disposition, returnReason);
     const packageItem = packageDoc.allocatedItems.find(
       (item) => normalizeId(item.productId) === normalizeId(returnItem.productId) &&
         normalizeId(item.batchId) === normalizeId(returnItem.batchId)
@@ -121,7 +146,17 @@ const normalizeReturnedItems = (returnedItems, packageDoc) => {
     }
 
     const packageItemIds = (packageItem.itemIds || []).map(normalizeId);
-    const requestedItemIds = Array.isArray(returnItem.itemIds) && returnItem.itemIds.length > 0
+    const hasExplicitItemIds = Array.isArray(returnItem.itemIds) && returnItem.itemIds.length > 0;
+
+    if (requiresExplicitItemIds(returnReason, disposition) && !hasExplicitItemIds) {
+      const itemIdReason = nonRestockDispositions.has(disposition) ? disposition : normalizeString(returnReason);
+      throw httpError(
+        400,
+        `Returned item IDs are required for ${formatDisposition(itemIdReason)} returns for product: ${returnItem.productId}`
+      );
+    }
+
+    const requestedItemIds = hasExplicitItemIds
       ? returnItem.itemIds.map(normalizeId)
       : packageItemIds.slice(0, quantity);
 
@@ -145,6 +180,7 @@ const normalizeReturnedItems = (returnedItems, packageDoc) => {
       productId: returnItem.productId,
       batchId: returnItem.batchId,
       quantity,
+      disposition,
       itemIds: requestedItemIds
     };
   });
@@ -200,7 +236,7 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
       throw httpError(400, "Return window has expired (10 days)");
     }
 
-    const normalizedReturnedItems = normalizeReturnedItems(returnedItems, packageDoc);
+    const normalizedReturnedItems = normalizeReturnedItems(returnedItems, packageDoc, returnReason);
 
     [returnRecord] = await Return.create([{
       packageId: packageDoc._id,
@@ -230,7 +266,7 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
     entityType: 'Return',
     entityId: returnRecord._id,
     value: returnedItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
-    details: { packageId, returnedItems, returnReason, notes }
+    details: { packageId, returnedItems: returnRecord.returnedItems, returnReason, notes }
   });
 
   res.status(201).json({
@@ -385,26 +421,56 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
 
       if (!originalItem) continue;
 
-      const itemsToUpdate = Array.isArray(returnedItem.itemIds) && returnedItem.itemIds.length > 0
-        ? returnedItem.itemIds.slice(0, returnedItem.quantity)
-        : originalItem.itemIds.slice(0, returnedItem.quantity);
+      const disposition = normalizeDisposition(returnedItem.disposition, returnRecord.returnReason);
+      returnedItem.disposition = disposition;
+      const packageItemIds = (originalItem.itemIds || []).map(normalizeId);
+      const hasExplicitItemIds = Array.isArray(returnedItem.itemIds) && returnedItem.itemIds.length > 0;
+
+      if (requiresExplicitItemIds(returnRecord.returnReason, disposition) && !hasExplicitItemIds) {
+        const itemIdReason = nonRestockDispositions.has(disposition)
+          ? disposition
+          : normalizeString(returnRecord.returnReason);
+        throw httpError(
+          400,
+          `Returned item IDs are required for ${formatDisposition(itemIdReason)} returns for product: ${returnedItem.productId}`
+        );
+      }
+      if (hasExplicitItemIds && returnedItem.itemIds.length !== returnedItem.quantity) {
+        throw httpError(400, `Return item IDs do not match quantity for product: ${returnedItem.productId}`);
+      }
+
+      const itemsToUpdate = hasExplicitItemIds
+        ? returnedItem.itemIds.slice(0, returnedItem.quantity).map(normalizeId)
+        : packageItemIds.slice(0, returnedItem.quantity);
 
       if (itemsToUpdate.length < returnedItem.quantity) {
         throw httpError(400, `Return item IDs do not match quantity for product: ${returnedItem.productId}`);
       }
 
+      const hasUnknownItem = itemsToUpdate.some((itemId) => !packageItemIds.includes(itemId));
+      if (hasUnknownItem) {
+        throw httpError(400, `Returned item does not belong to original package: ${returnedItem.productId}`);
+      }
+
+      const isRestockDisposition = disposition === 'restock';
+      const itemStatus = isRestockDisposition ? 'in_stock' : 'damaged';
+      const historyAction = isRestockDisposition ? 'returned' : 'damaged';
+      const historyNotes = isRestockDisposition
+        ? `Returned from order ${returnRecord.orderId.orderNumber}`
+        : `Return disposition ${formatDisposition(disposition)} from order ${returnRecord.orderId.orderNumber}`;
+
       await Item.updateMany(
         { _id: { $in: itemsToUpdate } },
         {
           $set: {
-            status: 'in_stock',
+            status: itemStatus,
             currentWarehouseId: returnRecord.warehouseId
           },
           $push: {
             history: {
-              action: 'returned',
+              action: historyAction,
               location: normalizeId(returnRecord.warehouseId),
-              notes: `Returned from order ${returnRecord.orderId.orderNumber}`,
+              notes: historyNotes,
               date: new Date()
             }
           }

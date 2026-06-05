@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   FaBoxOpen,
@@ -34,11 +34,42 @@ import {
 import { getAllProducts } from '../app/slices/productSlice';
 import { fetchSuppliers } from '../app/slices/supplierSlice';
 
+const formatDateInput = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultSupplyForm = () => {
+  const today = new Date();
+  const nextYear = new Date(today);
+  nextYear.setFullYear(today.getFullYear() + 1);
+
+  return {
+    productId: '',
+    supplierId: '',
+    quantity: '',
+    mfgDate: formatDateInput(today),
+    expDate: formatDateInput(nextYear),
+    unitCost: '',
+    currency: 'INR',
+    purchaseOrderId: '',
+    notes: '',
+  };
+};
+
+const getDefaultDamagedForm = () => ({
+  productId: '',
+  batchId: '',
+  quantity: '',
+  reason: '',
+});
+
 const InventoryPage = () => {
   const dispatch = useDispatch();
   const {
     products,
-    totalProducts,
     loading,
     error,
     message,
@@ -50,7 +81,7 @@ const InventoryPage = () => {
   } = useSelector(state => state.inventory);
   const { user } = useSelector(state => state.auth);
   const { products: allProducts } = useSelector(state => state.products);
-  const { suppliers, loading: suppliersLoading, error: suppliersError } = useSelector(state => state.suppliers);
+  const { suppliers, loading: suppliersLoading } = useSelector(state => state.suppliers);
 
   // Tab management
   const [activeTab, setActiveTab] = useState('overview');
@@ -60,33 +91,8 @@ const InventoryPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  // Form states
-  // Set default dates: mfgDate = today, expDate = one year from today
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-  const todayStr = `${yyyy}-${mm}-${dd}`;
-  const nextYear = new Date(today);
-  nextYear.setFullYear(today.getFullYear() + 1);
-  const nextYearStr = `${nextYear.getFullYear()}-${String(nextYear.getMonth() + 1).padStart(2, '0')}-${String(nextYear.getDate()).padStart(2, '0')}`;
-
-  const [supplyForm, setSupplyForm] = useState({
-    productId: '',
-    supplierId: '',
-    quantity: '',
-    mfgDate: todayStr,
-    expDate: nextYearStr,
-    unitCost: '',
-    currency: 'INR',
-    purchaseOrderId: '',
-    notes: '',
-  });
-  const [damagedForm, setDamagedForm] = useState({
-    batchId: '',
-    quantity: '',
-    reason: '',
-  });
+  const [supplyForm, setSupplyForm] = useState(getDefaultSupplyForm);
+  const [damagedForm, setDamagedForm] = useState(getDefaultDamagedForm);
   // For displaying financial loss after marking damaged
   const [financialLoss, setFinancialLoss] = useState(null);
   // For displaying add supply details
@@ -113,12 +119,19 @@ const InventoryPage = () => {
     }
   }, [message, error, dispatch]);
 
-  // Helper function to get batches for selected product
-  const getAvailableBatches = () => {
+  const availableBatches = useMemo(() => {
     if (!damagedForm.productId || !products) return [];
     const selectedProduct = products.find(p => p.product._id === damagedForm.productId);
     return selectedProduct ? selectedProduct.batches.filter(batch => batch.quantity > 0) : [];
-  };
+  }, [damagedForm.productId, products]);
+
+  const selectedDamageBatch = useMemo(() => (
+    availableBatches.find(batch => batch.batchId === damagedForm.batchId)
+  ), [availableBatches, damagedForm.batchId]);
+
+  const selectedSupplyProduct = useMemo(() => (
+    allProducts.find(product => product._id === supplyForm.productId)
+  ), [allProducts, supplyForm.productId]);
 
   // Handle form submissions
   const handleAddSupply = async (e) => {
@@ -147,29 +160,19 @@ const InventoryPage = () => {
       purchaseOrderId: supplyForm.purchaseOrderId || undefined,
     };
     const result = await dispatch(addInventorySupply(payload));
-    if (result && result.payload) {
+    if (result) {
       setAddSupplyDetails({
-        batchId: result.payload.batchId,
-        itemsCreated: result.payload.itemsCreated,
-        totalCost: result.payload.totalCost,
-        currency: result.payload.currency,
-        purchaseOrderId: result.payload.purchaseOrderId,
-        message: result.payload.message,
+        batchId: result.batchId,
+        itemsCreated: result.itemsCreated,
+        totalCost: result.totalCost,
+        currency: result.currency,
+        purchaseOrderId: result.purchaseOrderId,
+        message: result.message,
       });
     } else {
       setAddSupplyDetails(null);
     }
-    setSupplyForm({
-      productId: '',
-      supplierId: '',
-      quantity: '',
-      mfgDate: '',
-      expDate: '',
-      unitCost: '',
-      currency: 'INR',
-      purchaseOrderId: '',
-      notes: '',
-    });
+    setSupplyForm(getDefaultSupplyForm());
   };
 
   const handleMarkDamaged = async (e) => {
@@ -181,16 +184,12 @@ const InventoryPage = () => {
       reason: damagedForm.reason,
     };
     const result = await dispatch(markDamagedInventory(payload));
-    if (result && result.payload && typeof result.payload.financialLoss !== 'undefined') {
-      setFinancialLoss(result.payload.financialLoss);
+    if (result && typeof result.financialLoss !== 'undefined') {
+      setFinancialLoss(result.financialLoss);
     } else {
       setFinancialLoss(null);
     }
-    setDamagedForm({
-      batchId: '',
-      quantity: '',
-      reason: '',
-    });
+    setDamagedForm(getDefaultDamagedForm());
   };
 
   const handleBatchTracking = async (e) => {
@@ -199,26 +198,28 @@ const InventoryPage = () => {
   };
 
   // Filter products based on search and filters
-  const filteredProducts = products.filter(item => {
+  const filteredProducts = useMemo(() => products.filter(item => {
     const matchesSearch = item.product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.product.sku.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || item.product.productCategory === selectedCategory;
     return matchesSearch && matchesCategory;
-  });
+  }), [products, searchTerm, selectedCategory]);
 
   // Toggle row expansion
   const toggleRow = (productId) => {
-    const newExpandedRows = new Set(expandedRows);
-    if (newExpandedRows.has(productId)) {
-      newExpandedRows.delete(productId);
-    } else {
-      newExpandedRows.add(productId);
-    }
-    setExpandedRows(newExpandedRows);
+    setExpandedRows((currentRows) => {
+      const nextRows = new Set(currentRows);
+      if (nextRows.has(productId)) {
+        nextRows.delete(productId);
+      } else {
+        nextRows.add(productId);
+      }
+      return nextRows;
+    });
   };
 
   // Calculate inventory stats (all derived from item status fields)
-  const inventoryStats = {
+  const inventoryStats = useMemo(() => ({
     totalItems: products.reduce((sum, p) => sum + p.totalQuantity, 0),
     totalProducts: products.length,
     lowStockItems: products.filter(p => p.totalQuantity < 10).length,
@@ -228,7 +229,7 @@ const InventoryPage = () => {
         return batchSum + (batch.damagedQuantity || 0);
       }, 0);
     }, 0),
-  };
+  }), [products]);
 
   // Define tabs
   const inventoryTabs = [
@@ -628,8 +629,6 @@ const InventoryPage = () => {
     </div>
   );  // Render Add Supply Tab
   const renderAddSupplyTab = () => {
-    // Find selected product from allProducts
-    const selectedProduct = allProducts.find(p => p._id === supplyForm.productId);
     return (
       <div className="max-w-2xl mx-auto">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -695,16 +694,16 @@ const InventoryPage = () => {
               </div>
               <div>
                 {/* Show cost price and selling price from DB above unit cost */}
-                {selectedProduct && selectedProduct.costPrice !== undefined && (
+                {selectedSupplyProduct && selectedSupplyProduct.costPrice !== undefined && (
                   <div className="mb-1 text-xs text-gray-500">
                     <span className="font-semibold">Cost Price (from DB): </span>
-                    ₹{selectedProduct.costPrice}
+                    ₹{selectedSupplyProduct.costPrice}
                   </div>
                 )}
-                {selectedProduct && selectedProduct.price !== undefined && (
+                {selectedSupplyProduct && selectedSupplyProduct.price !== undefined && (
                   <div className="mb-1 text-xs text-gray-500">
                     <span className="font-semibold">Selling Price (from DB): </span>
-                    ₹{selectedProduct.price}
+                    ₹{selectedSupplyProduct.price}
                   </div>
                 )}
                 <label className="block text-sm font-medium text-gray-700 mb-2">Unit Cost</label>
@@ -783,7 +782,7 @@ const InventoryPage = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setSupplyForm({ productId: '', supplierId: '', quantity: '', mfgDate: '', expDate: '', notes: '' });
+                  setSupplyForm(getDefaultSupplyForm());
                 }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
               >
@@ -842,7 +841,7 @@ const InventoryPage = () => {
                 required
               >
                 <option value="">Select Batch</option>
-                {getAvailableBatches().map(batch => (
+                {availableBatches.map(batch => (
                   <option key={batch.batchId} value={batch.batchId}>
                     {batch.batchNumber} - Qty: {batch.quantity} - Exp: {new Date(batch.expDate).toLocaleDateString()}
                   </option>
@@ -860,7 +859,7 @@ const InventoryPage = () => {
               <input
                 type="number"
                 min="1"
-                max={getAvailableBatches().find(b => b.batchId === damagedForm.batchId)?.quantity || 1}
+                max={selectedDamageBatch?.quantity || 1}
                 value={damagedForm.quantity}
                 onChange={(e) => setDamagedForm({ ...damagedForm, quantity: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
@@ -868,7 +867,7 @@ const InventoryPage = () => {
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                Maximum available: {getAvailableBatches().find(b => b.batchId === damagedForm.batchId)?.quantity || 0}
+                Maximum available: {selectedDamageBatch?.quantity || 0}
               </p>
             </div>
           )}
@@ -889,7 +888,7 @@ const InventoryPage = () => {
             <button
               type="button"
               onClick={() => {
-                setDamagedForm({ productId: '', batchId: '', quantity: '', reason: '' });
+                setDamagedForm(getDefaultDamagedForm());
                 setFinancialLoss(null);
               }}
               className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"

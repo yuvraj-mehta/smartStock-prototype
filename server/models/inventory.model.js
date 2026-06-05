@@ -24,4 +24,6 @@ const inventorySchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+inventorySchema.index({ batchId: 1, warehouseId: 1 }, { unique: true });
+
 export const Inventory = mongoose.model('Inventory', inventorySchema);

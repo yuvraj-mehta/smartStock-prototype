@@ -8,7 +8,9 @@
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
     "build": "npm --prefix client run build",
-    "test": "npm --prefix server test"
+    "test": "npm --prefix server test",
+    "db:clear:dry-run": "npm --prefix server run db:clear:dry-run",
+    "db:clear": "npm --prefix server run db:clear"
   },
   "engines": {
     "node": ">=20"

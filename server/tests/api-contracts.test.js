@@ -10,6 +10,10 @@ import {
 import handleValidationErrors from '../middlewares/validationErrors.middleware.js';
 import { Return } from '../models/index.js';
 import { getAllReturns } from '../controllers/return.controller.js';
+import {
+  expectHealthContract,
+  expectReadinessContract,
+} from './helpers/routeContracts.js';
 
 const buildValidationApp = (validators) => {
   const validationApp = express();
@@ -60,14 +64,15 @@ describe('API contract smoke tests', () => {
       const res = await request(app).get('/api/v1/health');
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.status).toBe('healthy');
-      expect(typeof res.body.timestamp).toBe('string');
-      expect(res.body.memory).toEqual(
-        expect.objectContaining({
-          rss: expect.any(String),
-          heapUsed: expect.any(String),
-        }),
-      );
+      expectHealthContract(res.body);
+    });
+
+    it('returns readiness details with an HTTP status that matches readiness', async () => {
+      const res = await request(app).get('/api/v1/health/ready');
+
+      expect([200, 503]).toContain(res.statusCode);
+      expectReadinessContract(res.body);
+      expect(res.statusCode).toBe(res.body.readiness.ready ? 200 : 503);
     });
   });
 

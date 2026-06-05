@@ -3,6 +3,7 @@ import { logAudit } from "../utils/auditLogger.js";
 import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
 import { catchAsyncErrors } from "../middlewares/index.js";
+import { recordPurchaseOrderReceipt } from "../services/procurement/procurement.service.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -105,6 +106,15 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     const product = await Product.findById(productId).session(session);
     if (!product) throw httpError(404, "Product not found.");
 
+    const purchaseOrder = await recordPurchaseOrderReceipt({
+      purchaseOrderId,
+      productId,
+      supplierId,
+      warehouseId,
+      quantity,
+      session,
+    });
+
     // Calculate total cost
     const totalCost = unitCost * quantity;
 
@@ -172,7 +182,9 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
       itemsCreated: quantity,
       totalCost,
       currency,
-      purchaseOrderId: purchaseOrderId || null
+      purchaseOrderId: purchaseOrderId || null,
+      purchaseOrderStatus: purchaseOrder?.status || null,
+      purchaseOrderReceivedQuantity: purchaseOrder?.receivedQuantity || null,
     };
 
     await session.commitTransaction();

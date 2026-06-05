@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ExclamationTriangleIcon,
   BellIcon,
@@ -8,145 +8,144 @@ import {
   CheckCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
+import { inventoryAPI } from '../../services/api';
+
+const getApiErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
+
+const getQuantity = (value) => {
+  const quantity = Number(value);
+  return Number.isFinite(quantity) ? quantity : 0;
+};
+
+const buildStockAlerts = (inventoryItems) => {
+  const generatedAlerts = [];
+  const now = new Date();
+
+  inventoryItems.forEach(productItem => {
+    const product = productItem.product || {};
+    const totalQuantity = getQuantity(productItem.totalQuantity);
+
+    // Low stock alert
+    if (totalQuantity <= 10) {
+      generatedAlerts.push({
+        id: `low-${product._id}`,
+        type: totalQuantity <= 5 ? 'critical' : 'low',
+        title: `Low Stock Alert: ${product.productName || 'Unknown Product'}`,
+        message: `Only ${totalQuantity} units remaining`,
+        timestamp: now,
+        productId: product._id,
+        severity: totalQuantity <= 5 ? 'critical' : 'warning',
+        icon: totalQuantity <= 5 ? ExclamationTriangleIcon : ArrowTrendingDownIcon,
+        action: 'Reorder immediately',
+      });
+    }
+
+    (productItem.batches || []).forEach(batch => {
+      if (batch.expDate) {
+        const expiryDate = new Date(batch.expDate);
+        const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+
+        if (daysUntilExpiry <= 0) {
+          generatedAlerts.push({
+            id: `expired-${batch.batchId}`,
+            type: 'expired',
+            title: `Expired Batch: ${product.productName || 'Unknown Product'}`,
+            message: `Batch ${batch.batchNumber} expired ${Math.abs(daysUntilExpiry)} days ago`,
+            timestamp: now,
+            productId: product._id,
+            batchId: batch.batchId,
+            severity: 'critical',
+            icon: XMarkIcon,
+            action: 'Remove from inventory',
+          });
+        } else if (daysUntilExpiry <= 7) {
+          generatedAlerts.push({
+            id: `expiring-${batch.batchId}`,
+            type: 'expiring',
+            title: `Batch Expiring Soon: ${product.productName || 'Unknown Product'}`,
+            message: `Batch ${batch.batchNumber} expires in ${daysUntilExpiry} days`,
+            timestamp: now,
+            productId: product._id,
+            batchId: batch.batchId,
+            severity: 'warning',
+            icon: ClockIcon,
+            action: 'Plan clearance sale',
+          });
+        }
+      }
+    });
+
+    // High stock alert (potential overstock)
+    if (totalQuantity > 1000) {
+      generatedAlerts.push({
+        id: `high-${product._id}`,
+        type: 'overstock',
+        title: `High Stock Level: ${product.productName || 'Unknown Product'}`,
+        message: `${totalQuantity} units in stock (potentially overstocked)`,
+        timestamp: now,
+        productId: product._id,
+        severity: 'info',
+        icon: ChartBarIcon,
+        action: 'Review demand forecast',
+      });
+    }
+  });
+
+  const severityOrder = { critical: 0, warning: 1, info: 2 };
+  return generatedAlerts.sort((a, b) => (
+    (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99)
+  ));
+};
 
 const StockAlerts = () => {
-  const [alerts, setAlerts] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all, critical, low, expired
 
-  useEffect(() => {
-    fetchStockAlerts();
-  }, []);
-
-  const fetchStockAlerts = async () => {
+  const fetchStockAlerts = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        setError('No authentication token found. Please log in.');
-        return;
-      }
-
+      setError(null);
       // Fetch inventory data to generate alerts
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/inventory/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const inventoryItems = data.products || [];
-        generateAlerts(inventoryItems);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 401) {
-          setError('Authentication failed. Please log in again.');
-        } else if (response.status === 403) {
-          setError('Access denied. You need proper permissions to view inventory.');
-        } else {
-          setError(`Failed to fetch inventory: ${errorData.message || 'Unknown error'}`);
-        }
-      }
+      const response = await inventoryAPI.getAllInventory();
+      const items = response.data.products || [];
+      setInventoryItems(Array.isArray(items) ? items : []);
+      setDismissedAlertIds(new Set());
     } catch (err) {
-      setError('Network error while fetching stock alerts.');
+      setError(getApiErrorMessage(err, 'Network error while fetching stock alerts.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const generateAlerts = (inventoryItems) => {
-    const generatedAlerts = [];
-    const now = new Date();
+  useEffect(() => {
+    fetchStockAlerts();
+  }, [fetchStockAlerts]);
 
-    inventoryItems.forEach(productItem => {
-      const product = productItem.product;
-      const totalQuantity = productItem.totalQuantity;
+  const allAlerts = useMemo(() => buildStockAlerts(inventoryItems), [inventoryItems]);
+  const alerts = useMemo(() => (
+    allAlerts.filter(alert => !dismissedAlertIds.has(alert.id))
+  ), [allAlerts, dismissedAlertIds]);
 
-      // Low stock alert
-      if (totalQuantity <= 10) {
-        generatedAlerts.push({
-          id: `low-${product._id}`,
-          type: totalQuantity <= 5 ? 'critical' : 'low',
-          title: `Low Stock Alert: ${product.productName || 'Unknown Product'}`,
-          message: `Only ${totalQuantity} units remaining`,
-          timestamp: now,
-          productId: product._id,
-          severity: totalQuantity <= 5 ? 'critical' : 'warning',
-          icon: totalQuantity <= 5 ? ExclamationTriangleIcon : ArrowTrendingDownIcon,
-          action: 'Reorder immediately',
-        });
-      }
-
-      // Check batches for expiry alerts
-      productItem.batches.forEach(batch => {
-        if (batch.expDate) {
-          const expiryDate = new Date(batch.expDate);
-          const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-
-          if (daysUntilExpiry <= 0) {
-            generatedAlerts.push({
-              id: `expired-${batch.batchId}`,
-              type: 'expired',
-              title: `Expired Batch: ${product.productName || 'Unknown Product'}`,
-              message: `Batch ${batch.batchNumber} expired ${Math.abs(daysUntilExpiry)} days ago`,
-              timestamp: now,
-              productId: product._id,
-              batchId: batch.batchId,
-              severity: 'critical',
-              icon: XMarkIcon,
-              action: 'Remove from inventory',
-            });
-          } else if (daysUntilExpiry <= 7) {
-            generatedAlerts.push({
-              id: `expiring-${batch.batchId}`,
-              type: 'expiring',
-              title: `Batch Expiring Soon: ${product.productName || 'Unknown Product'}`,
-              message: `Batch ${batch.batchNumber} expires in ${daysUntilExpiry} days`,
-              timestamp: now,
-              productId: product._id,
-              batchId: batch.batchId,
-              severity: 'warning',
-              icon: ClockIcon,
-              action: 'Plan clearance sale',
-            });
-          }
-        }
-      });
-
-      // High stock alert (potential overstock)
-      if (totalQuantity > 1000) {
-        generatedAlerts.push({
-          id: `high-${product._id}`,
-          type: 'overstock',
-          title: `High Stock Level: ${product.productName || 'Unknown Product'}`,
-          message: `${totalQuantity} units in stock (potentially overstocked)`,
-          timestamp: now,
-          productId: product._id,
-          severity: 'info',
-          icon: ChartBarIcon,
-          action: 'Review demand forecast',
-        });
-      }
-    });
-
-    // Sort by severity: critical > warning > info
-    const severityOrder = { critical: 0, warning: 1, info: 2 };
-    generatedAlerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-
-    setAlerts(generatedAlerts);
-  };
-
-  const getFilteredAlerts = () => {
+  const filteredAlerts = useMemo(() => {
     if (filter === 'all') return alerts;
     if (filter === 'critical') return alerts.filter(alert => alert.severity === 'critical');
     if (filter === 'low') return alerts.filter(alert => alert.type === 'low' || alert.type === 'critical');
     if (filter === 'expired') return alerts.filter(alert => alert.type === 'expired' || alert.type === 'expiring');
     return alerts;
-  };
+  }, [alerts, filter]);
+
+  const alertCounts = useMemo(() => ({
+    all: alerts.length,
+    critical: alerts.filter(a => a.severity === 'critical').length,
+    low: alerts.filter(a => a.type === 'low' || a.type === 'critical').length,
+    expired: alerts.filter(a => a.type === 'expired' || a.type === 'expiring').length,
+    warning: alerts.filter(a => a.severity === 'warning').length,
+  }), [alerts]);
 
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -167,10 +166,12 @@ const StockAlerts = () => {
   };
 
   const dismissAlert = (alertId) => {
-    setAlerts(alerts.filter(alert => alert.id !== alertId));
+    setDismissedAlertIds((currentAlertIds) => {
+      const nextAlertIds = new Set(currentAlertIds);
+      nextAlertIds.add(alertId);
+      return nextAlertIds;
+    });
   };
-
-  const filteredAlerts = getFilteredAlerts();
 
   return (
     <div className="space-y-6">
@@ -197,10 +198,10 @@ const StockAlerts = () => {
       {/* Filter Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
         {[
-          { key: 'all', label: 'All Alerts', count: alerts.length },
-          { key: 'critical', label: 'Critical', count: alerts.filter(a => a.severity === 'critical').length },
-          { key: 'low', label: 'Low Stock', count: alerts.filter(a => a.type === 'low' || a.type === 'critical').length },
-          { key: 'expired', label: 'Expiry', count: alerts.filter(a => a.type === 'expired' || a.type === 'expiring').length },
+          { key: 'all', label: 'All Alerts', count: alertCounts.all },
+          { key: 'critical', label: 'Critical', count: alertCounts.critical },
+          { key: 'low', label: 'Low Stock', count: alertCounts.low },
+          { key: 'expired', label: 'Expiry', count: alertCounts.expired },
         ].map(tab => (
           <button
             key={tab.key}
@@ -308,25 +309,25 @@ const StockAlerts = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
-                {alerts.filter(a => a.severity === 'critical').length}
+                {alertCounts.critical}
               </div>
               <div className="text-sm text-gray-600">Critical Alerts</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-yellow-600">
-                {alerts.filter(a => a.severity === 'warning').length}
+                {alertCounts.warning}
               </div>
               <div className="text-sm text-gray-600">Warning Alerts</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {alerts.filter(a => a.type === 'low' || a.type === 'critical').length}
+                {alertCounts.low}
               </div>
               <div className="text-sm text-gray-600">Low Stock Items</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {alerts.filter(a => a.type === 'expired' || a.type === 'expiring').length}
+                {alertCounts.expired}
               </div>
               <div className="text-sm text-gray-600">Expiry Issues</div>
             </div>

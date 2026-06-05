@@ -9,9 +9,9 @@ import { isAuthenticated, isAuthorized } from '../middlewares/auth.middleware.js
 
 const router = express.Router();
 
-router.post('/', isAuthenticated, isAuthorized('admin', 'sales', 'finance'), createSalesInvoice);
-router.get('/', isAuthenticated, isAuthorized('admin', 'sales', 'finance'), getAllSalesInvoices);
-router.put('/:id', isAuthenticated, isAuthorized('admin', 'sales', 'finance'), updateSalesInvoice);
-router.delete('/:id', isAuthenticated, isAuthorized('admin', 'sales', 'finance'), deleteSalesInvoice);
+router.post('/', isAuthenticated, isAuthorized('admin', 'staff'), createSalesInvoice);
+router.get('/', isAuthenticated, isAuthorized('admin', 'staff'), getAllSalesInvoices);
+router.put('/:id', isAuthenticated, isAuthorized('admin', 'staff'), updateSalesInvoice);
+router.delete('/:id', isAuthenticated, isAuthorized('admin', 'staff'), deleteSalesInvoice);
 
 export default router;

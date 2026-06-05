@@ -20,7 +20,7 @@ router.get("/", (req, res) => {
 router.get(
   "/all",
   isAuthenticated,
-  isAuthorized("admin", "staff", "transporter"),
+  isAuthorized("admin", "staff"),
   getAllTransports
 );
 
@@ -28,7 +28,7 @@ router.get(
 router.get(
   "/:transportId",
   isAuthenticated,
-  isAuthorized("admin", "staff", "transporter"),
+  isAuthorized("admin", "staff"),
   getTransportById
 );
 
@@ -40,11 +40,11 @@ router.get(
   getTransportsByPackageId
 );
 
-// Update transport status (for transporters)
+// Update transport status
 router.patch(
   "/status/:transportId",
   isAuthenticated,
-  isAuthorized("admin", "staff", "transporter"),
+  isAuthorized("admin", "staff"),
   updateTransportStatus
 );
 

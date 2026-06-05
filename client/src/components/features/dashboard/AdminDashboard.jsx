@@ -1,12 +1,30 @@
-
-import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api, { userAPI, productAPI } from '../../../services/api';
+import api, { inventoryAPI, productAPI, userAPI } from '../../../services/api';
 import './AdminDashboard.css';
 
+const getCollection = (data, key) => {
+  if (Array.isArray(data?.[key])) {
+    return data[key];
+  }
+
+  return Array.isArray(data) ? data : [];
+};
+
+const getInventorySummary = (inventoryData) => {
+  const inventoryProducts = getCollection(inventoryData, 'products');
+
+  return {
+    totalInventory: inventoryProducts.reduce((sum, item) => sum + (Number(item.totalQuantity) || 0), 0),
+    lowStockItems: inventoryProducts.filter((item) => {
+      const quantity = Number(item.totalQuantity) || 0;
+      const threshold = Number(item.product?.thresholdLimit) || 0;
+      return quantity > 0 && threshold > 0 && quantity <= threshold;
+    }).length,
+  };
+};
+
 const AdminDashboard = () => {
-  const { token } = useSelector((state) => state.auth);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalProducts: 0,
@@ -22,29 +40,27 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       // Fetch users
       const [usersRes, productsRes, externalUsersRes, salesRes, inventoryRes] = await Promise.all([
         userAPI.getAllUsers(),
         productAPI.getAllProducts(),
         userAPI.getAllExternalUsers(),
         api.get('/sales/all').catch(() => ({ data: [] })),
-        api.get('/inventory/all').catch(() => ({ data: [] })),
+        inventoryAPI.getAllInventory().catch(() => ({ data: [] })),
       ]);
+      const inventorySummary = getInventorySummary(inventoryRes?.data);
 
       setStats({
-        totalUsers: Array.isArray(usersRes?.data?.users) ? usersRes.data.users.length : 0,
-        totalProducts: Array.isArray(productsRes?.data?.products) ? productsRes.data.products.length : 0,
-        totalInventory: Array.isArray(inventoryRes?.data?.inventory) ? inventoryRes.data.inventory.length : 0,
-        totalSales: Array.isArray(salesRes?.data?.sales) ? salesRes.data.sales.length : 0,
-        lowStockItems: 'upcoming feature',
-        totalExternalUsers: Array.isArray(externalUsersRes?.data?.externalUsers) ? externalUsersRes.data.externalUsers.length : 0,
+        totalUsers: getCollection(usersRes?.data, 'users').length,
+        totalProducts: getCollection(productsRes?.data, 'products').length,
+        totalInventory: inventorySummary.totalInventory,
+        totalSales: getCollection(salesRes?.data, 'sales').length,
+        lowStockItems: inventorySummary.lowStockItems,
+        totalExternalUsers: getCollection(externalUsersRes?.data, 'externalUsers').length,
         recentActivities: 'upcoming feature',
         inventoryHealth: 'upcoming feature',
         salesTrend: 'upcoming feature',
@@ -56,7 +72,11 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   if (loading) {
     return (
@@ -105,6 +125,24 @@ const AdminDashboard = () => {
       available: typeof stats.totalProducts === 'number',
     },
     {
+      title: 'Inventory Units',
+      value: stats.totalInventory ?? 'upcoming feature',
+      icon: '🏬',
+      color: '#38bdf8',
+      description: 'Units currently in stock',
+      link: '/inventory',
+      available: typeof stats.totalInventory === 'number',
+    },
+    {
+      title: 'Low Stock Items',
+      value: stats.lowStockItems ?? 'upcoming feature',
+      icon: '⚠️',
+      color: '#f59e0b',
+      description: 'Inventory below threshold',
+      link: '/inventory',
+      available: typeof stats.lowStockItems === 'number',
+    },
+    {
       title: 'Sales Orders',
       value: stats.totalSales ?? 'upcoming feature',
       icon: '💰',
@@ -121,33 +159,6 @@ const AdminDashboard = () => {
       description: 'Suppliers & Transporters',
       link: '/admin?tab=external',
       available: typeof stats.totalExternalUsers === 'number',
-    },
-  ];
-
-  const upcomingFeatures = [
-    {
-      title: 'Revenue Analytics',
-      icon: '📊',
-      description: 'Detailed financial reports and trends',
-      status: 'Coming Soon',
-    },
-    {
-      title: 'Predictive Analytics',
-      icon: '🔮',
-      description: 'AI-powered demand forecasting',
-      status: 'Coming Soon',
-    },
-    {
-      title: 'Performance Metrics',
-      icon: '🎯',
-      description: 'KPI tracking and benchmarking',
-      status: 'Coming Soon',
-    },
-    {
-      title: 'Automated Reports',
-      icon: '📋',
-      description: 'Scheduled email reports',
-      status: 'Coming Soon',
     },
   ];
 

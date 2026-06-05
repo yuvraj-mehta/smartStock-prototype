@@ -12,6 +12,8 @@
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:products": "node scripts/seedProducts.js",
     "create-admin": "npm run seed:admin",
+    "db:clear:dry-run": "node clearDatabase.js --dry-run",
+    "db:clear": "node clearDatabase.js --execute",
     "count:delivered": "node scripts/countDeliveredItems.js",
     "fix:delivered": "node scripts/fixDeliveredItems.js"
   },
