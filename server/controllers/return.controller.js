@@ -1,7 +1,8 @@
-import { Return, Package, Batch, Item, Inventory, Transport, ExternalUser } from "../models/index.js";
+import { Return, Package, Batch, Transport, ExternalUser } from "../models/index.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import mongoose from "mongoose";
 import { logAudit } from '../utils/auditLogger.js';
+import { transitionItemsStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -34,36 +35,6 @@ const formatDisposition = (disposition) => disposition.replace("_", " ");
 const requiresExplicitItemIds = (returnReason, disposition) =>
   nonRestockReturnReasons.has(normalizeString(returnReason)) ||
   nonRestockDispositions.has(disposition);
-
-const getInventoryValueForBatch = async (batchId, session) => {
-  const items = await runWithOptionalSession(
-    Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
-    session
-  );
-
-  if (items.every((item) => typeof item.purchasePrice === "number")) {
-    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
-  }
-
-  const batch = await runWithOptionalSession(Batch.findById(batchId).select("unitCost"), session);
-  return (batch?.unitCost || 0) * items.length;
-};
-
-const syncInventoryForBatch = async (batchId, warehouseId, session) => {
-  const [quantity, inventoryValue] = await Promise.all([
-    runWithOptionalSession(Item.countDocuments({ batchId, status: "in_stock" }), session),
-    getInventoryValueForBatch(batchId, session),
-  ]);
-
-  await Inventory.updateOne(
-    { batchId, warehouseId },
-    {
-      $set: { quantity, inventoryValue },
-      $setOnInsert: { batchId, warehouseId },
-    },
-    { upsert: true, session }
-  );
-};
 
 const uniqueIds = (ids) => [...new Set(ids.filter(Boolean).map(normalizeId).filter(Boolean))];
 
@@ -459,26 +430,25 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
         ? `Returned from order ${returnRecord.orderId.orderNumber}`
         : `Return disposition ${formatDisposition(disposition)} from order ${returnRecord.orderId.orderNumber}`;
 
-      await Item.updateMany(
-        { _id: { $in: itemsToUpdate } },
-        {
-          $set: {
-            status: itemStatus,
-            currentWarehouseId: returnRecord.warehouseId
-          },
-          $push: {
-            history: {
-              action: historyAction,
-              location: normalizeId(returnRecord.warehouseId),
-              notes: historyNotes,
-              date: new Date()
-            }
-          }
-        },
-        { session }
-      );
+      const transitionResult = await transitionItemsStatus({
+        itemIds: itemsToUpdate,
+        fromStatus: 'delivered',
+        toStatus: itemStatus,
+        actorId: req.user?._id,
+        warehouseId: returnRecord.warehouseId,
+        toWarehouseId: returnRecord.warehouseId,
+        location: normalizeId(returnRecord.warehouseId),
+        notes: historyNotes,
+        referenceType: 'Return',
+        referenceId: returnRecord._id,
+        movementType: isRestockDisposition ? 'return' : 'damage',
+        historyAction,
+        session,
+      });
 
-      await syncInventoryForBatch(returnedItem.batchId, returnRecord.warehouseId, session);
+      if (transitionResult.modifiedCount !== itemsToUpdate.length) {
+        throw httpError(409, `Returned items changed while processing product: ${returnedItem.productId}`);
+      }
     }
 
     // Update return status to processed

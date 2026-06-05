@@ -11,6 +11,15 @@ import { isDirectRun, runScript } from "./lib/seedUtils.js";
 
 const currency = "INR";
 const seedDate = new Date("2026-01-01T00:00:00.000Z");
+const DEV_SUPPLIER_PASSWORD = "seed-supplier123";
+const UNSAFE_SUPPLIER_PASSWORDS = new Set([
+  DEV_SUPPLIER_PASSWORD,
+  "supplier",
+  "password",
+  "password123",
+  "changeme",
+  "smartstock",
+]);
 
 const productSeeds = [
   {
@@ -98,15 +107,33 @@ const addDays = (date, days) => {
   return result;
 };
 
-const getSeedSupplierConfig = () => ({
-  fullName: process.env.SEED_SUPPLIER_NAME?.trim() || "SmartStock Seed Supplier",
-  companyName: process.env.SEED_SUPPLIER_COMPANY?.trim() || "SmartStock Seed Supplies",
-  email: (process.env.SEED_SUPPLIER_EMAIL?.trim() || "supplier@smartstock.local").toLowerCase(),
-  password: process.env.SEED_SUPPLIER_PASSWORD || "seed-supplier123",
-  phone: process.env.SEED_SUPPLIER_PHONE?.trim() || "1111111111",
-  address: process.env.SEED_SUPPLIER_ADDRESS?.trim() || "Seed supplier address",
-  contactPerson: process.env.SEED_SUPPLIER_CONTACT?.trim() || "Seed Contact",
-});
+export const getSeedSupplierConfig = () => {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const isDevelopment = nodeEnv === "development";
+  const password = process.env.SEED_SUPPLIER_PASSWORD || (isDevelopment ? DEV_SUPPLIER_PASSWORD : "");
+  const passwordIsUnsafe = password.length < 12 || UNSAFE_SUPPLIER_PASSWORDS.has(password.toLowerCase());
+
+  if (!isDevelopment && (!password || passwordIsUnsafe)) {
+    throw new Error(
+      "Refusing to seed a supplier with an unsafe password outside development. "
+      + "Set SEED_SUPPLIER_PASSWORD to a unique value with at least 12 characters."
+    );
+  }
+
+  if (isDevelopment && !process.env.SEED_SUPPLIER_PASSWORD) {
+    console.warn(`Using development supplier password "${DEV_SUPPLIER_PASSWORD}". Set SEED_SUPPLIER_PASSWORD to override it.`);
+  }
+
+  return {
+    fullName: process.env.SEED_SUPPLIER_NAME?.trim() || "SmartStock Seed Supplier",
+    companyName: process.env.SEED_SUPPLIER_COMPANY?.trim() || "SmartStock Seed Supplies",
+    email: (process.env.SEED_SUPPLIER_EMAIL?.trim() || "supplier@smartstock.local").toLowerCase(),
+    password,
+    phone: process.env.SEED_SUPPLIER_PHONE?.trim() || "1111111111",
+    address: process.env.SEED_SUPPLIER_ADDRESS?.trim() || "Seed supplier address",
+    contactPerson: process.env.SEED_SUPPLIER_CONTACT?.trim() || "Seed Contact",
+  };
+};
 
 const seedSupplier = async (warehouseId) => {
   const config = getSeedSupplierConfig();

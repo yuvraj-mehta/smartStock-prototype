@@ -8,6 +8,7 @@ const TransportList = () => {
   const { transports, loading, error } = useSelector(state => state.transport);
   const user = useSelector(state => state.auth.user);
   const [statusUpdates, setStatusUpdates] = useState({});
+  const canUpdateTransport = user?.role === 'admin' || user?.role === 'staff';
 
   // Client-side features
   const [search, setSearch] = useState('');
@@ -115,7 +116,7 @@ const TransportList = () => {
                 <td className="px-4 py-2">{t.packageId?.packageId || '-'}</td>
                 <td className="px-4 py-2">
                   <a href={`/transports/${t._id}`} className="text-blue-600 hover:underline mr-2">View</a>
-                  {user?.role === 'admin' && (
+                  {canUpdateTransport && (
                     <form
                       onSubmit={e => {
                         e.preventDefault();

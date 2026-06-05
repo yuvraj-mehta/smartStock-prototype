@@ -35,6 +35,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
     const salesHistory = await AnalyticsService.getProductSalesHistory(productId, daysBack);
     const salesVelocity = await AnalyticsService.calculateSalesVelocity(productId);
     const seasonalFactors = await AnalyticsService.calculateSeasonalFactors(product.productCategory);
+    const currentStock = await AnalyticsService.getProductCurrentStock(productId, warehouseId);
 
     // Prepare data for AI analysis
     const productData = {
@@ -42,7 +43,8 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
       productCategory: product.productCategory,
       sku: product.sku,
       price: product.price,
-      quantity: product.quantity
+      quantity: currentStock,
+      currentStock
     };
 
     const seasonalData = {
@@ -107,7 +109,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
         orderQuantity: aiResponse.optimalOrderQuantity || 0
       },
       riskAssessment: {
-        stockoutRisk: AnalyticsService.calculateStockoutRisk(product.quantity, salesVelocity.avgDailySales),
+        stockoutRisk: AnalyticsService.calculateStockoutRisk(currentStock, salesVelocity.avgDailySales),
         overStockRisk: 'low',
         marketRisk: 'medium',
         mitigation: aiResponse.recommendations || []

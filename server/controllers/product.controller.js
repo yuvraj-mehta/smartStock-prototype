@@ -57,7 +57,7 @@ export const createProduct = catchAsyncErrors(async (req, res) => {
 
 export const getProductById = catchAsyncErrors(async (req, res) => {
   const productId = req.params.id;
-  const product = await Product.findById(productId);
+  const product = await Product.findOne({ _id: productId, isDeleted: { $ne: true } });
   if (!product) {
     return res.status(404).json({
       message: "Product not found.",
@@ -69,11 +69,11 @@ export const getProductById = catchAsyncErrors(async (req, res) => {
   if (req.user.role !== 'admin') {
     // Only expose non-sensitive fields
     const {
-      _id, productName, productImage, unit, manufacturer, productCategory, sku, price, quantity, weight, dimension, volume, thresholdLimit, shelfLifeDays, isActive, createdAt, updatedAt
+      _id, productName, productImage, unit, manufacturer, productCategory, sku, price, weight, dimension, volume, thresholdLimit, shelfLifeDays, isActive, createdAt, updatedAt
     } = product;
     return res.status(200).json({
       product: {
-        _id, productName, productImage, unit, manufacturer, productCategory, sku, price, quantity, weight, dimension, volume, thresholdLimit, shelfLifeDays, isActive, createdAt, updatedAt
+        _id, productName, productImage, unit, manufacturer, productCategory, sku, price, weight, dimension, volume, thresholdLimit, shelfLifeDays, isActive, createdAt, updatedAt
       }
     });
   }
@@ -85,7 +85,7 @@ export const getProductById = catchAsyncErrors(async (req, res) => {
 // get all products
 export const getAllProducts = catchAsyncErrors(async (req, res) => {
   if (req.user.role !== 'admin') {
-    const products = await Product.find({}, '-createdAt -updatedAt -__v -restockRecommended -supplierIds');
+    const products = await Product.find({ isDeleted: { $ne: true } }, '-createdAt -updatedAt -__v -restockRecommended -supplierIds -quantity');
 
     if (!products || products.length === 0) {
       return res.status(404).json({
@@ -100,7 +100,7 @@ export const getAllProducts = catchAsyncErrors(async (req, res) => {
     });
   }
 
-  const products = await Product.find();
+  const products = await Product.find({ isDeleted: { $ne: true } });
   if (!products || products.length === 0) {
     return res.status(404).json({
       message: "No products found."
@@ -117,7 +117,11 @@ export const getAllProducts = catchAsyncErrors(async (req, res) => {
 export const deleteProductById = catchAsyncErrors(async (req, res) => {
   const productId = req.params.id;
 
-  const product = await Product.findByIdAndDelete(productId);
+  const product = await Product.findOneAndUpdate(
+    { _id: productId, isDeleted: { $ne: true } },
+    { $set: { isDeleted: true, isActive: false } },
+    { new: true }
+  );
   if (!product) {
     return res.status(404).json({
       message: "Product not found."
@@ -134,7 +138,7 @@ export const deleteProductById = catchAsyncErrors(async (req, res) => {
 export const updateProductById = catchAsyncErrors(async (req, res) => {
   const productId = req.params.id;
 
-  const product = await Product.findById(productId);
+  const product = await Product.findOne({ _id: productId, isDeleted: { $ne: true } });
   if (!product) {
     return res.status(404).json({
       message: "Product not found."
@@ -149,16 +153,12 @@ export const updateProductById = catchAsyncErrors(async (req, res) => {
     productCategory,
     sku,
     price,
-    quantity,
     weight,
     dimension,
     thresholdLimit,
     shelfLifeDays,
     isActive,
   } = req.body;
-  console.log(req.body);
-
-
   product.productName = productName || product.productName;
   product.productImage = productImage || product.productImage;
   product.unit = unit || product.unit;
@@ -166,7 +166,6 @@ export const updateProductById = catchAsyncErrors(async (req, res) => {
   product.productCategory = productCategory || product.productCategory;
   product.sku = sku || product.sku;
   product.price = price || product.price;
-  // product.quantity is deprecated and no longer updated directly
   product.weight = weight || product.weight;
   product.dimension = dimension || product.dimension;
   product.thresholdLimit = thresholdLimit || product.thresholdLimit;

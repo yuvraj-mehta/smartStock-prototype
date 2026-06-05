@@ -18,7 +18,6 @@ const ProductManagement = ({ triggerAction }) => {
     productCategory: '',
     unit: 'piece',
     productImage: '',
-    quantity: 0,
     weight: 0,
     dimension: {
       length: 0,
@@ -88,7 +87,6 @@ const ProductManagement = ({ triggerAction }) => {
       productCategory: product.productCategory || '',
       sku: product.sku || '',
       price: product.price || 0,
-      quantity: product.quantity || 0,
       weight: product.weight || 0,
       dimension: product.dimension || {
         length: 0,
@@ -154,7 +152,6 @@ const ProductManagement = ({ triggerAction }) => {
       productCategory: '',
       unit: 'piece',
       productImage: '',
-      quantity: 0,
       weight: 0,
       dimension: {
         length: 0,
@@ -285,15 +282,6 @@ const ProductManagement = ({ triggerAction }) => {
                 </div>
               </div>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Quantity</label>
-                  <input
-                    type="number"
-                    name="quantity"
-                    value={formData.quantity}
-                    onChange={handleInputChange}
-                  />
-                </div>
                 <div className="form-group">
                   <label>Weight (kg)</label>
                   <input
@@ -440,7 +428,6 @@ const ProductManagement = ({ triggerAction }) => {
               <p className="product-category">Category: {product.productCategory}</p>
               <p className="product-manufacturer">Manufacturer: {product.manufacturer}</p>
               <p className="product-price">Price: ₹{product.price}</p>
-              <p className="product-quantity">Quantity: {product.quantity} {product.unit}</p>
               <p className="product-weight">Weight: {product.weight} kg</p>
               <p className="product-dimensions">
                 Dimensions: {product.dimension?.length} × {product.dimension?.breadth} × {product.dimension?.height}

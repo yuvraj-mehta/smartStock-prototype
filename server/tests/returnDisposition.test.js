@@ -100,14 +100,7 @@ describe('return disposition processing', () => {
   const Return = {
     findById: jest.fn(),
   };
-  const Item = {
-    updateMany: jest.fn(),
-    countDocuments: jest.fn(),
-    find: jest.fn(),
-  };
-  const Inventory = {
-    updateOne: jest.fn(),
-  };
+  const transitionItemsStatus = jest.fn();
   const Batch = {
     findById: jest.fn(),
   };
@@ -127,10 +120,12 @@ describe('return disposition processing', () => {
     Return,
     Package: {},
     Batch,
-    Item,
-    Inventory,
     Transport: {},
     ExternalUser: {},
+  }));
+
+  jest.unstable_mockModule('../services/inventory/index.js', () => ({
+    transitionItemsStatus,
   }));
 
   jest.unstable_mockModule('../utils/auditLogger.js', () => ({
@@ -151,11 +146,8 @@ describe('return disposition processing', () => {
 
   const invokeProcessReturn = async (returnRecord) => {
     Return.findById.mockReturnValue(makeQuery(returnRecord));
-    Item.updateMany.mockResolvedValue({ modifiedCount: returnRecord.returnedItems[0].quantity });
-    Item.countDocuments.mockReturnValue(makeQuery(0));
-    Item.find.mockReturnValue(makeQuery([]));
+    transitionItemsStatus.mockResolvedValue({ modifiedCount: returnRecord.returnedItems[0].quantity });
     Batch.findById.mockReturnValue(makeQuery({ unitCost: 25 }));
-    Inventory.updateOne.mockResolvedValue({});
 
     const req = {
       params: { returnId: 'return-1' },
@@ -237,13 +229,13 @@ describe('return disposition processing', () => {
     const res = await invokeProcessReturn(buildReturnRecord({ disposition: 'restock' }));
 
     expect(res.statusCode).toBe(200);
-    expect(Item.updateMany).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        $set: expect.objectContaining({ status: 'in_stock' }),
-      }),
-      expect.objectContaining({ session }),
-    );
+    expect(transitionItemsStatus).toHaveBeenCalledWith(expect.objectContaining({
+      fromStatus: 'delivered',
+      toStatus: 'in_stock',
+      movementType: 'return',
+      historyAction: 'returned',
+      session,
+    }));
   });
 
   it('marks non-restock returned items as damaged instead of restocking them', async () => {
@@ -252,18 +244,13 @@ describe('return disposition processing', () => {
     );
 
     expect(res.statusCode).toBe(200);
-    expect(Item.updateMany).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        $set: expect.objectContaining({ status: 'damaged' }),
-        $push: expect.objectContaining({
-          history: expect.objectContaining({
-            action: 'damaged',
-            notes: expect.stringContaining('damaged'),
-          }),
-        }),
-      }),
-      expect.objectContaining({ session }),
-    );
+    expect(transitionItemsStatus).toHaveBeenCalledWith(expect.objectContaining({
+      fromStatus: 'delivered',
+      toStatus: 'damaged',
+      movementType: 'damage',
+      historyAction: 'damaged',
+      notes: expect.stringContaining('damaged'),
+      session,
+    }));
   });
 });

@@ -61,6 +61,16 @@ const buildLeanQuery = (value) => ({
   lean: jest.fn().mockResolvedValue(value),
 });
 
+const buildArrayQuery = (value) => {
+  const query = {
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    session: jest.fn().mockReturnThis(),
+    then: (resolve, reject) => Promise.resolve(value).then(resolve, reject),
+  };
+  return query;
+};
+
 describe('InventoryService architecture contracts', () => {
   beforeAll(async () => {
     InventoryService = await import('../services/inventory/inventory.service.js');
@@ -203,11 +213,15 @@ describe('InventoryService architecture contracts', () => {
       save: jest.fn().mockResolvedValue({}),
     };
     InventoryMovement.create.mockResolvedValue([{ _id: 'movement-1' }]);
-    Item.countDocuments.mockResolvedValue(2);
-    Item.find.mockReturnValue(buildLeanQuery([
-      { purchasePrice: 50 },
-      { purchasePrice: 75 },
-    ]));
+    Item.countDocuments
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(2);
+    Item.find
+      .mockReturnValueOnce(buildLeanQuery([]))
+      .mockReturnValueOnce(buildLeanQuery([
+        { purchasePrice: 50 },
+        { purchasePrice: 75 },
+      ]));
     Inventory.findOneAndUpdate
       .mockResolvedValueOnce({ _id: 'inventory-warehouse-1' })
       .mockResolvedValueOnce({ _id: 'inventory-warehouse-2' });
@@ -222,13 +236,74 @@ describe('InventoryService architecture contracts', () => {
       1,
       { batchId: 'batch-1', warehouseId: 'warehouse-1' },
       expect.objectContaining({
-        $set: { quantity: 2, inventoryValue: 125 },
+        $set: { quantity: 0, inventoryValue: 0 },
       }),
       expect.objectContaining({ upsert: true, session: undefined }),
     );
     expect(Inventory.findOneAndUpdate).toHaveBeenNthCalledWith(
       2,
       { batchId: 'batch-1', warehouseId: 'warehouse-2' },
+      expect.objectContaining({
+        $set: { quantity: 2, inventoryValue: 125 },
+      }),
+      expect.objectContaining({ upsert: true, session: undefined }),
+    );
+    expect(Item.countDocuments).toHaveBeenNthCalledWith(1, {
+      batchId: 'batch-1',
+      currentWarehouseId: 'warehouse-1',
+      status: 'in_stock',
+    });
+    expect(Item.countDocuments).toHaveBeenNthCalledWith(2, {
+      batchId: 'batch-1',
+      currentWarehouseId: 'warehouse-2',
+      status: 'in_stock',
+    });
+  });
+
+  it('syncs bulk status transitions by each item warehouse', async () => {
+    const items = [
+      {
+        _id: 'item-1',
+        batchId: 'batch-1',
+        productId: 'product-1',
+        currentWarehouseId: 'warehouse-1',
+        status: 'delivered',
+      },
+      {
+        _id: 'item-2',
+        batchId: 'batch-1',
+        productId: 'product-1',
+        currentWarehouseId: 'warehouse-1',
+        status: 'delivered',
+      },
+    ];
+
+    Item.find
+      .mockReturnValueOnce(buildArrayQuery(items))
+      .mockReturnValueOnce(buildLeanQuery([
+        { purchasePrice: 50 },
+        { purchasePrice: 75 },
+      ]));
+    Item.bulkWrite.mockResolvedValue({ modifiedCount: 2 });
+    InventoryMovement.insertMany.mockResolvedValue([{ _id: 'movement-1' }, { _id: 'movement-2' }]);
+    Item.countDocuments.mockResolvedValue(2);
+    Inventory.findOneAndUpdate.mockResolvedValue({ _id: 'inventory-warehouse-1' });
+
+    const result = await InventoryService.transitionItemsStatus({
+      itemIds: ['item-1', 'item-2'],
+      fromStatus: 'delivered',
+      toStatus: 'in_stock',
+      warehouseId: 'warehouse-1',
+    });
+
+    expect(result.modifiedCount).toBe(2);
+    expect(Item.countDocuments).toHaveBeenCalledWith({
+      batchId: 'batch-1',
+      currentWarehouseId: 'warehouse-1',
+      status: 'in_stock',
+    });
+    expect(Inventory.findOneAndUpdate).toHaveBeenCalledWith(
+      { batchId: 'batch-1', warehouseId: 'warehouse-1' },
       expect.objectContaining({
         $set: { quantity: 2, inventoryValue: 125 },
       }),

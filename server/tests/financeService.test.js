@@ -46,6 +46,7 @@ jest.unstable_mockModule('../models/journalEntry.model.js', () => ({
 }));
 
 let FinanceService;
+const session = { id: 'session-1' };
 
 describe('FinanceService ledger foundation', () => {
   beforeAll(async () => {
@@ -80,6 +81,7 @@ describe('FinanceService ledger foundation', () => {
       eventType: 'inventory_receipt',
       amount: 500,
       currency: 'inr',
+      session,
       source: {
         module: 'inventory',
         model: 'Batch',
@@ -106,7 +108,7 @@ describe('FinanceService ledger foundation', () => {
       totalDebit: 500,
       totalCredit: 500,
     }));
-    expect(FinancialEvent.mock.instances[0].save).toHaveBeenCalledWith({ session: undefined });
+    expect(FinancialEvent.mock.instances[0].save).toHaveBeenCalledWith({ session });
     expect(JournalEntry.insertMany).toHaveBeenCalledWith(
       [
         expect.objectContaining({
@@ -124,7 +126,7 @@ describe('FinanceService ledger foundation', () => {
           amount: 500,
         }),
       ],
-      { session: undefined, ordered: true },
+      { session, ordered: true },
     );
     expect(result.event).toBe(FinancialEvent.mock.instances[0]);
     expect(result.journalEntries).toHaveLength(2);
@@ -134,6 +136,7 @@ describe('FinanceService ledger foundation', () => {
     await expect(FinanceService.recordFinancialEvent({
       eventType: 'manual_adjustment',
       amount: 500,
+      session,
       journalEntries: [
         FinanceService.buildJournalLine({
           direction: 'debit',
@@ -159,6 +162,7 @@ describe('FinanceService ledger foundation', () => {
     await expect(FinanceService.recordFinancialEvent({
       eventType: 'manual_adjustment',
       amount: 50,
+      session,
       journalEntries: [
         FinanceService.buildJournalLine({
           direction: 'debit',
@@ -174,6 +178,31 @@ describe('FinanceService ledger foundation', () => {
     })).rejects.toMatchObject({
       statusCode: 400,
       message: 'Financial event amount must match the journal total.',
+    });
+
+    expect(FinancialEvent).not.toHaveBeenCalled();
+    expect(JournalEntry.insertMany).not.toHaveBeenCalled();
+  });
+
+  it('requires callers to provide a session so event and journal writes stay atomic', async () => {
+    await expect(FinanceService.recordFinancialEvent({
+      eventType: 'manual_adjustment',
+      amount: 100,
+      journalEntries: [
+        FinanceService.buildJournalLine({
+          direction: 'debit',
+          account: FinanceService.FINANCE_ACCOUNTS.INVENTORY_ASSET,
+          amount: 100,
+        }),
+        FinanceService.buildJournalLine({
+          direction: 'credit',
+          account: FinanceService.FINANCE_ACCOUNTS.ACCOUNTS_PAYABLE,
+          amount: 100,
+        }),
+      ],
+    })).rejects.toMatchObject({
+      statusCode: 500,
+      message: 'Financial event recording requires a Mongo session.',
     });
 
     expect(FinancialEvent).not.toHaveBeenCalled();

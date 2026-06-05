@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import { recordPurchaseOrderReceipt } from "../services/procurement/procurement.service.js";
+import { transitionItemsStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -12,38 +13,6 @@ const normalizeId = (id) => (id?._id || id)?.toString();
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
 
 const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
-
-const getInventoryValueForBatch = async (batchId, session) => {
-  const items = await runWithOptionalSession(
-    Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
-    session
-  );
-
-  if (items.every((item) => typeof item.purchasePrice === "number")) {
-    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
-  }
-
-  const batch = await runWithOptionalSession(Batch.findById(batchId).select("unitCost"), session);
-  return (batch?.unitCost || 0) * items.length;
-};
-
-const syncInventoryForBatch = async (batchId, warehouseId, session) => {
-  const [quantity, inventoryValue] = await Promise.all([
-    runWithOptionalSession(Item.countDocuments({ batchId, status: "in_stock" }), session),
-    getInventoryValueForBatch(batchId, session),
-  ]);
-
-  await Inventory.updateOne(
-    { batchId, warehouseId },
-    {
-      $set: { quantity, inventoryValue },
-      $setOnInsert: { batchId, warehouseId },
-    },
-    { upsert: true, session }
-  );
-
-  return { quantity, inventoryValue };
-};
 
 const assertBatchInWarehouse = async (batchId, assignedWarehouseId, session) => {
   const batch = await runWithOptionalSession(Batch.findById(batchId), session);
@@ -170,7 +139,6 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
 
     await Item.insertMany(items, { session });
 
-    // No longer update product.quantity directly. SupplierIds update retained.
     if (!product.supplierIds.some((supplier) => supplier.toString() === supplierId.toString())) {
       product.supplierIds.push(supplierId);
       await product.save({ session });
@@ -325,24 +293,23 @@ export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
       : items.reduce((sum, item) => sum + item.purchasePrice, 0);
 
     const itemIds = items.map(item => item._id);
-    const now = new Date();
-    const historyEntry = {
-      action: "damaged",
+    const transitionResult = await transitionItemsStatus({
+      itemIds,
+      fromStatus: "in_stock",
+      toStatus: "damaged",
+      actorId: req.user?._id,
+      warehouseId: batch?.warehouseId || items[0]?.currentWarehouseId,
       location: items[0]?.currentWarehouseId ? items[0].currentWarehouseId.toString() : "Unknown",
       notes: reason || "Marked as damaged",
-      date: now
-    };
+      referenceType: "Batch",
+      referenceId: batchId,
+      movementType: "damage",
+      session,
+    });
 
-    await Item.updateMany(
-      { _id: { $in: itemIds } },
-      {
-        $set: { status: "damaged" },
-        $push: { history: historyEntry }
-      },
-      { session }
-    );
-
-    await syncInventoryForBatch(batchId, batch?.warehouseId || items[0]?.currentWarehouseId, session);
+    if (transitionResult.modifiedCount !== itemIds.length) {
+      throw httpError(409, "Inventory changed while marking items damaged.");
+    }
 
     await session.commitTransaction();
   } catch (error) {

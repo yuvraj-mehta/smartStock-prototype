@@ -1,46 +1,64 @@
 import { Item } from "../models/item.model.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
+import { normalizeId, transitionItemStatus } from "../services/inventory/index.js";
+
+const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+
+const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
+
+const buildWarehouseScopedFilter = (req, baseFilter = {}) => {
+  const assignedWarehouseId = getAssignedWarehouseId(req);
+  return assignedWarehouseId
+    ? { ...baseFilter, currentWarehouseId: assignedWarehouseId }
+    : baseFilter;
+};
 
 export const getAllItems = catchAsyncErrors(async (req, res) => {
-  const items = await Item.find().populate("productId batchId currentWarehouseId");
+  const items = await Item.find(buildWarehouseScopedFilter(req)).populate("productId batchId currentWarehouseId");
   res.json(items);
 });
 
 export const getItemById = catchAsyncErrors(async (req, res) => {
-  const item = await Item.findById(req.params.id).populate("productId batchId currentWarehouseId");
+  const item = await Item.findOne(buildWarehouseScopedFilter(req, { _id: req.params.id }))
+    .populate("productId batchId currentWarehouseId");
   if (!item) return res.status(404).json({ error: "Item not found" });
   res.json(item);
 });
 
 export const getItemsByBatch = catchAsyncErrors(async (req, res) => {
-  const items = await Item.find({ batchId: req.params.batchId });
+  const items = await Item.find(buildWarehouseScopedFilter(req, { batchId: req.params.batchId }));
   res.json(items);
 });
 
 export const updateItemStatus = catchAsyncErrors(async (req, res) => {
   const { status, notes } = req.body;
-  const item = await Item.findById(req.params.id);
+  const item = await Item.findOne(buildWarehouseScopedFilter(req, { _id: req.params.id }));
   if (!item) return res.status(404).json({ error: "Item not found" });
 
-  item.status = status;
-  item.history.push({
-    action: status,
-    date: new Date(),
-    location: notes?.location || "Unknown",
-    notes: notes?.message || "Status updated",
-  });
+  try {
+    const result = await transitionItemStatus(item, status, {
+      actorId: req.user?._id,
+      warehouseId: item.currentWarehouseId,
+      location: notes?.location || normalizeId(item.currentWarehouseId),
+      notes: notes?.message || "Manual item status update",
+      referenceType: "Item",
+      referenceId: item._id,
+      movementType: "adjustment",
+    });
 
-  await item.save();
-  res.json({ message: "Item status updated", item });
+    res.json({ message: "Item status updated", item: result.item });
+  } catch (error) {
+    throw httpError(error.statusCode || 400, error.message);
+  }
 });
 
 export const trackItemBySerial = catchAsyncErrors(async (req, res) => {
   const { serialNumber } = req.params;
 
   const item = await Item.findOne({ serialNumber })
-    .populate('productId', 'productName sku price')
-    .populate('batchId', 'batchNumber mfgDate expDate')
-    .populate('currentWarehouseId', 'warehouseName address');
+    .select("serialNumber status updatedAt")
+    .populate('productId', 'productName sku')
+    .populate('batchId', 'batchNumber expDate');
 
   if (!item) {
     return res.status(404).json({ message: "Item not found" });
@@ -51,19 +69,27 @@ export const trackItemBySerial = catchAsyncErrors(async (req, res) => {
     item: {
       serialNumber: item.serialNumber,
       currentStatus: item.status,
-      product: item.productId,
-      batch: item.batchId,
-      warehouse: item.currentWarehouseId,
-      statusHistory: item.history,
-      lastUpdated: item.updatedAt
-    }
+      product: item.productId
+        ? {
+          productName: item.productId.productName,
+          sku: item.productId.sku,
+        }
+        : null,
+      batch: item.batchId
+        ? {
+          batchNumber: item.batchId.batchNumber,
+          expDate: item.batchId.expDate,
+        }
+        : null,
+      lastUpdated: item.updatedAt,
+    },
   });
 });
 
 export const getProductMovementHistory = catchAsyncErrors(async (req, res) => {
   const { productId } = req.params;
 
-  const items = await Item.find({ productId })
+  const items = await Item.find(buildWarehouseScopedFilter(req, { productId }))
     .populate('batchId', 'batchNumber')
     .select('serialNumber status history createdAt')
     .sort('-createdAt');

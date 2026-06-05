@@ -321,6 +321,10 @@ export const recordFinancialEvent = async ({
   journalEntries,
   session,
 }) => {
+  if (!session) {
+    throw createFinanceError(500, 'Financial event recording requires a Mongo session.');
+  }
+
   assertKnownEventType(eventType);
 
   const normalizedCurrency = normalizeCurrency(currency);

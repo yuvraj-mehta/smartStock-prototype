@@ -9,6 +9,13 @@ const salesOrderSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'fulfilled', 'cancelled'], default: 'pending' },
   paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
   salesInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesInvoice' },
+  fulfilledItems: [
+    {
+      batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', required: true },
+      itemIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item' }],
+      quantity: { type: Number, required: true, min: 1 },
+    },
+  ],
 }, { timestamps: true });
 
 export const SalesOrder = mongoose.model('SalesOrder', salesOrderSchema);

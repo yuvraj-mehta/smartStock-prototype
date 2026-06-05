@@ -525,8 +525,6 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
 
     if (orderItem && returnedItem.condition === 'good') {
 
-      // No longer update inventory.quantity or product.quantity directly. Only Item.status is updated.
-
       // Update item statuses
       const itemsToUpdate = orderItem.allocatedItemIds.slice(0, returnedItem.quantity);
       await Item.updateMany(

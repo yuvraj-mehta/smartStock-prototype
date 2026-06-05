@@ -322,7 +322,10 @@ const syncAffectedWarehouses = async (batchId, warehouseIds, options = {}) => {
   const uniqueWarehouseIds = [...new Set(warehouseIds.map(normalizeId).filter(Boolean))];
 
   for (const warehouseId of uniqueWarehouseIds) {
-    syncResults.push(await syncInventoryForBatch(batchId, warehouseId, options));
+    syncResults.push(await syncInventoryForBatch(batchId, warehouseId, {
+      ...options,
+      scopeByItemWarehouse: true,
+    }));
   }
 
   return syncResults;
@@ -501,7 +504,10 @@ export const transitionItemsStatus = async ({
     }
 
     for (const pair of pairs.values()) {
-      inventorySyncs.push(await syncInventoryForBatch(pair.batchId, pair.warehouseId, { session }));
+      inventorySyncs.push(await syncInventoryForBatch(pair.batchId, pair.warehouseId, {
+        session,
+        scopeByItemWarehouse: true,
+      }));
     }
   }
 

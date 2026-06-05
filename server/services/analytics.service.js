@@ -1,7 +1,19 @@
-import { Inventory, Product, Order, Batch, SalesHistory } from '../models/index.js';
+import { Inventory, Product, Order, Batch, SalesHistory, Item } from '../models/index.js';
 import mongoose from 'mongoose';
 
 class AnalyticsService {
+  async getProductCurrentStock(productId, warehouseId) {
+    const filter = {
+      productId,
+      status: 'in_stock',
+    };
+
+    if (warehouseId) {
+      filter.currentWarehouseId = warehouseId;
+    }
+
+    return Item.countDocuments(filter);
+  }
 
   // Get comprehensive sales history for a product
   async getProductSalesHistory(productId, daysBack = 90) {
@@ -268,6 +280,7 @@ class AnalyticsService {
       const salesHistory = await this.getProductSalesHistory(productId, 90);
       const salesVelocity = await this.calculateSalesVelocity(productId);
       const seasonalFactors = await this.calculateSeasonalFactors(product.productCategory);
+      const currentStock = await this.getProductCurrentStock(productId);
 
       const GeminiService = (await import('./ai/gemini.service.js')).default;
 
@@ -276,7 +289,7 @@ class AnalyticsService {
           productId,
           productName: product.productName,
           category: product.productCategory,
-          currentStock: product.quantity,
+          currentStock,
           price: product.price,
           avgDailySales: salesVelocity.avgDailySales,
           salesTrend: salesVelocity.trend,
@@ -290,7 +303,7 @@ class AnalyticsService {
       return {
         productId,
         productName: product.productName,
-        currentStock: product.quantity,
+        currentStock,
         forecastPeriod: forecastDays,
         aiPrediction: {
           forecastQuantity: forecastData.forecast30Days?.quantity || 0,
@@ -304,8 +317,8 @@ class AnalyticsService {
           safetyStock: forecastData.safetyStock || 0
         },
         riskAssessment: {
-          stockoutRisk: this.assessStockoutRisk(product.quantity, salesVelocity.avgDailySales),
-          overStockRisk: this.assessOverstockRisk(product.quantity, salesVelocity.avgDailySales),
+          stockoutRisk: this.assessStockoutRisk(currentStock, salesVelocity.avgDailySales),
+          overStockRisk: this.assessOverstockRisk(currentStock, salesVelocity.avgDailySales),
           mitigation: forecastData.recommendations || []
         },
         generatedAt: new Date()

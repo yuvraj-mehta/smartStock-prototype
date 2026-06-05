@@ -1,5 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { authAPI, userAPI } from '../../services/api';
+import { setAuthSession } from '../../utils/storage';
 
 const initialState = {
   loading: false,
@@ -245,9 +246,8 @@ export const updateProfile = (profileData) => async (dispatch) => {
   try {
     const response = await authAPI.updateProfile(profileData);
 
-    // Update the user in localStorage
     const updatedUser = response.data.user;
-    localStorage.setItem('user', JSON.stringify(updatedUser));
+    setAuthSession({ user: updatedUser });
 
     // Update auth state with the new user data
     dispatch({ type: 'auth/updateUserData', payload: updatedUser });

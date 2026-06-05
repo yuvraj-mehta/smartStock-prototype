@@ -1,6 +1,33 @@
 import mongoose from 'mongoose';
 import { pathToFileURL } from 'node:url';
-import { Item, Inventory, Batch, Order, SalesHistory, Return, SalesOrder, SalesInvoice, PaymentReceived, Product, PurchaseOrder, Package, Payment, AuditLog, Customer, FulfillmentOrder, IncomingSupply, Wage, Warehouse } from './models/index.js';
+import {
+  AIInsight,
+  AuditLog,
+  Batch,
+  Customer,
+  DemandForecast,
+  FinancialEvent,
+  FulfillmentOrder,
+  IncomingSupply,
+  Inventory,
+  InventoryMovement,
+  Invoice,
+  Item,
+  JournalEntry,
+  Order,
+  Package,
+  Payment,
+  PaymentReceived,
+  Product,
+  PurchaseOrder,
+  Return,
+  SalesHistory,
+  SalesInvoice,
+  SalesOrder,
+  Transport,
+  Wage,
+  Warehouse,
+} from './models/index.js';
 import { User } from './models/user.model.js';
 import { ExternalUser } from './models/externalUsers.model.js';
 import { conf } from './config/config.js';
@@ -10,6 +37,7 @@ const protectedDatabaseNames = new Set(['admin', 'config', 'local', 'prod', 'pro
 const collectionsToClear = [
   ['items', Item],
   ['inventories', Inventory],
+  ['inventorymovements', InventoryMovement],
   ['batches', Batch],
   ['orders', Order],
   ['saleshistories', SalesHistory],
@@ -20,11 +48,17 @@ const collectionsToClear = [
   ['products', Product],
   ['purchaseorders', PurchaseOrder],
   ['packages', Package],
+  ['transports', Transport],
+  ['invoices', Invoice],
   ['payments', Payment],
+  ['financialevents', FinancialEvent],
+  ['journalentries', JournalEntry],
   ['auditlogs', AuditLog],
   ['customers', Customer],
   ['fulfillmentorders', FulfillmentOrder],
   ['incomingsupplies', IncomingSupply],
+  ['demandforecasts', DemandForecast],
+  ['aiinsights', AIInsight],
   ['wages', Wage],
   ['warehouses', Warehouse],
 ];

@@ -1,4 +1,4 @@
-import { SalesOrder, Item, Batch, Product } from '../models/index.js';
+import { SalesOrder, Item, Batch, Product, InventoryMovement } from '../models/index.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
@@ -10,7 +10,7 @@ const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseI
 
 // Create Sales Order
 export const createSalesOrder = catchAsyncErrors(async (req, res) => {
-  const { customerId, productId, quantity, unitPrice, totalPrice, status, salesInvoiceId } = req.body;
+  const { customerId, productId, quantity, unitPrice, totalPrice, salesInvoiceId } = req.body;
 
   if (!customerId || !productId || quantity === undefined || unitPrice === undefined || totalPrice === undefined) {
     return res.status(400).json({ message: 'All required fields must be provided.' });
@@ -91,8 +91,13 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
       quantity: orderQuantity,
       unitPrice: orderUnitPrice,
       totalPrice: orderTotalPrice,
-      status,
-      salesInvoiceId
+      status: 'fulfilled',
+      salesInvoiceId,
+      fulfilledItems: [...batchItemIdsMap.entries()].map(([batchId, itemIds]) => ({
+        batchId,
+        itemIds,
+        quantity: itemIds.length,
+      })),
     }], { session });
 
     for (const [batchId, itemIds] of batchItemIdsMap.entries()) {
@@ -144,6 +149,23 @@ export const getAllSalesOrders = catchAsyncErrors(async (req, res) => {
 // Update Sales Order
 export const updateSalesOrder = catchAsyncErrors(async (req, res) => {
   const { id } = req.params;
+  const hasDispatchedInventory = Boolean(await InventoryMovement.exists({
+    referenceType: 'SalesOrder',
+    referenceId: id,
+    movementType: 'dispatch',
+  }));
+
+  const allowedPostDispatchFields = ['paymentStatus', 'salesInvoiceId'];
+  const requestedFields = Object.keys(req.body || {});
+  if (
+    hasDispatchedInventory &&
+    requestedFields.some((field) => !allowedPostDispatchFields.includes(field))
+  ) {
+    return res.status(400).json({
+      message: 'Sales orders with dispatched inventory can only update paymentStatus or salesInvoiceId.',
+    });
+  }
+
   const order = await SalesOrder.findByIdAndUpdate(id, req.body, { new: true });
   res.json(order);
 });
@@ -151,6 +173,18 @@ export const updateSalesOrder = catchAsyncErrors(async (req, res) => {
 // Delete Sales Order
 export const deleteSalesOrder = catchAsyncErrors(async (req, res) => {
   const { id } = req.params;
+  const hasDispatchedInventory = Boolean(await InventoryMovement.exists({
+    referenceType: 'SalesOrder',
+    referenceId: id,
+    movementType: 'dispatch',
+  }));
+
+  if (hasDispatchedInventory) {
+    return res.status(400).json({
+      message: 'Sales orders with dispatched inventory cannot be deleted. Create an explicit reversal flow instead.',
+    });
+  }
+
   await SalesOrder.findByIdAndDelete(id);
   res.json({ message: 'Sales order deleted' });
 });

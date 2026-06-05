@@ -13,6 +13,7 @@ router.get("/", (req, res) => {
 router.post(
   "/add-supply",
   isAuthenticated,
+  isAuthorized("admin", "staff"),
   addSupplyValidation,
   handleValidationErrors,
   addInventorySupply

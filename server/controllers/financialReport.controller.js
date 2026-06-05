@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import {
   Batch,
   ExternalUser,
-  Inventory,
+  InventoryMovement,
   Item,
   Payment,
   PaymentReceived,
@@ -56,15 +56,15 @@ const getScopedPurchaseOrderFilter = async (warehouseId) => {
 };
 
 const hasScopedSalesOrderInventory = async (order, warehouseId) => {
-  if (!order?.productId) {
+  if (!order?._id) {
     return false;
   }
 
-  return Boolean(await Item.exists({
-    productId: order.productId,
-    status: 'dispatched',
-    currentWarehouseId: warehouseId,
-    updatedAt: { $gte: order.createdAt },
+  return Boolean(await InventoryMovement.exists({
+    referenceType: 'SalesOrder',
+    referenceId: order._id,
+    movementType: 'dispatch',
+    warehouseId,
   }));
 };
 
@@ -87,8 +87,8 @@ export const getOutstandingPayables = catchAsyncErrors(async (req, res) => {
     if (invoice) {
       const paidAmount = await sumCompletedPayments(Payment, 'invoiceId', invoice._id);
       totalPayables += Math.max((invoice.amount || 0) - paidAmount, 0);
-    } else if (po.paymentStatus !== 'paid') {
-      totalPayables += po.totalCost || 0;
+    } else if (po.status === 'received' && po.paymentStatus !== 'paid') {
+      totalPayables += (Number(po.receivedQuantity) || 0) * (Number(po.unitCost) || 0);
     }
   }
 
@@ -172,24 +172,28 @@ export const getCOGSAndProfit = catchAsyncErrors(async (req, res) => {
       continue;
     }
 
-    const itemFilter = {
-      productId: order.productId,
-      status: 'dispatched',
-      updatedAt: { $gte: order.createdAt },
+    const movementFilter = {
+      referenceType: 'SalesOrder',
+      referenceId: order._id,
+      movementType: 'dispatch',
     };
 
     if (isScoped) {
-      itemFilter.currentWarehouseId = warehouseId;
+      movementFilter.warehouseId = warehouseId;
     }
 
-    const items = await Item.find(itemFilter).limit(quantity);
-    if (isScoped && items.length === 0) {
+    const movements = await InventoryMovement.find(movementFilter).select('itemId').limit(quantity);
+    if (isScoped && movements.length === 0) {
       continue;
     }
 
+    const itemIds = movements.map((movement) => movement.itemId).filter(Boolean);
+    const items = await Item.find({ _id: { $in: itemIds } }).populate('batchId', 'unitCost');
     let cogs = 0;
     for (const item of items) {
-      cogs += item.purchasePrice || 0;
+      cogs += typeof item.purchasePrice === 'number'
+        ? item.purchasePrice
+        : item.batchId?.unitCost || 0;
     }
 
     totalCOGS += cogs;
@@ -207,12 +211,13 @@ export const getInventoryValue = catchAsyncErrors(async (req, res) => {
     return res.json([]);
   }
 
-  const pipeline = [];
+  const match = { status: 'in_stock' };
   if (isScoped) {
-    pipeline.push({ $match: { warehouseId } });
+    match.currentWarehouseId = warehouseId;
   }
 
-  pipeline.push(
+  const result = await Item.aggregate([
+    { $match: match },
     {
       $lookup: {
         from: 'batches',
@@ -225,11 +230,11 @@ export const getInventoryValue = catchAsyncErrors(async (req, res) => {
     {
       $group: {
         _id: {
-          warehouseId: '$warehouseId',
-          productId: '$batch.productId',
+          warehouseId: { $ifNull: ['$currentWarehouseId', '$batch.warehouseId'] },
+          productId: '$productId',
         },
-        totalInventoryValue: { $sum: { $ifNull: ['$inventoryValue', 0] } },
-        totalQuantity: { $sum: { $ifNull: ['$quantity', 0] } },
+        totalInventoryValue: { $sum: { $ifNull: ['$purchasePrice', '$batch.unitCost'] } },
+        totalQuantity: { $sum: 1 },
       },
     },
     {
@@ -241,8 +246,6 @@ export const getInventoryValue = catchAsyncErrors(async (req, res) => {
         _id: 0,
       },
     }
-  );
-
-  const result = await Inventory.aggregate(pipeline);
+  ]);
   res.json(result);
 });

@@ -8,6 +8,7 @@ const TransportDetails = () => {
   const dispatch = useDispatch();
   const { transportDetails, loading, error } = useSelector(state => state.transport);
   const user = useSelector(state => state.auth.user);
+  const canUpdateTransport = user?.role === 'admin' || user?.role === 'staff';
 
   useEffect(() => {
     dispatch(fetchTransportById(id));
@@ -39,7 +40,7 @@ const TransportDetails = () => {
           ))}
         </ul>
       </div>
-      {user?.role === 'admin' ? (
+      {canUpdateTransport ? (
         <form onSubmit={handleStatusUpdate} style={{ marginTop: 20 }}>
           <label>
             Update Status:
