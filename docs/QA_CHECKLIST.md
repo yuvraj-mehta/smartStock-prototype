@@ -21,7 +21,7 @@ Use this local smoke pass after backend or client integration changes. Do not re
 
 ## Account And Auth
 
-- Create an admin with the local admin script or signup flow supported by the current branch.
+- Create an admin with the local admin script, `npm run seed:dev`, or the signup flow supported by the current branch.
 - Log in as admin and confirm a token-backed session is stored.
 - In a fresh browser session, open protected dashboard, product, inventory, returns, and finance pages and confirm they redirect or reject until login.
 - Confirm unauthenticated API calls to product, inventory, order, returns, and finance endpoints return `401`.
@@ -99,5 +99,5 @@ Run one complete local lifecycle with a small quantity, such as three units:
 
 - Preview database cleanup only: `npm run db:clear:dry-run`.
 - To clear local business data, run from `server`: `npm run db:clear -- --confirm-db <local-db-name>`.
-- Confirm the cleanup summary preserves `users` and `externalusers`.
+- Confirm the cleanup summary preserves `users`, `externalusers`, and `warehouses`.
 - Do not run destructive cleanup against shared, production, or protected database names.

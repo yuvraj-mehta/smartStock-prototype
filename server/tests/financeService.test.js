@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import mongoose from 'mongoose';
 
 const FINANCIAL_EVENT_TYPES = Object.freeze([
   'inventory_receipt',
@@ -21,6 +22,7 @@ const FinancialEvent = jest.fn(function FinancialEvent(attrs) {
   this.eventNumber = 'FIN-TEST';
   this.save = jest.fn().mockResolvedValue(this);
 });
+FinancialEvent.find = jest.fn();
 
 const JournalEntry = {
   insertMany: jest.fn(async (entries) => entries.map((entry, index) => ({
@@ -47,6 +49,11 @@ jest.unstable_mockModule('../models/journalEntry.model.js', () => ({
 
 let FinanceService;
 const session = { id: 'session-1', inTransaction: jest.fn(() => true) };
+
+const buildFindQuery = (value) => ({
+  sort: jest.fn().mockReturnThis(),
+  session: jest.fn().mockResolvedValue(value),
+});
 
 describe('FinanceService ledger foundation', () => {
   beforeAll(async () => {
@@ -131,6 +138,45 @@ describe('FinanceService ledger foundation', () => {
     );
     expect(result.event).toBe(FinancialEvent.mock.instances[0]);
     expect(result.journalEntries).toHaveLength(2);
+  });
+
+  it('records customer payments as cash debit and receivables credit', async () => {
+    await FinanceService.recordCustomerPaymentEvent({
+      amount: 250,
+      salesInvoiceId: '507f1f77bcf86cd799439011',
+      paymentReceivedId: '507f1f77bcf86cd799439012',
+      warehouseId: '507f1f77bcf86cd799439015',
+      actorId: '507f1f77bcf86cd799439014',
+      session,
+    });
+
+    expect(FinancialEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'customer_payment',
+      amount: 250,
+      referenceType: 'SalesInvoice',
+      journalEntryCount: 2,
+      totalDebit: 250,
+      totalCredit: 250,
+    }));
+    expect(FinancialEvent.mock.calls[0][0].referenceId.toString()).toBe('507f1f77bcf86cd799439011');
+    expect(FinancialEvent.mock.calls[0][0].source.documentId.toString()).toBe('507f1f77bcf86cd799439012');
+    expect(JournalEntry.insertMany).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          direction: 'debit',
+          accountCode: '1000',
+          accountName: 'Cash and Bank',
+          amount: 250,
+        }),
+        expect.objectContaining({
+          direction: 'credit',
+          accountCode: '1100',
+          accountName: 'Accounts Receivable',
+          amount: 250,
+        }),
+      ],
+      { session, ordered: true },
+    );
   });
 
   it('rejects unbalanced journal entries before writing anything', async () => {
@@ -236,5 +282,79 @@ describe('FinanceService ledger foundation', () => {
 
     expect(FinancialEvent).not.toHaveBeenCalled();
     expect(JournalEntry.insertMany).not.toHaveBeenCalled();
+  });
+
+  it('reverses only unreversed source events for a source document', async () => {
+    const unreversedEvent = {
+      _id: '507f1f77bcf86cd799439021',
+      eventNumber: 'FIN-ORIGINAL-1',
+      amount: 100,
+      currency: 'INR',
+      referenceType: 'SalesInvoice',
+      referenceId: '507f1f77bcf86cd799439011',
+    };
+    const alreadyReversedEvent = {
+      _id: '507f1f77bcf86cd799439022',
+      eventNumber: 'FIN-ORIGINAL-2',
+      amount: 50,
+      currency: 'INR',
+      referenceType: 'SalesInvoice',
+      referenceId: '507f1f77bcf86cd799439011',
+    };
+
+    FinancialEvent.find
+      .mockReturnValueOnce(buildFindQuery([unreversedEvent, alreadyReversedEvent]))
+      .mockReturnValueOnce(buildFindQuery([
+        { reversalOfEventId: alreadyReversedEvent._id },
+      ]));
+    JournalEntry.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      session: jest.fn().mockResolvedValue([
+        {
+          lineNumber: 1,
+          direction: 'debit',
+          accountType: 'asset',
+          accountCode: '1000',
+          accountName: 'Cash and Bank',
+          amount: 100,
+        },
+        {
+          lineNumber: 2,
+          direction: 'credit',
+          accountType: 'asset',
+          accountCode: '1100',
+          accountName: 'Accounts Receivable',
+          amount: 100,
+        },
+      ]),
+    });
+
+    const reversals = await FinanceService.reverseUnreversedFinancialEventsForSource({
+      eventType: 'customer_payment',
+      sourceModel: 'PaymentReceived',
+      sourceDocumentId: '507f1f77bcf86cd799439012',
+      actorId: '507f1f77bcf86cd799439014',
+      session,
+    });
+
+    expect(FinancialEvent.find).toHaveBeenNthCalledWith(1, {
+      eventType: 'customer_payment',
+      'source.model': 'PaymentReceived',
+      'source.documentId': expect.any(mongoose.Types.ObjectId),
+    });
+    expect(FinancialEvent.find).toHaveBeenNthCalledWith(2, {
+      eventType: 'reversal',
+      reversalOfEventId: { $in: [unreversedEvent._id, alreadyReversedEvent._id] },
+    });
+    expect(JournalEntry.find).toHaveBeenCalledWith({ financialEventId: unreversedEvent._id });
+    expect(FinancialEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'reversal',
+      amount: 100,
+      totalDebit: 100,
+      totalCredit: 100,
+    }));
+    expect(FinancialEvent).toHaveBeenCalledTimes(1);
+    expect(FinancialEvent.mock.calls[0][0].reversalOfEventId.toString()).toBe(unreversedEvent._id);
+    expect(reversals).toHaveLength(1);
   });
 });

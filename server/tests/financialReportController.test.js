@@ -40,6 +40,7 @@ jest.unstable_mockModule('../models/index.js', () => ({
 }));
 jest.unstable_mockModule('../middlewares/index.js', () => ({
   catchAsyncErrors: (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next),
+  getAssignedWarehouseObjectId: () => null,
 }));
 
 const invokeJsonController = (controller, req = {}) =>

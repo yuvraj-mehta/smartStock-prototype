@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { Invoice, Payment } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { Invoice, Payment, PurchaseOrder } from '../models/index.js';
+import { assertWarehouseAccess, catchAsyncErrors, requireAssignedWarehouseId } from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
 import {
   assertCanInvoicePurchaseOrder,
@@ -12,6 +12,23 @@ import {
 } from '../services/procurement/procurement.service.js';
 
 const UPDATE_OPTIONS = { new: true, runValidators: true };
+
+const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
+
+const assertPurchaseOrderWarehouseAccess = async (req, purchaseOrderId, session) => {
+  const purchaseOrder = await runWithOptionalSession(PurchaseOrder.findById(purchaseOrderId), session);
+  if (!purchaseOrder) {
+    throw createProcurementError(404, 'Purchase order not found.');
+  }
+
+  assertWarehouseAccess(req, purchaseOrder.warehouseId);
+  return purchaseOrder;
+};
+
+const getScopedPurchaseOrderIds = async (req) => {
+  const warehouseId = requireAssignedWarehouseId(req);
+  return PurchaseOrder.find({ warehouseId }).distinct('_id');
+};
 
 // Create Invoice
 export const createInvoice = catchAsyncErrors(async (req, res) => {
@@ -28,6 +45,7 @@ export const createInvoice = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
+      await assertPurchaseOrderWarehouseAccess(req, purchaseOrderId, session);
       await assertCanInvoicePurchaseOrder({ purchaseOrderId, amount, session });
       invoice = new Invoice({ purchaseOrderId, amount, dueDate, paidDate, status });
       await invoice.save({ session });
@@ -51,7 +69,8 @@ export const createInvoice = catchAsyncErrors(async (req, res) => {
 
 // Get all Invoices
 export const getAllInvoices = catchAsyncErrors(async (req, res) => {
-  const invoices = await Invoice.find().populate('purchaseOrderId');
+  const purchaseOrderIds = await getScopedPurchaseOrderIds(req);
+  const invoices = await Invoice.find({ purchaseOrderId: { $in: purchaseOrderIds } }).populate('purchaseOrderId');
   res.json(invoices);
 });
 
@@ -70,6 +89,11 @@ export const updateInvoice = catchAsyncErrors(async (req, res) => {
 
       const nextPurchaseOrderId = req.body.purchaseOrderId ?? existingInvoice.purchaseOrderId;
       const nextAmount = req.body.amount ?? existingInvoice.amount;
+
+      await assertPurchaseOrderWarehouseAccess(req, existingInvoice.purchaseOrderId, session);
+      if (req.body.purchaseOrderId !== undefined) {
+        await assertPurchaseOrderWarehouseAccess(req, req.body.purchaseOrderId, session);
+      }
 
       await assertCanInvoicePurchaseOrder({
         purchaseOrderId: nextPurchaseOrderId,
@@ -114,6 +138,7 @@ export const deleteInvoice = catchAsyncErrors(async (req, res) => {
       const invoice = await Invoice.findById(id).session(session);
 
       if (invoice) {
+        await assertPurchaseOrderWarehouseAccess(req, invoice.purchaseOrderId, session);
         await Payment.deleteMany({ invoiceId: invoice._id }).session(session);
         await Invoice.findByIdAndDelete(id).session(session);
         await clearPurchaseOrderInvoice(invoice.purchaseOrderId, invoice._id, session);

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { Payment } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { Invoice, Payment, PurchaseOrder } from '../models/index.js';
+import { assertWarehouseAccess, catchAsyncErrors, requireAssignedWarehouseId } from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
 import {
   assertPaymentDoesNotOverpay,
@@ -10,6 +10,29 @@ import {
 } from '../services/procurement/procurement.service.js';
 
 const UPDATE_OPTIONS = { new: true, runValidators: true };
+
+const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
+
+const assertInvoiceWarehouseAccess = async (req, invoiceId, session) => {
+  const invoice = await runWithOptionalSession(Invoice.findById(invoiceId), session);
+  if (!invoice) {
+    throw createProcurementError(404, 'Invoice not found.');
+  }
+
+  const purchaseOrder = await runWithOptionalSession(PurchaseOrder.findById(invoice.purchaseOrderId), session);
+  if (!purchaseOrder) {
+    throw createProcurementError(404, 'Purchase order not found.');
+  }
+
+  assertWarehouseAccess(req, purchaseOrder.warehouseId);
+  return invoice;
+};
+
+const getScopedInvoiceIds = async (req) => {
+  const warehouseId = requireAssignedWarehouseId(req);
+  const purchaseOrderIds = await PurchaseOrder.find({ warehouseId }).distinct('_id');
+  return Invoice.find({ purchaseOrderId: { $in: purchaseOrderIds } }).distinct('_id');
+};
 
 // Create Payment
 export const createPayment = catchAsyncErrors(async (req, res) => {
@@ -26,6 +49,7 @@ export const createPayment = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
+      await assertInvoiceWarehouseAccess(req, invoiceId, session);
       await assertPaymentDoesNotOverpay({
         invoiceId,
         amount,
@@ -55,7 +79,8 @@ export const createPayment = catchAsyncErrors(async (req, res) => {
 
 // Get all Payments
 export const getAllPayments = catchAsyncErrors(async (req, res) => {
-  const payments = await Payment.find().populate('invoiceId');
+  const invoiceIds = await getScopedInvoiceIds(req);
+  const payments = await Payment.find({ invoiceId: { $in: invoiceIds } }).populate('invoiceId');
   res.json(payments);
 });
 
@@ -75,6 +100,11 @@ export const updatePayment = catchAsyncErrors(async (req, res) => {
       const nextInvoiceId = req.body.invoiceId ?? existingPayment.invoiceId;
       const nextAmount = req.body.amount ?? existingPayment.amount;
       const nextStatus = req.body.status ?? existingPayment.status;
+
+      await assertInvoiceWarehouseAccess(req, existingPayment.invoiceId, session);
+      if (req.body.invoiceId !== undefined) {
+        await assertInvoiceWarehouseAccess(req, req.body.invoiceId, session);
+      }
 
       await assertPaymentDoesNotOverpay({
         invoiceId: nextInvoiceId,
@@ -113,6 +143,11 @@ export const deletePayment = catchAsyncErrors(async (req, res) => {
   try {
     await session.withTransaction(async () => {
       const payment = await Payment.findById(id).session(session);
+      if (!payment) {
+        throw createProcurementError(404, 'Payment not found.');
+      }
+
+      await assertInvoiceWarehouseAccess(req, payment.invoiceId, session);
       await Payment.findByIdAndDelete(id).session(session);
 
       if (payment?.invoiceId) {

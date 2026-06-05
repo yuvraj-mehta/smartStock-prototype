@@ -21,7 +21,7 @@ const UNSAFE_SUPPLIER_PASSWORDS = new Set([
   "smartstock",
 ]);
 
-const productSeeds = [
+export const productSeeds = [
   {
     productName: "iPhone 15 Pro",
     productImage: "https://placehold.co/600x400?text=iPhone+15+Pro",
@@ -101,6 +101,8 @@ const productSeeds = [
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isTruthy = (value) => ["1", "true", "yes", "y"].includes(String(value).toLowerCase());
+const hasEnvValue = (key) => Object.prototype.hasOwnProperty.call(process.env, key);
+const normalizePassword = (value) => String(value ?? "").trim();
 
 const addDays = (date, days) => {
   const result = new Date(date);
@@ -111,8 +113,10 @@ const addDays = (date, days) => {
 export const getSeedSupplierConfig = () => {
   const allowDevDefaultPassword = process.env.NODE_ENV === "development"
     && isTruthy(process.env.ALLOW_DEV_SEED_CREDENTIALS);
-  const password = process.env.SEED_SUPPLIER_PASSWORD || (allowDevDefaultPassword ? DEV_SUPPLIER_PASSWORD : "");
-  const usesDevDefaultPassword = allowDevDefaultPassword && !process.env.SEED_SUPPLIER_PASSWORD;
+  const password = hasEnvValue("SEED_SUPPLIER_PASSWORD")
+    ? normalizePassword(process.env.SEED_SUPPLIER_PASSWORD)
+    : (allowDevDefaultPassword ? DEV_SUPPLIER_PASSWORD : "");
+  const usesDevDefaultPassword = allowDevDefaultPassword && !hasEnvValue("SEED_SUPPLIER_PASSWORD");
   const passwordIsUnsafe = !usesDevDefaultPassword
     && (password.length < 12 || UNSAFE_SUPPLIER_PASSWORDS.has(password.toLowerCase()));
 
@@ -125,7 +129,7 @@ export const getSeedSupplierConfig = () => {
   }
 
   if (allowDevDefaultPassword && !process.env.SEED_SUPPLIER_PASSWORD) {
-    console.warn(`Using development supplier password "${DEV_SUPPLIER_PASSWORD}". Set SEED_SUPPLIER_PASSWORD to override it.`);
+    console.warn("Using development supplier password. Set SEED_SUPPLIER_PASSWORD to override it.");
   }
 
   return {
@@ -173,7 +177,6 @@ const upsertSeedItems = async ({ batch, product, seed, warehouse }) => {
 
   await Item.deleteMany({
     $and: [
-      { productId: product._id },
       { serialNumber: { $regex: `^${escapeRegExp(seed.sku)}-SEED-` } },
       { serialNumber: { $nin: serialNumbers } },
       { status: "in_stock" },
@@ -218,10 +221,16 @@ const upsertSeedItems = async ({ batch, product, seed, warehouse }) => {
 };
 
 const syncSeedInventory = async ({ batch, product, seed, warehouse }) => {
+  const currentWarehouseStockQuery = {
+    batchId: batch._id,
+    currentWarehouseId: warehouse._id,
+    status: "in_stock",
+  };
+
   const [availableQuantity, inventoryValue] = await Promise.all([
-    Item.countDocuments({ batchId: batch._id, status: "in_stock" }),
+    Item.countDocuments(currentWarehouseStockQuery),
     Item.aggregate([
-      { $match: { batchId: batch._id, status: "in_stock" } },
+      { $match: currentWarehouseStockQuery },
       { $group: { _id: null, total: { $sum: "$purchasePrice" } } },
     ]),
   ]);
@@ -240,6 +249,11 @@ const syncSeedInventory = async ({ batch, product, seed, warehouse }) => {
     },
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
   );
+
+  await Inventory.deleteMany({
+    batchId: batch._id,
+    warehouseId: { $ne: warehouse._id },
+  });
 
   await Product.updateOne(
     { _id: product._id },

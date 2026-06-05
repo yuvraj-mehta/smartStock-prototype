@@ -61,7 +61,7 @@ If the API process is alive but not ready, `/api/v1/health/ready` returns `503` 
 
 ## Database Maintenance
 
-`server/clearDatabase.js` is guarded because it deletes business data. It never deletes users or external users.
+`server/clearDatabase.js` is guarded because it deletes business data. It never deletes users, external users, or warehouses.
 
 Default dry run:
 
@@ -77,6 +77,15 @@ npm run db:clear -- --confirm-db myapp
 ```
 
 The script refuses protected database names such as `admin`, `config`, `local`, `prod`, and `production` unless explicitly overridden in code or environment. Prefer creating a fresh local database over clearing a shared one.
+
+Seed scripts also refuse built-in development credentials by default. For a local-only seed with explicit development defaults, run:
+
+```bash
+cd server
+npm run seed:dev
+```
+
+Use `ADMIN_PASSWORD` and `SEED_SUPPLIER_PASSWORD` with unique values for any shared or deployed database.
 
 ## Testing Entry Points
 

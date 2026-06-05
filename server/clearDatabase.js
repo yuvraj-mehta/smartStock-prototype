@@ -33,6 +33,7 @@ import { ExternalUser } from './models/externalUsers.model.js';
 import { conf } from './config/config.js';
 
 const protectedDatabaseNames = new Set(['admin', 'config', 'local', 'prod', 'production']);
+const protectedRuntimeEnvironments = new Set(['prod', 'production']);
 
 export const collectionsToClear = [
   ['items', Item],
@@ -84,6 +85,7 @@ export const parseClearDatabaseArgs = (args = []) => ({
   dryRun: !args.includes('--execute'),
   confirmDbName: readArgValue(args, '--confirm-db'),
   allowProtectedDatabase: args.includes('--allow-protected-db'),
+  allowProductionClear: args.includes('--allow-production-clear'),
 });
 
 export const getClearDatabasePlan = async () => {
@@ -113,6 +115,8 @@ export async function clearDatabase(options = {}) {
   const dryRun = options.dryRun ?? !isTruthy(process.env.CLEAR_DATABASE_EXECUTE);
   const confirmDbName = options.confirmDbName ?? process.env.CLEAR_DATABASE_CONFIRM_DB;
   const allowProtectedDatabase = options.allowProtectedDatabase ?? isTruthy(process.env.CLEAR_DATABASE_ALLOW_PROTECTED);
+  const allowProductionClear = options.allowProductionClear ?? isTruthy(process.env.CLEAR_DATABASE_ALLOW_PRODUCTION);
+  const runtimeEnvironment = String(process.env.NODE_ENV || '').toLowerCase();
 
   if (!allowProtectedDatabase && protectedDatabaseNames.has(String(databaseName).toLowerCase())) {
     throw new Error(`Refusing to clear protected database "${databaseName}".`);
@@ -120,6 +124,13 @@ export async function clearDatabase(options = {}) {
 
   if (!dryRun && confirmDbName !== databaseName) {
     throw new Error(`Refusing to clear database "${databaseName}" without --confirm-db ${databaseName}.`);
+  }
+
+  if (!dryRun && protectedRuntimeEnvironments.has(runtimeEnvironment) && !allowProductionClear) {
+    throw new Error(
+      'Refusing to clear a database while NODE_ENV is production. '
+      + 'Set CLEAR_DATABASE_ALLOW_PRODUCTION=1 or pass --allow-production-clear only for intentional maintenance.'
+    );
   }
 
   await mongoose.connect(conf.mongoUri, { dbName: databaseName });

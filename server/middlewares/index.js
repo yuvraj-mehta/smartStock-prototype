@@ -12,3 +12,14 @@ export {
   isAuthorized,
   canViewUserDetails
 } from "./auth.middleware.js";
+
+export {
+  WAREHOUSE_ACCESS_DENIED_MESSAGE,
+  USER_WAREHOUSE_REQUIRED_MESSAGE,
+  assertWarehouseAccess,
+  getAssignedWarehouseId,
+  getAssignedWarehouseObjectId,
+  normalizeId,
+  requireAssignedWarehouseId,
+  toMongoId,
+} from "./warehouseScope.middleware.js";

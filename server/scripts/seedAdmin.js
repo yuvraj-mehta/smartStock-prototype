@@ -21,14 +21,18 @@ const UNSAFE_PASSWORDS = new Set([
   "smartstock",
 ]);
 
-const cleanEnv = (key, fallback = "") => process.env[key]?.trim() || fallback;
 const isTruthy = (value) => ["1", "true", "yes", "y"].includes(String(value).toLowerCase());
+const cleanEnv = (key, fallback = "") => process.env[key]?.trim() || fallback;
+const hasEnvValue = (key) => Object.prototype.hasOwnProperty.call(process.env, key);
+const normalizePassword = (value) => String(value ?? "").trim();
 
 export const getAdminSeedConfig = () => {
   const allowDevDefaultPassword = process.env.NODE_ENV === "development"
     && isTruthy(process.env.ALLOW_DEV_SEED_CREDENTIALS);
-  const password = process.env.ADMIN_PASSWORD || (allowDevDefaultPassword ? DEV_ADMIN_PASSWORD : "");
-  const usesDevDefaultPassword = allowDevDefaultPassword && !process.env.ADMIN_PASSWORD;
+  const password = hasEnvValue("ADMIN_PASSWORD")
+    ? normalizePassword(process.env.ADMIN_PASSWORD)
+    : (allowDevDefaultPassword ? DEV_ADMIN_PASSWORD : "");
+  const usesDevDefaultPassword = allowDevDefaultPassword && !hasEnvValue("ADMIN_PASSWORD");
   const passwordIsUnsafe = !usesDevDefaultPassword
     && (password.length < 12 || UNSAFE_PASSWORDS.has(password.toLowerCase()));
 
@@ -41,7 +45,7 @@ export const getAdminSeedConfig = () => {
   }
 
   if (allowDevDefaultPassword && !process.env.ADMIN_PASSWORD) {
-    console.warn(`Using development admin password "${DEV_ADMIN_PASSWORD}". Set ADMIN_PASSWORD to override it.`);
+    console.warn("Using development admin password. Set ADMIN_PASSWORD to override it.");
   }
 
   return {

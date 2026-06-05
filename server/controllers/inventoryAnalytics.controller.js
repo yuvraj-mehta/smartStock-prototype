@@ -1,15 +1,50 @@
-import { Item, Inventory, Batch, Order, SalesHistory, Return, SalesOrder, SalesInvoice, PaymentReceived } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { Item, Inventory, Order, SalesHistory, Return } from '../models/index.js';
+import {
+  WAREHOUSE_ACCESS_DENIED_MESSAGE,
+  catchAsyncErrors,
+  getAssignedWarehouseId,
+  normalizeId,
+  toMongoId,
+} from '../middlewares/index.js';
+
+const getScopedWarehouseId = (req, requestedWarehouseId) => {
+  const assignedWarehouseId = getAssignedWarehouseId(req);
+  const normalizedRequestedWarehouseId = normalizeId(requestedWarehouseId);
+
+  if (
+    assignedWarehouseId &&
+    normalizedRequestedWarehouseId &&
+    normalizedRequestedWarehouseId !== assignedWarehouseId
+  ) {
+    throw Object.assign(new Error(WAREHOUSE_ACCESS_DENIED_MESSAGE), { statusCode: 403 });
+  }
+
+  return normalizedRequestedWarehouseId || assignedWarehouseId || null;
+};
+
+const buildScopedItemFilter = (req, baseFilter = {}, requestedWarehouseId) => {
+  const warehouseId = getScopedWarehouseId(req, requestedWarehouseId);
+  if (!warehouseId) return { ...baseFilter };
+
+  return { ...baseFilter, currentWarehouseId: toMongoId(warehouseId) || warehouseId };
+};
+
+const buildScopedWarehouseFilter = (req, field = 'warehouseId', baseFilter = {}) => {
+  const warehouseId = getScopedWarehouseId(req);
+  if (!warehouseId) return { ...baseFilter };
+
+  return { ...baseFilter, [field]: toMongoId(warehouseId) || warehouseId };
+};
 
 // Get all inventory actions (movements, status changes, allocations, dispatches, returns, etc.)
 export const getInventoryActions = catchAsyncErrors(async (req, res) => {
   // Optional filters: productId, batchId, warehouseId, action, date range
   const { productId, batchId, warehouseId, action, startDate, endDate, limit = 100, skip = 0 } = req.query;
-  const filter = {};
+  let filter = {};
 
   if (productId) filter.productId = productId;
   if (batchId) filter.batchId = batchId;
-  if (warehouseId) filter.currentWarehouseId = warehouseId;
+  filter = buildScopedItemFilter(req, filter, warehouseId);
 
   // Build match for item history subdocuments
   const historyMatch = {};
@@ -60,7 +95,9 @@ export const getInventoryActions = catchAsyncErrors(async (req, res) => {
 
   // Fetch order and return financials
   const orders = await Order.find({ orderNumber: { $in: Array.from(orderIds) } });
-  const returns = await Return.find({ returnNumber: { $in: Array.from(returnIds) } });
+  const returns = await Return.find(buildScopedWarehouseFilter(req, 'warehouseId', {
+    returnNumber: { $in: Array.from(returnIds) },
+  }));
   const orderMap = {};
   orders.forEach(o => orderMap[o.orderNumber] = o);
   const returnMap = {};
@@ -108,9 +145,10 @@ export const getInventoryActions = catchAsyncErrors(async (req, res) => {
 // Get summary analytics for inventory actions (for ML/forecasting)
 export const getInventoryActionSummary = catchAsyncErrors(async (req, res) => {
   // Example: count of each action type per product per month
-  const { productId, startDate, endDate } = req.query;
-  const match = {};
+  const { productId, warehouseId, startDate, endDate } = req.query;
+  let match = {};
   if (productId) match.productId = productId;
+  match = buildScopedItemFilter(req, match, warehouseId);
   if (startDate || endDate) {
     match['history.date'] = {};
     if (startDate) match['history.date'].$gte = new Date(startDate);
@@ -143,7 +181,7 @@ export const getProductPredictionData = catchAsyncErrors(async (req, res) => {
   if (!productId) return res.status(400).json({ message: 'productId is required' });
 
   // Fetch product
-  const product = await Item.findOne({ productId }).populate('productId');
+  const product = await Item.findOne(buildScopedItemFilter(req, { productId })).populate('productId');
   if (!product) return res.status(404).json({ message: 'Product not found' });
 
   // Get product info
@@ -154,17 +192,23 @@ export const getProductPredictionData = catchAsyncErrors(async (req, res) => {
   const price = prod.price;
 
   // Inventory info
-  const inventory = await Inventory.findOne({ batchId: product.batchId });
+  const inventory = await Inventory.findOne(buildScopedWarehouseFilter(req, 'warehouseId', {
+    batchId: product.batchId,
+  }));
   const currentStock = inventory ? inventory.quantity : 0;
   const warehouseLocation = inventory ? inventory.warehouseId : null;
 
   // Sales info
-  const salesHistory = await SalesHistory.find({ 'products.productId': productId }).sort({ saleConfirmationDate: -1 });
+  const salesHistory = await SalesHistory.find(buildScopedWarehouseFilter(req, 'warehouseId', {
+    'products.productId': productId,
+  })).sort({ saleConfirmationDate: -1 });
   const totalSold = salesHistory.reduce((sum, s) => sum + s.products.filter(p => p.productId.toString() === productId).reduce((a, p) => a + (p.quantity || 0), 0), 0);
   const lastSoldAt = salesHistory.length > 0 ? salesHistory[0].saleConfirmationDate : null;
 
   // Returns info
-  const returns = await Return.find({ 'returnedItems.productId': productId });
+  const returns = await Return.find(buildScopedWarehouseFilter(req, 'warehouseId', {
+    'returnedItems.productId': productId,
+  }));
   const returnsArr = [];
   returns.forEach(r => {
     r.returnedItems.filter(ri => ri.productId.toString() === productId).forEach(ri => {
@@ -177,7 +221,7 @@ export const getProductPredictionData = catchAsyncErrors(async (req, res) => {
   });
 
   // Damages info (from item history)
-  const items = await Item.find({ productId });
+  const items = await Item.find(buildScopedItemFilter(req, { productId }));
   const damagesArr = [];
   items.forEach(item => {
     item.history.filter(h => h.action === 'damaged').forEach(h => {
@@ -211,7 +255,7 @@ export const getProductPredictionData = catchAsyncErrors(async (req, res) => {
 // Predictive analytics data model endpoint for all products
 export const getAllProductsPredictionData = catchAsyncErrors(async (req, res) => {
   // Fetch all products
-  const products = await Item.find().populate('productId');
+  const products = await Item.find(buildScopedItemFilter(req)).populate('productId');
   const productMap = new Map();
   products.forEach(item => {
     if (!item.productId) return;
@@ -235,7 +279,7 @@ export const getAllProductsPredictionData = catchAsyncErrors(async (req, res) =>
   });
 
   // Sales
-  const salesHistory = await SalesHistory.find();
+  const salesHistory = await SalesHistory.find(buildScopedWarehouseFilter(req));
   salesHistory.forEach(s => {
     s.products.forEach(p => {
       const pid = p.productId.toString();
@@ -249,7 +293,7 @@ export const getAllProductsPredictionData = catchAsyncErrors(async (req, res) =>
   });
 
   // Returns
-  const returns = await Return.find();
+  const returns = await Return.find(buildScopedWarehouseFilter(req));
   returns.forEach(r => {
     r.returnedItems.forEach(ri => {
       const pid = ri.productId.toString();
@@ -264,7 +308,7 @@ export const getAllProductsPredictionData = catchAsyncErrors(async (req, res) =>
   });
 
   // Damages
-  const items = await Item.find();
+  const items = await Item.find(buildScopedItemFilter(req));
   items.forEach(item => {
     const pid = item.productId.toString();
     if (!productMap.has(pid)) return;

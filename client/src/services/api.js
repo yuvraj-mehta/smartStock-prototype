@@ -8,6 +8,8 @@ import httpClient from './httpClient';
 
 const api = httpClient;
 
+const encodePathSegment = (value) => encodeURIComponent(value);
+
 // Auth API functions
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
@@ -52,15 +54,33 @@ export const inventoryAPI = {
 
 // AI API functions
 export const aiAPI = {
-  getDashboard: (warehouseId) => api.get(`/ai/dashboard${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+  getDashboard: (warehouseId) => api.get('/ai/dashboard', {
+    params: warehouseId ? { warehouseId } : undefined,
+  }),
   generateDemandForecast: (forecastParams) => api.post('/ai/forecast/demand', forecastParams),
+  generateStockOptimization: (optimizationParams = {}) => api.post('/ai/optimize/stock', optimizationParams),
+  getSeasonalDemandPrediction: (params = {}) => api.get('/ai/predict/seasonal', { params }),
+  getIntelligentInventoryInsights: (warehouseId) => api.get('/ai/insights/intelligent', {
+    params: warehouseId ? { warehouseId } : undefined,
+  }),
+  getDemandPrediction: (productId, params = {}) => (
+    api.get(`/ai/predict/demand/${encodePathSegment(productId)}`, { params })
+  ),
+  getSeasonalTrendsAnalysis: (productCategory) => api.get('/ai/analysis/seasonal', {
+    params: { productCategory },
+  }),
+  getInsights: (params = {}) => api.get('/ai/insights', { params }),
+  updateInsightFeedback: (insightId, feedbackData) => (
+    api.patch(`/ai/insights/${encodePathSegment(insightId)}/feedback`, feedbackData)
+  ),
+  analyzeJSONInventoryData: (analysisData) => api.post('/ai/analyze/json-data', analysisData),
 };
 
 // Dashboard API functions
 export const dashboardAPI = {
   getInventory: inventoryAPI.getAllInventory,
   getAIDashboard: aiAPI.getDashboard,
-  getAIInsights: (warehouseId) => api.get(`/ai/insights/intelligent${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+  getAIInsights: aiAPI.getIntelligentInventoryInsights,
 };
 
 export default api;

@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 import { PurchaseOrder, Invoice, Payment } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import {
+  assertWarehouseAccess,
+  catchAsyncErrors,
+  requireAssignedWarehouseId,
+} from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
 import {
   assertInvoiceCanBeAssignedToPurchaseOrder,
@@ -40,6 +44,13 @@ export const createPurchaseOrder = catchAsyncErrors(async (req, res) => {
     return res.status(400).json({ message: 'All required fields must be provided.' });
   }
 
+  let scopedWarehouseId;
+  try {
+    scopedWarehouseId = assertWarehouseAccess(req, warehouseId);
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ message: error.message });
+  }
+
   const normalizedAmounts = validatePurchaseOrderAmounts({
     quantity,
     receivedQuantity,
@@ -52,13 +63,13 @@ export const createPurchaseOrder = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
-      await assertValidProcurementRelationship({ supplierId, productId, warehouseId, session });
+      await assertValidProcurementRelationship({ supplierId, productId, warehouseId: scopedWarehouseId, session });
       await assertInvoiceCanBeAssignedToPurchaseOrder({ invoiceId, session });
 
       const purchaseOrderPayload = {
         supplierId,
         productId,
-        warehouseId,
+        warehouseId: scopedWarehouseId,
         ...normalizedAmounts,
         status,
         paymentStatus,
@@ -93,14 +104,15 @@ export const createPurchaseOrder = catchAsyncErrors(async (req, res) => {
     entityType: "PurchaseOrder",
     entityId: po._id,
     value: normalizedAmounts.totalCost,
-    details: `Supplier: ${supplierId}, Product: ${productId}, Warehouse: ${warehouseId}, Quantity: ${normalizedAmounts.quantity}`
+    details: `Supplier: ${supplierId}, Product: ${productId}, Warehouse: ${scopedWarehouseId}, Quantity: ${normalizedAmounts.quantity}`
   });
   res.status(201).json({ message: 'Purchase order created', purchaseOrder: po });
 });
 
 // Get all Purchase Orders
 export const getAllPurchaseOrders = catchAsyncErrors(async (req, res) => {
-  const pos = await PurchaseOrder.find().populate('supplierId productId warehouseId invoiceId');
+  const warehouseId = requireAssignedWarehouseId(req);
+  const pos = await PurchaseOrder.find({ warehouseId }).populate('supplierId productId warehouseId invoiceId');
   res.json(pos);
 });
 
@@ -115,6 +127,11 @@ export const updatePurchaseOrder = catchAsyncErrors(async (req, res) => {
       const existingPo = await PurchaseOrder.findById(id).session(session);
       if (!existingPo) {
         throw createProcurementError(404, 'Purchase order not found.');
+      }
+
+      assertWarehouseAccess(req, existingPo.warehouseId);
+      if (req.body.warehouseId !== undefined) {
+        assertWarehouseAccess(req, req.body.warehouseId);
       }
 
       const nextValues = {
@@ -178,6 +195,12 @@ export const deletePurchaseOrder = catchAsyncErrors(async (req, res) => {
   try {
     await session.withTransaction(async () => {
       const po = await PurchaseOrder.findById(id).session(session);
+      if (!po) {
+        throw createProcurementError(404, 'Purchase order not found.');
+      }
+
+      assertWarehouseAccess(req, po.warehouseId);
+
       const invoiceQuery = po?.invoiceId
         ? { $or: [{ purchaseOrderId: id }, { _id: po.invoiceId }] }
         : { purchaseOrderId: id };

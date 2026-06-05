@@ -14,24 +14,47 @@ import {
   X,
   RotateCcw,
 } from 'lucide-react';
+import { ROUTES, USER_ROLES } from '../../constants';
+
+const INTERNAL_STAFF_ROLES = [USER_ROLES.ADMIN, USER_ROLES.STAFF];
+const APP_NAV_ROUTES = {
+  RETURNS: '/returns',
+  TRANSPORTS: '/transports',
+};
+
+const normalizeRole = (role) => (
+  typeof role === 'string' ? role.trim().toLowerCase() : ''
+);
+
+const hasAnyRole = (role, allowedRoles) => allowedRoles.includes(normalizeRole(role));
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
-  const canViewTransport = user?.role === 'admin' || user?.role === 'staff';
-  const canUseAIAssistant = user?.role === 'admin' || user?.role === 'staff';
+  const canViewTransport = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
+  const canUseAIAssistant = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
+  const canUseAdminPanel = hasAnyRole(user?.role, [USER_ROLES.ADMIN]);
 
   const navItems = [
-    { path: '/dashboard', icon: BarChart3, label: 'Dashboard' },
-    { path: '/orders', icon: RotateCcw, label: 'Orders' },
-    { path: '/inventory', icon: Package, label: 'Inventory' },
-    { path: '/products', icon: Settings, label: 'Products' },
-    ...(canUseAIAssistant ? [{ path: '/ai-assistant', icon: Brain, label: 'AI Assistant' }] : []),
-    ...(canViewTransport ? [{ path: '/transports', icon: Truck, label: 'Transport' }] : []),
-    { path: '/returns', icon: RotateCcw, label: 'Returns' },
-    ...(user?.role === 'admin' ? [{ path: '/admin', icon: Users, label: 'Admin Panel' }] : []),
+    { path: ROUTES.DASHBOARD, icon: BarChart3, label: 'Dashboard' },
+    { path: ROUTES.ORDERS, icon: RotateCcw, label: 'Orders' },
+    { path: ROUTES.INVENTORY, icon: Package, label: 'Inventory' },
+    { path: ROUTES.PRODUCTS, icon: Settings, label: 'Products' },
+    ...(canUseAIAssistant ? [{ path: ROUTES.AI_ASSISTANT, icon: Brain, label: 'AI Assistant' }] : []),
+    ...(canViewTransport ? [{ path: APP_NAV_ROUTES.TRANSPORTS, icon: Truck, label: 'Transport' }] : []),
+    { path: APP_NAV_ROUTES.RETURNS, icon: RotateCcw, label: 'Returns' },
+    ...(canUseAdminPanel ? [{ path: ROUTES.ADMIN, icon: Users, label: 'Admin Panel' }] : []),
   ];
+
+  const isActivePath = (path) => {
+    if (path === APP_NAV_ROUTES.TRANSPORTS) {
+      return location.pathname.startsWith(APP_NAV_ROUTES.TRANSPORTS);
+    }
+
+    return location.pathname === path;
+  };
+
   const toggleMenu = () => setIsMobileMenuOpen((v) => !v);
   return (
     <nav className="bg-white/90 backdrop-blur-md border-b border-gray-200/50 shadow-sm sticky top-0 z-50">
@@ -51,7 +74,7 @@ const Navbar = () => {
         <div className="hidden lg:flex items-center justify-center flex-1 max-w-4xl">
           <div className="flex items-center gap-2 bg-gray-50/80 rounded-xl p-1 shadow-inner">
             {navItems.map(({ path, icon: Icon, label }, idx) => {
-              const isActive = location.pathname === path;
+              const isActive = isActivePath(path);
               return (
                 <Link
                   key={path}
@@ -92,7 +115,7 @@ const Navbar = () => {
         <div className="lg:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-sm">
           <div className="px-4 py-3 space-y-2">
             {navItems.map(({ path, icon: Icon, label }) => {
-              const isActive = location.pathname === path;
+              const isActive = isActivePath(path);
               return (
                 <Link
                   key={path}

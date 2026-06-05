@@ -1,5 +1,37 @@
-import { SalesOrder, InventoryMovement } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { Batch, SalesOrder, InventoryMovement } from '../models/index.js';
+import {
+  WAREHOUSE_ACCESS_DENIED_MESSAGE,
+  catchAsyncErrors,
+  normalizeId,
+  requireAssignedWarehouseId,
+} from '../middlewares/index.js';
+
+const uniqueIds = (ids) => [...new Set(ids.map(normalizeId).filter(Boolean))];
+
+const getScopedSalesOrderFilter = async (req, filter = {}) => {
+  const assignedWarehouseId = requireAssignedWarehouseId(req);
+  const batchIds = await Batch.find({ warehouseId: assignedWarehouseId }).distinct('_id');
+
+  return {
+    ...filter,
+    'fulfilledItems.batchId': { $in: batchIds },
+  };
+};
+
+const assertFulfilledItemsWarehouseAccess = async (req, fulfilledItems = []) => {
+  const assignedWarehouseId = requireAssignedWarehouseId(req);
+  const batchIds = uniqueIds(fulfilledItems.map((item) => item.batchId));
+  if (batchIds.length === 0) return;
+
+  const scopedBatchCount = await Batch.countDocuments({
+    _id: { $in: batchIds },
+    warehouseId: assignedWarehouseId,
+  });
+
+  if (scopedBatchCount !== batchIds.length) {
+    throw Object.assign(new Error(WAREHOUSE_ACCESS_DENIED_MESSAGE), { statusCode: 403 });
+  }
+};
 
 // Create Sales Order
 export const createSalesOrder = catchAsyncErrors(async (req, res) => {
@@ -17,13 +49,23 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
 
 // Get all Sales Orders
 export const getAllSalesOrders = catchAsyncErrors(async (req, res) => {
-  const orders = await SalesOrder.find().populate('customerId productId salesInvoiceId');
+  const orders = await SalesOrder.find(await getScopedSalesOrderFilter(req)).populate('customerId productId salesInvoiceId');
   res.json(orders);
 });
 
 // Update Sales Order
 export const updateSalesOrder = catchAsyncErrors(async (req, res) => {
   const { id } = req.params;
+  const scopedFilter = await getScopedSalesOrderFilter(req, { _id: id });
+  const existingOrder = await SalesOrder.findOne(scopedFilter);
+  if (!existingOrder) {
+    return res.status(404).json({ message: 'Sales order not found.' });
+  }
+
+  if (req.body.fulfilledItems !== undefined) {
+    await assertFulfilledItemsWarehouseAccess(req, req.body.fulfilledItems);
+  }
+
   const hasDispatchedInventory = Boolean(await InventoryMovement.exists({
     referenceType: 'SalesOrder',
     referenceId: id,
@@ -41,7 +83,7 @@ export const updateSalesOrder = catchAsyncErrors(async (req, res) => {
     });
   }
 
-  const order = await SalesOrder.findByIdAndUpdate(id, req.body, {
+  const order = await SalesOrder.findByIdAndUpdate(existingOrder._id, req.body, {
     new: true,
     runValidators: true,
     context: 'query',
@@ -52,6 +94,12 @@ export const updateSalesOrder = catchAsyncErrors(async (req, res) => {
 // Delete Sales Order
 export const deleteSalesOrder = catchAsyncErrors(async (req, res) => {
   const { id } = req.params;
+  const scopedFilter = await getScopedSalesOrderFilter(req, { _id: id });
+  const existingOrder = await SalesOrder.findOne(scopedFilter);
+  if (!existingOrder) {
+    return res.status(404).json({ message: 'Sales order not found.' });
+  }
+
   const hasDispatchedInventory = Boolean(await InventoryMovement.exists({
     referenceType: 'SalesOrder',
     referenceId: id,
@@ -64,6 +112,6 @@ export const deleteSalesOrder = catchAsyncErrors(async (req, res) => {
     });
   }
 
-  await SalesOrder.findByIdAndDelete(id);
+  await SalesOrder.findByIdAndDelete(existingOrder._id);
   res.json({ message: 'Sales order deleted' });
 });

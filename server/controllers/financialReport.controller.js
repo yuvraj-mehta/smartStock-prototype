@@ -1,7 +1,4 @@
-import mongoose from 'mongoose';
 import {
-  Batch,
-  ExternalUser,
   InventoryMovement,
   Item,
   Package,
@@ -12,21 +9,21 @@ import {
   SalesInvoice,
   SalesOrder,
 } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { catchAsyncErrors, getAssignedWarehouseObjectId } from '../middlewares/index.js';
 
 const getWarehouseScope = (req) => {
   if (!req.user) {
     return { isScoped: false, warehouseId: null };
   }
 
-  const assignedWarehouseId = req.user.assignedWarehouseId;
-  if (!assignedWarehouseId || !mongoose.Types.ObjectId.isValid(assignedWarehouseId)) {
+  const warehouseId = getAssignedWarehouseObjectId(req);
+  if (!warehouseId) {
     return { isScoped: true, warehouseId: null };
   }
 
   return {
     isScoped: true,
-    warehouseId: new mongoose.Types.ObjectId(assignedWarehouseId),
+    warehouseId,
   };
 };
 
@@ -43,18 +40,7 @@ const sumCompletedPayments = async (Model, relationField, relationId) => {
   return summary?.totalPaid || 0;
 };
 
-const getScopedPurchaseOrderFilter = async (warehouseId) => {
-  const supplierIds = await ExternalUser.find({ warehouseId }).distinct('_id');
-  const purchaseOrderIds = await Batch.find({ warehouseId, purchaseOrderId: { $exists: true, $ne: null } })
-    .distinct('purchaseOrderId');
-
-  return {
-    $or: [
-      { supplierId: { $in: supplierIds } },
-      { _id: { $in: purchaseOrderIds } },
-    ],
-  };
-};
+const getScopedPurchaseOrderFilter = (warehouseId) => ({ warehouseId });
 
 const hasScopedSalesOrderInventory = async (order, warehouseId) => {
   if (!order?._id) {
@@ -76,7 +62,7 @@ export const getOutstandingPayables = catchAsyncErrors(async (req, res) => {
     return res.json({ totalPayables: 0 });
   }
 
-  const filter = isScoped ? await getScopedPurchaseOrderFilter(warehouseId) : {};
+  const filter = isScoped ? getScopedPurchaseOrderFilter(warehouseId) : {};
   const purchaseOrders = await PurchaseOrder.find(filter);
   let totalPayables = 0;
 

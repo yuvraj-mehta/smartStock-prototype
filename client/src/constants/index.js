@@ -40,7 +40,7 @@ export const ROUTES = {
   USERS: '/users',
   ORDERS: '/orders',
   PROFILE: '/profile',
-  TRANSPORT: '/transport',
+  TRANSPORT: '/transports',
   AI_ASSISTANT: '/ai-assistant',
   UNAUTHORIZED: '/unauthorized',
   NOT_FOUND: '*',

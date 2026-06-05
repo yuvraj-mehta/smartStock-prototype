@@ -54,6 +54,7 @@ describe('seed credential safety', () => {
       email: 'admin@smartstock.local',
       password: 'admin123',
     });
+    expect(warnSpy).toHaveBeenCalledWith(expect.not.stringContaining('admin123'));
   });
 
   it('accepts explicit strong admin and supplier passwords', () => {
@@ -66,6 +67,24 @@ describe('seed credential safety', () => {
   });
 
   it('refuses default supplier credentials when NODE_ENV is unset', () => {
+    expect(() => getSeedSupplierConfig()).toThrow('Refusing to seed a supplier with an unsafe password');
+  });
+
+  it('rejects explicit passwords that only become unsafe after trimming', () => {
+    process.env.ADMIN_PASSWORD = 'admin123       ';
+    process.env.SEED_SUPPLIER_PASSWORD = 'seed-supplier123       ';
+
+    expect(() => getAdminSeedConfig()).toThrow('Refusing to seed an admin with an unsafe password');
+    expect(() => getSeedSupplierConfig()).toThrow('Refusing to seed a supplier with an unsafe password');
+  });
+
+  it('rejects explicitly empty seed passwords instead of falling back to development defaults', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ALLOW_DEV_SEED_CREDENTIALS = '1';
+    process.env.ADMIN_PASSWORD = '';
+    process.env.SEED_SUPPLIER_PASSWORD = '';
+
+    expect(() => getAdminSeedConfig()).toThrow('Refusing to seed an admin with an unsafe password');
     expect(() => getSeedSupplierConfig()).toThrow('Refusing to seed a supplier with an unsafe password');
   });
 });

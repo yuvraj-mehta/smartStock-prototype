@@ -1,5 +1,7 @@
 import { SalesHistory } from "../models/sales.history.model.js";
-import { catchAsyncErrors } from "../middlewares/index.js";
+import { catchAsyncErrors, requireAssignedWarehouseId } from "../middlewares/index.js";
+
+const buildSalesHistoryScope = (req) => ({ warehouseId: requireAssignedWarehouseId(req) });
 
 export const recordSale = catchAsyncErrors(async (req, res) => {
   res.status(410).json({
@@ -9,7 +11,7 @@ export const recordSale = catchAsyncErrors(async (req, res) => {
 });
 
 export const getAllSales = catchAsyncErrors(async (req, res) => {
-  const records = await SalesHistory.find()
+  const records = await SalesHistory.find(buildSalesHistoryScope(req))
     .populate("packageId", "packageId packageStatus")
     .populate("orderId", "orderNumber platformOrderId orderStatus")
     .populate("products.productId", "productName sku")
@@ -23,7 +25,7 @@ export const getAllSales = catchAsyncErrors(async (req, res) => {
 
 export const getSaleById = catchAsyncErrors(async (req, res) => {
   const { id } = req.params;
-  const record = await SalesHistory.findById(id)
+  const record = await SalesHistory.findOne({ _id: id, ...buildSalesHistoryScope(req) })
     .populate("packageId", "packageId packageStatus")
     .populate("orderId", "orderNumber platformOrderId orderStatus")
     .populate("products.productId", "productName sku")
@@ -39,7 +41,7 @@ export const getSaleById = catchAsyncErrors(async (req, res) => {
 
 export const getSaleByPackageId = catchAsyncErrors(async (req, res) => {
   const { packageId } = req.params;
-  const record = await SalesHistory.findOne({ packageId })
+  const record = await SalesHistory.findOne({ packageId, ...buildSalesHistoryScope(req) })
     .populate("packageId", "packageId packageStatus")
     .populate("orderId", "orderNumber platformOrderId orderStatus")
     .populate("products.productId", "productName sku")

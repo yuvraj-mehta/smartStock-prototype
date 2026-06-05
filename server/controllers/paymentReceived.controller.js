@@ -1,8 +1,15 @@
 import mongoose from 'mongoose';
 import { PaymentReceived, SalesInvoice, SalesOrder } from '../models/index.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
+import {
+  recordCustomerPaymentEvent,
+  reverseUnreversedFinancialEventsForSource,
+} from '../services/finance/index.js';
 
 const UPDATE_OPTIONS = { new: true, runValidators: true };
+const COMPLETED_STATUS = 'completed';
+const CUSTOMER_PAYMENT_EVENT_TYPE = 'customer_payment';
+const PAYMENT_RECEIVED_SOURCE_MODEL = 'PaymentReceived';
 
 const withSession = (options, session) => ({ ...options, session });
 
@@ -14,6 +21,30 @@ const invoiceStatusToPaymentStatus = (status) => {
   if (status === 'paid') return 'paid';
   if (status === 'partial') return 'partial';
   return 'unpaid';
+};
+
+const normalizeId = (id) => (id?._id || id)?.toString();
+
+const normalizePaymentStatus = (payment) => payment?.status || 'pending';
+
+const normalizePaymentAmount = (payment) => Number(payment?.amount) || 0;
+
+const normalizePaymentDate = (payment) => (
+  payment?.date ? new Date(payment.date).getTime() : undefined
+);
+
+const isCompletedPayment = (payment) => normalizePaymentStatus(payment) === COMPLETED_STATUS;
+
+const hasLedgerRelevantChange = (previousPayment, payment) => {
+  if (!previousPayment) return isCompletedPayment(payment);
+  if (!payment) return isCompletedPayment(previousPayment);
+
+  return (
+    normalizePaymentStatus(previousPayment) !== normalizePaymentStatus(payment)
+    || normalizeId(previousPayment.salesInvoiceId) !== normalizeId(payment.salesInvoiceId)
+    || normalizePaymentAmount(previousPayment) !== normalizePaymentAmount(payment)
+    || normalizePaymentDate(previousPayment) !== normalizePaymentDate(payment)
+  );
 };
 
 const deriveInvoiceStatus = (invoice, paidAmount) => {
@@ -108,6 +139,48 @@ const syncSalesInvoiceStatus = async (salesInvoiceId, session) => {
   return syncedInvoice;
 };
 
+const reverseCustomerPaymentLedger = async ({ payment, actorId, session }) => {
+  await reverseUnreversedFinancialEventsForSource({
+    eventType: CUSTOMER_PAYMENT_EVENT_TYPE,
+    sourceModel: PAYMENT_RECEIVED_SOURCE_MODEL,
+    sourceDocumentId: payment._id,
+    actorId,
+    memo: 'Customer payment receipt changed',
+    session,
+  });
+};
+
+const recordCustomerPaymentLedger = async ({ payment, actorId, warehouseId, session }) => {
+  await recordCustomerPaymentEvent({
+    amount: payment.amount,
+    salesInvoiceId: payment.salesInvoiceId,
+    paymentReceivedId: payment._id,
+    warehouseId,
+    occurredAt: payment.date,
+    actorId,
+    session,
+  });
+};
+
+const syncCustomerPaymentLedger = async ({
+  previousPayment,
+  payment,
+  actorId,
+  warehouseId,
+  session,
+}) => {
+  const ledgerChanged = hasLedgerRelevantChange(previousPayment, payment);
+  if (!ledgerChanged) return;
+
+  if (isCompletedPayment(previousPayment)) {
+    await reverseCustomerPaymentLedger({ payment: previousPayment, actorId, session });
+  }
+
+  if (isCompletedPayment(payment)) {
+    await recordCustomerPaymentLedger({ payment, actorId, warehouseId, session });
+  }
+};
+
 // Create Payment Received
 export const createPaymentReceived = catchAsyncErrors(async (req, res) => {
   const { salesInvoiceId, amount, date, method, status } = req.body;
@@ -132,6 +205,13 @@ export const createPaymentReceived = catchAsyncErrors(async (req, res) => {
       payment = new PaymentReceived({ salesInvoiceId, amount, date, method, status });
       await payment.save({ session });
       await syncSalesInvoiceStatus(payment.salesInvoiceId, session);
+      await syncCustomerPaymentLedger({
+        previousPayment: null,
+        payment,
+        actorId: req.user?._id,
+        warehouseId: req.user?.assignedWarehouseId,
+        session,
+      });
     });
   } finally {
     await session.endSession();
@@ -179,6 +259,14 @@ export const updatePaymentReceived = catchAsyncErrors(async (req, res) => {
       if (payment?.salesInvoiceId) {
         await syncSalesInvoiceStatus(payment.salesInvoiceId, session);
       }
+
+      await syncCustomerPaymentLedger({
+        previousPayment: existingPayment,
+        payment,
+        actorId: req.user?._id,
+        warehouseId: req.user?.assignedWarehouseId,
+        session,
+      });
     });
   } finally {
     await session.endSession();
@@ -200,6 +288,14 @@ export const deletePaymentReceived = catchAsyncErrors(async (req, res) => {
       if (payment?.salesInvoiceId) {
         await syncSalesInvoiceStatus(payment.salesInvoiceId, session);
       }
+
+      await syncCustomerPaymentLedger({
+        previousPayment: payment,
+        payment: null,
+        actorId: req.user?._id,
+        warehouseId: req.user?.assignedWarehouseId,
+        session,
+      });
     });
   } finally {
     await session.endSession();

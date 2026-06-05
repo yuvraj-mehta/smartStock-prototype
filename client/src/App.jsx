@@ -1,28 +1,51 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/Dashboard.jsx';
-import HomePage from './pages/HomePage';
-import ProductsPage from './pages/ProductsPage.jsx';
-import InventoryPage from './pages/InventoryPage.jsx';
-import AdminPage from './pages/AdminPage.jsx';
-import AIAssistantPage from './pages/AIAssistantPage.jsx';
-import UserPage from './pages/UserPage.jsx';
-import { Layout, NotFound, ProtectedRoute } from './components';
-import TransportList from './components/features/TransportList';
-import TransportDetails from './components/features/TransportDetails';
-import ReturnList from './components/features/ReturnList';
-import OrderManagementPage from './pages/OrderManagementPage.jsx';
 import { bootstrapAuth } from './app/slices/authSlice';
+import Layout from './components/layout/Layout';
+import NotFound from './components/ui/NotFound';
+import ProtectedRoute from './components/ui/ProtectedRoute';
 import { ROUTES, USER_ROLES } from './constants';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/Dashboard.jsx'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ProductsPage = lazy(() => import('./pages/ProductsPage.jsx'));
+const InventoryPage = lazy(() => import('./pages/InventoryPage.jsx'));
+const AdminPage = lazy(() => import('./pages/AdminPage.jsx'));
+const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage.jsx'));
+const UserPage = lazy(() => import('./pages/UserPage.jsx'));
+const TransportList = lazy(() => import('./components/features/TransportList'));
+const TransportDetails = lazy(() => import('./components/features/TransportDetails'));
+const ReturnList = lazy(() => import('./components/features/ReturnList'));
+const OrderManagementPage = lazy(() => import('./pages/OrderManagementPage.jsx'));
+
+const INTERNAL_STAFF_ROLES = [USER_ROLES.ADMIN, USER_ROLES.STAFF];
+const ADMIN_ROLES = [USER_ROLES.ADMIN];
+const APP_ROUTES = {
+  RETURNS: '/returns',
+  TRANSPORTS: '/transports',
+  TRANSPORT_DETAILS: '/transports/:id',
+};
 
 const AuthLoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
     <div className="text-sm font-medium text-gray-600">Loading...</div>
   </div>
+);
+
+const RouteFallback = () => (
+  <div className="flex flex-1 items-center justify-center px-4 py-16">
+    <div className="text-sm font-medium text-gray-600">Loading...</div>
+  </div>
+);
+
+const renderLazyRoute = (Component) => (
+  <Suspense fallback={<RouteFallback />}>
+    <Component />
+  </Suspense>
 );
 
 const getSafeRedirectPath = (path) => {
@@ -56,12 +79,12 @@ const RootRoute = () => {
   if (isAuthenticated) {
     return (
       <Layout>
-        <HomePage />
+        {renderLazyRoute(HomePage)}
       </Layout>
     );
   }
 
-  return <LandingPage />;
+  return renderLazyRoute(LandingPage);
 };
 
 const LoginRoute = () => {
@@ -81,7 +104,7 @@ const LoginRoute = () => {
     return <Navigate to={redirectPath} replace />;
   }
 
-  return <LoginPage />;
+  return renderLazyRoute(LoginPage);
 };
 
 const UnauthorizedPage = () => (
@@ -115,35 +138,35 @@ const App = () => {
             </ProtectedRoute>
           )}
         >
-          <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-          <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
-          <Route path={ROUTES.ORDERS} element={<OrderManagementPage />} />
-          <Route path={ROUTES.INVENTORY} element={<InventoryPage />} />
-          <Route path={ROUTES.PROFILE} element={<UserPage />} />
+          <Route path={ROUTES.DASHBOARD} element={renderLazyRoute(DashboardPage)} />
+          <Route path={ROUTES.PRODUCTS} element={renderLazyRoute(ProductsPage)} />
+          <Route path={ROUTES.ORDERS} element={renderLazyRoute(OrderManagementPage)} />
+          <Route path={ROUTES.INVENTORY} element={renderLazyRoute(InventoryPage)} />
+          <Route path={ROUTES.PROFILE} element={renderLazyRoute(UserPage)} />
           <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
-          <Route path="/returns" element={<ReturnList />} />
+          <Route path={APP_ROUTES.RETURNS} element={renderLazyRoute(ReturnList)} />
         </Route>
 
         <Route
           element={(
-            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={[USER_ROLES.ADMIN, USER_ROLES.STAFF]}>
+            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={INTERNAL_STAFF_ROLES}>
               <Layout />
             </ProtectedRoute>
           )}
         >
-          <Route path={ROUTES.AI_ASSISTANT} element={<AIAssistantPage />} />
-          <Route path="/transports" element={<TransportList />} />
-          <Route path="/transports/:id" element={<TransportDetails />} />
+          <Route path={ROUTES.AI_ASSISTANT} element={renderLazyRoute(AIAssistantPage)} />
+          <Route path={APP_ROUTES.TRANSPORTS} element={renderLazyRoute(TransportList)} />
+          <Route path={APP_ROUTES.TRANSPORT_DETAILS} element={renderLazyRoute(TransportDetails)} />
         </Route>
 
         <Route
           element={(
-            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={[USER_ROLES.ADMIN]}>
+            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={ADMIN_ROLES}>
               <Layout />
             </ProtectedRoute>
           )}
         >
-          <Route path={ROUTES.ADMIN} element={<AdminPage />} />
+          <Route path={ROUTES.ADMIN} element={renderLazyRoute(AdminPage)} />
         </Route>
 
         <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />

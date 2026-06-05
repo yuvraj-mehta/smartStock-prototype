@@ -68,9 +68,32 @@ const {
 } = await import('../clearDatabase.js');
 
 const allModels = [...Object.values(targetModels), userModel, externalUserModel, warehouseModel];
+const managedEnvKeys = [
+  'CLEAR_DATABASE_ALLOW_PRODUCTION',
+  'NODE_ENV',
+];
+const savedEnv = {};
+
+const clearManagedEnv = () => {
+  for (const key of managedEnvKeys) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+};
+
+const restoreManagedEnv = () => {
+  for (const key of managedEnvKeys) {
+    if (savedEnv[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = savedEnv[key];
+    }
+  }
+};
 
 describe('clearDatabase safety guard', () => {
   beforeEach(() => {
+    clearManagedEnv();
     mongooseMock.connect.mockClear();
     mongooseMock.disconnect.mockClear();
     allModels.forEach((model) => {
@@ -81,17 +104,28 @@ describe('clearDatabase safety guard', () => {
     });
   });
 
+  afterEach(() => {
+    restoreManagedEnv();
+  });
+
   it('parses CLI arguments as dry-run unless execution is explicit', () => {
     expect(parseClearDatabaseArgs([])).toEqual({
       dryRun: true,
       confirmDbName: undefined,
       allowProtectedDatabase: false,
+      allowProductionClear: false,
     });
 
-    expect(parseClearDatabaseArgs(['--execute', '--confirm-db', 'smartstock_test'])).toEqual({
+    expect(parseClearDatabaseArgs([
+      '--execute',
+      '--confirm-db',
+      'smartstock_test',
+      '--allow-production-clear',
+    ])).toEqual({
       dryRun: false,
       confirmDbName: 'smartstock_test',
       allowProtectedDatabase: false,
+      allowProductionClear: true,
     });
   });
 
@@ -144,6 +178,7 @@ describe('clearDatabase safety guard', () => {
     expect(targetNames).not.toContain('users');
     expect(targetNames).not.toContain('externalusers');
     expect(targetNames).not.toContain('warehouses');
+    expect(targetNames.filter((name) => preservedNames.includes(name))).toEqual([]);
     expect(preservedNames).toEqual(['users', 'externalusers', 'warehouses']);
   });
 
@@ -156,6 +191,42 @@ describe('clearDatabase safety guard', () => {
     Object.values(targetModels).forEach((model) => {
       expect(model.deleteMany).not.toHaveBeenCalled();
     });
+  });
+
+  it('refuses destructive deletion in production without a second explicit override', async () => {
+    process.env.NODE_ENV = 'production';
+
+    await expect(clearDatabase({ dryRun: false, confirmDbName: 'smartstock_test' }))
+      .rejects
+      .toThrow('NODE_ENV is production');
+
+    expect(mongooseMock.connect).not.toHaveBeenCalled();
+    Object.values(targetModels).forEach((model) => {
+      expect(model.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it('allows production deletion only when confirmation and production override are both explicit', async () => {
+    process.env.NODE_ENV = 'production';
+
+    const result = await clearDatabase({
+      dryRun: false,
+      confirmDbName: 'smartstock_test',
+      allowProductionClear: true,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        dryRun: false,
+        databaseName: 'smartstock_test',
+      }),
+    );
+    Object.values(targetModels).forEach((model) => {
+      expect(model.deleteMany).toHaveBeenCalledWith({});
+    });
+    expect(userModel.deleteMany).not.toHaveBeenCalled();
+    expect(externalUserModel.deleteMany).not.toHaveBeenCalled();
+    expect(warehouseModel.deleteMany).not.toHaveBeenCalled();
   });
 
   it('deletes only non-user collections when confirmation matches', async () => {

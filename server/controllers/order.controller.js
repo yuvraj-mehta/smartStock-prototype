@@ -177,6 +177,13 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
       throw httpError(404, "Order not found");
     }
 
+    if (
+      assignedWarehouseId &&
+      order.createdBy?.toString() !== req.user._id.toString()
+    ) {
+      throw httpError(403, "Access denied for this warehouse.");
+    }
+
     if (order.orderStatus !== 'pending') {
       throw httpError(400, "Order is not in pending status");
     }

@@ -87,6 +87,42 @@ describe('return disposition validation', () => {
 
     expect(res.statusCode).toBe(204);
   });
+
+  it.each(['defective', 'damaged', 'quality_issue'])(
+    'accepts selected delivered item IDs for %s returns',
+    async (returnReason) => {
+      const res = await request(buildValidationApp())
+        .post('/validate')
+        .send({
+          packageId,
+          returnReason,
+          returnedItems: [{
+            productId,
+            batchId,
+            quantity: 1,
+            disposition: returnReason,
+            itemIds: [itemId],
+          }],
+        });
+
+      expect(res.statusCode).toBe(204);
+    },
+  );
+
+  it('rejects empty item ID selections for non-restock returns', async () => {
+    const res = await request(buildValidationApp())
+      .post('/validate')
+      .send({
+        packageId,
+        returnReason: 'defective',
+        returnedItems: [{ productId, batchId, quantity: 1, itemIds: [] }],
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.errors.map((error) => error.message)).toContain(
+      'Returned item IDs are required for damaged, defective, or quality issue returns',
+    );
+  });
 });
 
 describe('return disposition processing', () => {

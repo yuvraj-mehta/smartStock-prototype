@@ -659,6 +659,91 @@ export const recordReversalEvent = async ({
   });
 };
 
+export const listUnreversedFinancialEventsForSource = async ({
+  eventType,
+  sourceModel,
+  sourceDocumentId,
+  sourceModule,
+  session,
+}) => {
+  if (eventType) {
+    assertKnownEventType(eventType);
+  }
+  if (!sourceModel) {
+    throw createFinanceError(400, 'Source model is required.');
+  }
+
+  const match = {
+    'source.model': sourceModel,
+    'source.documentId': requireValidObjectId(sourceDocumentId, 'Source document ID'),
+  };
+
+  if (eventType) {
+    match.eventType = eventType;
+  }
+  if (sourceModule) {
+    match['source.module'] = sourceModule;
+  }
+
+  const sourceEvents = await runQuery(
+    FinancialEvent.find(match).sort({ occurredAt: 1, createdAt: 1 }),
+    session
+  );
+
+  if (sourceEvents.length === 0) {
+    return [];
+  }
+
+  const reversalEvents = await runQuery(
+    FinancialEvent.find({
+      eventType: 'reversal',
+      reversalOfEventId: { $in: sourceEvents.map((event) => event._id) },
+    }).sort({ occurredAt: 1, createdAt: 1 }),
+    session
+  );
+
+  const reversedEventIds = new Set(
+    reversalEvents
+      .map((event) => event.reversalOfEventId?.toString())
+      .filter(Boolean)
+  );
+
+  return sourceEvents.filter((event) => !reversedEventIds.has(event._id.toString()));
+};
+
+export const reverseUnreversedFinancialEventsForSource = async ({
+  eventType,
+  sourceModel,
+  sourceDocumentId,
+  sourceModule,
+  actorId,
+  occurredAt = new Date(),
+  memo,
+  session,
+}) => {
+  const events = await listUnreversedFinancialEventsForSource({
+    eventType,
+    sourceModel,
+    sourceDocumentId,
+    sourceModule,
+    session,
+  });
+
+  const reversals = [];
+  for (const event of events) {
+    const reversal = await recordReversalEvent({
+      originalEvent: event,
+      actorId,
+      occurredAt,
+      memo,
+      session,
+    });
+    reversals.push(reversal);
+  }
+
+  return reversals;
+};
+
 export const listFinancialEvents = async ({
   limit = 100,
   skip = 0,
