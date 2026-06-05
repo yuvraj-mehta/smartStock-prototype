@@ -41,6 +41,8 @@ export const ROUTES = {
   ORDERS: '/orders',
   PROFILE: '/profile',
   TRANSPORT: '/transports',
+  TRANSPORT_DETAILS: '/transports/:id',
+  RETURNS: '/returns',
   AI_ASSISTANT: '/ai-assistant',
   UNAUTHORIZED: '/unauthorized',
   NOT_FOUND: '*',

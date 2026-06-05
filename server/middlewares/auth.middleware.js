@@ -37,6 +37,10 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
       return res.status(403).json({ message: 'Forbidden: Unsupported internal user role.' });
     }
 
+    if (!req.user.assignedWarehouseId) {
+      return res.status(403).json({ message: 'User must be assigned to a warehouse.' });
+    }
+
     req.user.role = role;
     req.authPolicy = {
       role,

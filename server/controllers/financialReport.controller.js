@@ -6,6 +6,7 @@ import {
   PaymentReceived,
   PurchaseOrder,
   Invoice,
+  Return,
   SalesInvoice,
   SalesOrder,
 } from '../models/index.js';
@@ -203,8 +204,13 @@ export const getCOGSAndProfit = catchAsyncErrors(async (req, res) => {
   }
 
   if (packageMovementMap.size > 0) {
+    const packageIds = [...packageMovementMap.keys()];
+    const returnedPackageIds = await Return.find({ packageId: { $in: packageIds } }).distinct('packageId');
+    const returnedPackageIdSet = new Set(returnedPackageIds.map((id) => id.toString()));
+    const salePackageIds = packageIds.filter((id) => !returnedPackageIdSet.has(id.toString()));
+
     const packages = await Package.find({
-      _id: { $in: [...packageMovementMap.keys()] },
+      _id: { $in: salePackageIds },
       packageStatus: 'delivered',
     }).select('allocatedItems totalValue');
 

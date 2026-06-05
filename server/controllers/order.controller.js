@@ -509,6 +509,14 @@ export const autoConfirmSale = catchAsyncErrors(async (req, res) => {
       const scopedPackage = await Package.findById(packageDoc._id).populate('orderId').session(session);
       if (!scopedPackage) throw httpError(404, "Package not found");
 
+      if (
+        scopedPackage.packageStatus === 'returned' ||
+        ['returned', 'sale_confirmed'].includes(scopedPackage.orderId?.orderStatus)
+      ) {
+        await session.abortTransaction();
+        continue;
+      }
+
       const batchWarehouseMap = await ensurePackageWarehouseAccess(scopedPackage, assignedWarehouseId, session);
       const transport = await Transport.findOne({ packageId: scopedPackage._id }).session(session);
       if (!transport || !transport.deliveredAt) {

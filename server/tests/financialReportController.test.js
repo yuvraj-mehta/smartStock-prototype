@@ -17,6 +17,9 @@ const Package = {
 const PurchaseOrder = {
   find: jest.fn(),
 };
+const Return = {
+  find: jest.fn(),
+};
 const Invoice = {
   findById: jest.fn(),
   findOne: jest.fn(),
@@ -35,6 +38,7 @@ jest.unstable_mockModule('../models/index.js', () => ({
   Package,
   PurchaseOrder,
   Invoice,
+  Return,
   SalesInvoice: {},
   SalesOrder,
 }));
@@ -75,6 +79,9 @@ describe('financial report source-of-truth contracts', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    Return.find.mockReturnValue({
+      distinct: jest.fn().mockResolvedValue([]),
+    });
   });
 
   it('computes COGS from sales-order inventory movements instead of current item status', async () => {
@@ -172,6 +179,33 @@ describe('financial report source-of-truth contracts', () => {
       totalCOGS: 225,
       totalRevenue: 500,
       profit: 275,
+    });
+  });
+
+  it('excludes returned packages from canonical package COGS and revenue', async () => {
+    SalesOrder.find.mockResolvedValue([]);
+    InventoryMovement.find.mockReturnValue(buildMovementQuery([
+      { itemId: 'item-1', referenceId: 'package-1' },
+    ]));
+    Return.find.mockReturnValue({
+      distinct: jest.fn().mockResolvedValue(['package-1']),
+    });
+    Package.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([]),
+    });
+
+    const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
+
+    expect(Return.find).toHaveBeenCalledWith({ packageId: { $in: ['package-1'] } });
+    expect(Package.find).toHaveBeenCalledWith({
+      _id: { $in: [] },
+      packageStatus: 'delivered',
+    });
+    expect(Item.find).not.toHaveBeenCalled();
+    expect(res.payload).toEqual({
+      totalCOGS: 0,
+      totalRevenue: 0,
+      profit: 0,
     });
   });
 

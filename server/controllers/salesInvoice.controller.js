@@ -1,14 +1,19 @@
 import mongoose from 'mongoose';
-import { SalesInvoice, SalesOrder, PaymentReceived } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { Batch, SalesInvoice, SalesOrder, PaymentReceived } from '../models/index.js';
+import { catchAsyncErrors, normalizeId, requireAssignedWarehouseId } from '../middlewares/index.js';
+import { reverseUnreversedFinancialEventsForSource } from '../services/finance/index.js';
 
 const UPDATE_OPTIONS = { new: true, runValidators: true };
 
 const withSession = (options, session) => ({ ...options, session });
+const CUSTOMER_PAYMENT_EVENT_TYPE = 'customer_payment';
+const PAYMENT_RECEIVED_SOURCE_MODEL = 'PaymentReceived';
 
 const asObjectId = (id) => (
   id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
 );
+
+const uniqueIds = (ids) => [...new Set(ids.map(normalizeId).filter(Boolean))];
 
 const invoiceStatusToPaymentStatus = (status) => {
   if (status === 'paid') return 'paid';
@@ -41,6 +46,72 @@ const getCompletedPaymentSummary = async (salesInvoiceId, session) => {
     paidAmount: summary?.paidAmount || 0,
     paidDate: summary?.paidDate,
   };
+};
+
+const getScopedSalesOrderIds = async (req) => {
+  const warehouseId = requireAssignedWarehouseId(req);
+  const batchIds = await Batch.find({ warehouseId }).distinct('_id');
+  if (batchIds.length === 0) return [];
+
+  return SalesOrder.find({ 'fulfilledItems.batchId': { $in: batchIds } }).distinct('_id');
+};
+
+const assertSalesOrderWarehouseAccess = async (req, salesOrderId, session) => {
+  const warehouseId = requireAssignedWarehouseId(req);
+  const salesOrder = await SalesOrder.findById(salesOrderId).session(session);
+  if (!salesOrder) {
+    throw Object.assign(new Error('Sales order not found.'), { statusCode: 404 });
+  }
+
+  const batchIds = uniqueIds(salesOrder.fulfilledItems?.map((item) => item.batchId) || []);
+  if (batchIds.length === 0) {
+    throw Object.assign(new Error('Sales order has no warehouse-scoped fulfilled inventory.'), { statusCode: 403 });
+  }
+
+  const scopedBatchCount = await Batch.countDocuments({
+    _id: { $in: batchIds },
+    warehouseId,
+  }).session(session);
+
+  if (scopedBatchCount !== batchIds.length) {
+    throw Object.assign(new Error('Access denied for this warehouse.'), { statusCode: 403 });
+  }
+
+  return salesOrder;
+};
+
+const assertSalesInvoiceWarehouseAccess = async (req, salesInvoiceId, session) => {
+  const invoice = await SalesInvoice.findById(salesInvoiceId).session(session);
+  if (!invoice) {
+    throw Object.assign(new Error('Sales invoice not found.'), { statusCode: 404 });
+  }
+
+  await assertSalesOrderWarehouseAccess(req, invoice.salesOrderId, session);
+  return invoice;
+};
+
+const assertSalesInvoiceAmountCoversCompletedReceipts = async ({
+  salesInvoiceId,
+  amount,
+  session,
+}) => {
+  const { paidAmount } = await getCompletedPaymentSummary(salesInvoiceId, session);
+  if (paidAmount > (Number(amount) || 0)) {
+    throw Object.assign(new Error('Sales invoice amount cannot be less than completed received payments.'), { statusCode: 400 });
+  }
+};
+
+const reverseCustomerPaymentLedgerForPayments = async ({ payments, actorId, session }) => {
+  for (const payment of payments) {
+    await reverseUnreversedFinancialEventsForSource({
+      eventType: CUSTOMER_PAYMENT_EVENT_TYPE,
+      sourceModel: PAYMENT_RECEIVED_SOURCE_MODEL,
+      sourceDocumentId: payment._id,
+      actorId,
+      memo: 'Sales invoice deleted',
+      session,
+    });
+  }
 };
 
 const syncSalesOrderForInvoice = async (invoice, session) => {
@@ -107,6 +178,7 @@ export const createSalesInvoice = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
+      await assertSalesOrderWarehouseAccess(req, salesOrderId, session);
       invoice = new SalesInvoice({ salesOrderId, amount, dueDate, paidDate, status });
       await invoice.save({ session });
       invoice = await syncSalesInvoiceStatus(invoice._id, session) || invoice;
@@ -120,7 +192,8 @@ export const createSalesInvoice = catchAsyncErrors(async (req, res) => {
 
 // Get all Sales Invoices
 export const getAllSalesInvoices = catchAsyncErrors(async (req, res) => {
-  const invoices = await SalesInvoice.find().populate('salesOrderId');
+  const salesOrderIds = await getScopedSalesOrderIds(req);
+  const invoices = await SalesInvoice.find({ salesOrderId: { $in: salesOrderIds } }).populate('salesOrderId');
   res.json(invoices);
 });
 
@@ -132,7 +205,18 @@ export const updateSalesInvoice = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
-      const existingInvoice = await SalesInvoice.findById(id).session(session);
+      const existingInvoice = await assertSalesInvoiceWarehouseAccess(req, id, session);
+      if (req.body.salesOrderId !== undefined) {
+        await assertSalesOrderWarehouseAccess(req, req.body.salesOrderId, session);
+      }
+
+      const nextAmount = req.body.amount ?? existingInvoice.amount;
+      await assertSalesInvoiceAmountCoversCompletedReceipts({
+        salesInvoiceId: existingInvoice._id,
+        amount: nextAmount,
+        session,
+      });
+
       invoice = await SalesInvoice.findByIdAndUpdate(id, req.body, withSession(UPDATE_OPTIONS, session));
 
       if (
@@ -161,14 +245,21 @@ export const deleteSalesInvoice = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
-      const invoice = await SalesInvoice.findById(id).session(session);
+      const invoice = await assertSalesInvoiceWarehouseAccess(req, id, session);
 
       if (invoice) {
+        const completedPayments = await PaymentReceived.find({
+          salesInvoiceId: invoice._id,
+          status: 'completed',
+        }).session(session);
+        await reverseCustomerPaymentLedgerForPayments({
+          payments: completedPayments,
+          actorId: req.user?._id,
+          session,
+        });
         await PaymentReceived.deleteMany({ salesInvoiceId: invoice._id }).session(session);
         await SalesInvoice.findByIdAndDelete(id).session(session);
         await clearSalesOrderInvoice(invoice.salesOrderId, invoice._id, session);
-      } else {
-        await SalesInvoice.findByIdAndDelete(id).session(session);
       }
     });
   } finally {

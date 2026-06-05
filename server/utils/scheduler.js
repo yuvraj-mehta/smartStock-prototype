@@ -1,5 +1,22 @@
 import cron from 'node-cron';
-import { Package, Transport, SalesHistory, Order } from "../models/index.js";
+import { Batch, Package, Transport, SalesHistory } from "../models/index.js";
+
+const normalizeId = (id) => (id?._id || id)?.toString();
+
+const getPackageWarehouseId = async (packageDoc) => {
+  const batchIds = [
+    ...new Set(
+      (packageDoc.allocatedItems || [])
+        .map((item) => normalizeId(item.batchId))
+        .filter(Boolean)
+    ),
+  ];
+
+  if (batchIds.length === 0) return null;
+
+  const batch = await Batch.findOne({ _id: { $in: batchIds } }).select('warehouseId');
+  return batch?.warehouseId || null;
+};
 
 // Auto-confirm sales after 10 days of delivery
 const autoConfirmSales = async () => {
@@ -31,12 +48,15 @@ const autoConfirmSales = async () => {
       const daysSinceDelivery = Math.floor((new Date() - deliveryDate) / (1000 * 60 * 60 * 24));
 
       if (daysSinceDelivery >= 10) {
+        const warehouseId = await getPackageWarehouseId(packageDoc);
+        if (!warehouseId) continue;
+
         // Create sales history record
         await SalesHistory.create({
           packageId: packageDoc._id,
           orderId: packageDoc.orderId._id,
           products: packageDoc.allocatedItems,
-          warehouseId: packageDoc.allocatedItems[0]?.warehouseId, // Use first item's warehouse
+          warehouseId,
           saleConfirmationDate: new Date(),
           deliveryDate: transport.deliveredAt,
           notes: 'Auto-confirmed after 10 days'

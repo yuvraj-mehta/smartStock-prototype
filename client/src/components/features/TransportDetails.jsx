@@ -9,6 +9,10 @@ const TransportDetails = () => {
   const { transportDetails, loading, error } = useSelector(state => state.transport);
   const user = useSelector(state => state.auth.user);
   const canUpdateTransport = user?.role === 'admin' || user?.role === 'staff';
+  const nextStatusByCurrentStatus = {
+    dispatched: 'in_transit',
+    in_transit: 'delivered',
+  };
 
   useEffect(() => {
     dispatch(fetchTransportById(id));
@@ -25,6 +29,8 @@ const TransportDetails = () => {
   if (error) return <div>Error: {error.message || error}</div>;
   if (!transportDetails) return <div>No details found.</div>;
 
+  const nextStatus = nextStatusByCurrentStatus[transportDetails.status];
+
   return (
     <div>
       <h2>Transport Details</h2>
@@ -40,14 +46,14 @@ const TransportDetails = () => {
           ))}
         </ul>
       </div>
-      {canUpdateTransport ? (
+      {canUpdateTransport && nextStatus ? (
         <form onSubmit={handleStatusUpdate} style={{ marginTop: 20 }}>
           <label>
             Update Status:
-            <select name="status" defaultValue={transportDetails.status} required>
-              <option value="dispatched">Dispatched</option>
-              <option value="in_transit">In Transit</option>
-              <option value="delivered">Delivered</option>
+            <select name="status" defaultValue={nextStatus} required>
+              <option value={nextStatus}>
+                {nextStatus === 'in_transit' ? 'In Transit' : 'Delivered'}
+              </option>
             </select>
           </label>
           <br />
@@ -58,8 +64,10 @@ const TransportDetails = () => {
           <br />
           <button type="submit">Update Status</button>
         </form>
-      ) : (
+      ) : !canUpdateTransport ? (
         <div style={{ marginTop: 20, color: 'gray' }}><i>Only admins and staff can update transport status.</i></div>
+      ) : (
+        <div style={{ marginTop: 20, color: 'gray' }}><i>No further status updates are available.</i></div>
       )}
     </div>
   );

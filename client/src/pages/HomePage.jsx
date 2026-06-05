@@ -1,8 +1,66 @@
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
+import { ROUTES, USER_ROLES } from '../constants';
+
+const normalizeRole = (role) => (
+  typeof role === 'string' ? role.trim().toLowerCase() : ''
+);
 
 const HomePage = () => {
   const { user } = useSelector((state) => state.auth);
+  const role = normalizeRole(user?.role);
+  const canUseOperations = [USER_ROLES.ADMIN, USER_ROLES.STAFF].includes(role);
+  const homeTiles = [
+    {
+      to: ROUTES.DASHBOARD,
+      icon: '📊',
+      label: 'Dashboard',
+      caption: 'Overview & Analytics',
+      className: 'bg-gradient-to-br from-blue-500 to-purple-500 text-white',
+      visible: true,
+    },
+    {
+      to: ROUTES.INVENTORY,
+      icon: '📦',
+      label: 'Inventory',
+      caption: 'Stock & Tracking',
+      className: 'bg-gradient-to-br from-green-400 to-blue-400 text-white',
+      visible: canUseOperations,
+    },
+    {
+      to: ROUTES.PRODUCTS,
+      icon: '🛒',
+      label: 'Products',
+      caption: 'Manage Products',
+      className: 'bg-gradient-to-br from-yellow-400 to-orange-400 text-white',
+      visible: canUseOperations,
+    },
+    {
+      to: ROUTES.ORDERS,
+      icon: '💰',
+      label: 'Orders',
+      caption: 'Sales Orders',
+      className: 'bg-gradient-to-br from-pink-400 to-red-400 text-white',
+      visible: canUseOperations,
+    },
+    {
+      to: ROUTES.RETURNS,
+      icon: '↩️',
+      label: 'Returns',
+      caption: 'Manage Returns',
+      className: 'bg-gradient-to-br from-gray-400 to-gray-600 text-white',
+      visible: canUseOperations,
+    },
+    {
+      to: ROUTES.AI_ASSISTANT,
+      icon: '🤖',
+      label: 'AI Assistant',
+      caption: 'Smart Insights',
+      className: 'bg-gradient-to-br from-yellow-300 to-pink-300 text-gray-800',
+      visible: canUseOperations,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100">
       <main className="max-w-5xl mx-auto px-4 py-12">
@@ -14,48 +72,15 @@ const HomePage = () => {
             This is your SmartStock Home. Here you can quickly access your dashboard, manage inventory, view sales, returns, and get AI-powered insights to optimize your business.
           </p>
           <div className="flex flex-wrap gap-6 justify-center mt-6">
-            <Link to="/dashboard" className="home-tile">
-              <div className="bg-gradient-to-br from-blue-500 to-purple-500 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
-                <span className="text-3xl mb-2">📊</span>
-                <span className="font-bold text-lg">Dashboard</span>
-                <span className="text-xs mt-1">Overview & Analytics</span>
-              </div>
-            </Link>
-            <Link to="/inventory" className="home-tile">
-              <div className="bg-gradient-to-br from-green-400 to-blue-400 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
-                <span className="text-3xl mb-2">📦</span>
-                <span className="font-bold text-lg">Inventory</span>
-                <span className="text-xs mt-1">Stock & Tracking</span>
-              </div>
-            </Link>
-            <Link to="/products" className="home-tile">
-              <div className="bg-gradient-to-br from-yellow-400 to-orange-400 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
-                <span className="text-3xl mb-2">🛒</span>
-                <span className="font-bold text-lg">Products</span>
-                <span className="text-xs mt-1">Manage Products</span>
-              </div>
-            </Link>
-            <Link to="/orders" className="home-tile">
-              <div className="bg-gradient-to-br from-pink-400 to-red-400 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
-                <span className="text-3xl mb-2">💰</span>
-                <span className="font-bold text-lg">Orders</span>
-                <span className="text-xs mt-1">Sales Orders</span>
-              </div>
-            </Link>
-            <Link to="/returns" className="home-tile">
-              <div className="bg-gradient-to-br from-gray-400 to-gray-600 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
-                <span className="text-3xl mb-2">↩️</span>
-                <span className="font-bold text-lg">Returns</span>
-                <span className="text-xs mt-1">Manage Returns</span>
-              </div>
-            </Link>
-            <Link to="/ai-assistant" className="home-tile">
-              <div className="bg-gradient-to-br from-yellow-300 to-pink-300 text-gray-800 rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
-                <span className="text-3xl mb-2">🤖</span>
-                <span className="font-bold text-lg">AI Assistant</span>
-                <span className="text-xs mt-1">Smart Insights</span>
-              </div>
-            </Link>
+            {homeTiles.filter(tile => tile.visible).map(tile => (
+              <Link key={tile.to} to={tile.to} className="home-tile">
+                <div className={`${tile.className} rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform`}>
+                  <span className="text-3xl mb-2">{tile.icon}</span>
+                  <span className="font-bold text-lg">{tile.label}</span>
+                  <span className="text-xs mt-1">{tile.caption}</span>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
         <section className="text-center text-gray-500 text-sm mt-8">

@@ -24,11 +24,6 @@ const OrderManagementPage = lazy(() => import('./pages/OrderManagementPage.jsx')
 
 const INTERNAL_STAFF_ROLES = [USER_ROLES.ADMIN, USER_ROLES.STAFF];
 const ADMIN_ROLES = [USER_ROLES.ADMIN];
-const APP_ROUTES = {
-  RETURNS: '/returns',
-  TRANSPORTS: '/transports',
-  TRANSPORT_DETAILS: '/transports/:id',
-};
 
 const AuthLoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -139,12 +134,8 @@ const App = () => {
           )}
         >
           <Route path={ROUTES.DASHBOARD} element={renderLazyRoute(DashboardPage)} />
-          <Route path={ROUTES.PRODUCTS} element={renderLazyRoute(ProductsPage)} />
-          <Route path={ROUTES.ORDERS} element={renderLazyRoute(OrderManagementPage)} />
-          <Route path={ROUTES.INVENTORY} element={renderLazyRoute(InventoryPage)} />
           <Route path={ROUTES.PROFILE} element={renderLazyRoute(UserPage)} />
           <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
-          <Route path={APP_ROUTES.RETURNS} element={renderLazyRoute(ReturnList)} />
         </Route>
 
         <Route
@@ -154,9 +145,13 @@ const App = () => {
             </ProtectedRoute>
           )}
         >
+          <Route path={ROUTES.PRODUCTS} element={renderLazyRoute(ProductsPage)} />
+          <Route path={ROUTES.ORDERS} element={renderLazyRoute(OrderManagementPage)} />
+          <Route path={ROUTES.INVENTORY} element={renderLazyRoute(InventoryPage)} />
+          <Route path={ROUTES.RETURNS} element={renderLazyRoute(ReturnList)} />
           <Route path={ROUTES.AI_ASSISTANT} element={renderLazyRoute(AIAssistantPage)} />
-          <Route path={APP_ROUTES.TRANSPORTS} element={renderLazyRoute(TransportList)} />
-          <Route path={APP_ROUTES.TRANSPORT_DETAILS} element={renderLazyRoute(TransportDetails)} />
+          <Route path={ROUTES.TRANSPORT} element={renderLazyRoute(TransportList)} />
+          <Route path={ROUTES.TRANSPORT_DETAILS} element={renderLazyRoute(TransportDetails)} />
         </Route>
 
         <Route

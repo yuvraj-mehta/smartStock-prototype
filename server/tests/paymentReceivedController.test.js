@@ -34,12 +34,20 @@ PaymentReceived.findById = jest.fn();
 PaymentReceived.findByIdAndUpdate = jest.fn();
 PaymentReceived.findByIdAndDelete = jest.fn();
 
+const Batch = {
+  countDocuments: jest.fn(),
+  find: jest.fn(),
+};
+
 const SalesInvoice = {
+  find: jest.fn(),
   findById: jest.fn(),
   findByIdAndUpdate: jest.fn(),
 };
 
 const SalesOrder = {
+  find: jest.fn(),
+  findById: jest.fn(),
   findByIdAndUpdate: jest.fn(),
 };
 
@@ -48,6 +56,7 @@ const reverseUnreversedFinancialEventsForSource = jest.fn();
 
 jest.unstable_mockModule('mongoose', () => ({ default: mongooseMock }));
 jest.unstable_mockModule('../models/index.js', () => ({
+  Batch,
   PaymentReceived,
   SalesInvoice,
   SalesOrder,
@@ -58,6 +67,8 @@ jest.unstable_mockModule('../services/finance/index.js', () => ({
 }));
 jest.unstable_mockModule('../middlewares/index.js', () => ({
   catchAsyncErrors: (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next),
+  normalizeId: (id) => (id?._id || id)?.toString(),
+  requireAssignedWarehouseId: (req) => req.user?.assignedWarehouseId || WAREHOUSE_ID,
 }));
 
 const invokeJsonController = (controller, req = {}) =>
@@ -85,6 +96,10 @@ const buildAggregate = (value) => ({
   session: jest.fn().mockResolvedValue(value),
 });
 
+const buildDistinctQuery = (value) => ({
+  distinct: jest.fn().mockResolvedValue(value),
+});
+
 const SALES_INVOICE_ID = '507f1f77bcf86cd799439011';
 const PAYMENT_RECEIVED_ID = '507f1f77bcf86cd799439012';
 const SALES_ORDER_ID = '507f1f77bcf86cd799439013';
@@ -108,6 +123,18 @@ const buildPayment = (overrides = {}) => ({
   date: PAYMENT_DATE,
   method: 'cash',
   status: 'completed',
+  ...overrides,
+});
+
+const buildSalesOrder = (overrides = {}) => ({
+  _id: SALES_ORDER_ID,
+  fulfilledItems: [
+    {
+      batchId: '507f1f77bcf86cd799439016',
+      itemIds: ['507f1f77bcf86cd799439017'],
+      quantity: 1,
+    },
+  ],
   ...overrides,
 });
 
@@ -145,6 +172,12 @@ describe('payment received controller', () => {
     paymentInstance.save.mockResolvedValue(paymentInstance);
     recordCustomerPaymentEvent.mockResolvedValue({});
     reverseUnreversedFinancialEventsForSource.mockResolvedValue([]);
+    Batch.countDocuments.mockReturnValue(buildQuery(1));
+    Batch.find.mockReturnValue(buildDistinctQuery(['507f1f77bcf86cd799439016']));
+    SalesInvoice.find.mockReturnValue(buildDistinctQuery([SALES_INVOICE_ID]));
+    SalesInvoice.findById.mockReturnValue(buildQuery(buildInvoice()));
+    SalesOrder.find.mockReturnValue(buildDistinctQuery([SALES_ORDER_ID]));
+    SalesOrder.findById.mockReturnValue(buildQuery(buildSalesOrder()));
   });
 
   it('rejects completed received payments that overpay a sales invoice', async () => {
@@ -332,7 +365,7 @@ describe('payment received controller', () => {
       amount: 80,
       salesInvoiceId: '507f1f77bcf86cd799439011',
       paymentReceivedId: '507f1f77bcf86cd799439012',
-      warehouseId: undefined,
+      warehouseId: WAREHOUSE_ID,
       occurredAt: undefined,
       actorId: undefined,
       session,

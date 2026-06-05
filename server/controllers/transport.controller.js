@@ -189,7 +189,7 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
           for (const alloc of packageDoc.allocatedItems) {
             if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
               const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
-              await transitionItemsStatus({
+              const transitionResult = await transitionItemsStatus({
                 itemIds: alloc.itemIds,
                 fromStatus: 'dispatched',
                 toStatus: 'delivered',
@@ -202,6 +202,10 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
                 movementType: 'delivery',
                 session
               });
+
+              if (transitionResult.modifiedCount !== alloc.itemIds.length) {
+                throw httpError(409, 'Package items changed while moving from dispatched to delivered.');
+              }
             }
           }
         }

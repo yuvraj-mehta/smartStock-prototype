@@ -217,4 +217,27 @@ describe('transport controller delivery ownership contracts', () => {
     expect(session.abortTransaction).toHaveBeenCalled();
     expect(session.commitTransaction).not.toHaveBeenCalled();
   });
+
+  it('rejects delivery when not every package item transitions to delivered', async () => {
+    const transport = buildTransport();
+    const packageDoc = buildPackage();
+    Transport.findById.mockReturnValue(buildSessionQuery(transport));
+    Package.findById.mockReturnValue(buildPackageQuery(packageDoc));
+    transitionItemsStatus.mockResolvedValue({ modifiedCount: 1 });
+
+    const res = await invokeJsonController(transportController.updateTransportStatus, {
+      params: { transportId: 'transport-1' },
+      body: { status: 'delivered' },
+      user: {
+        _id: 'staff-1',
+        role: 'staff',
+        assignedWarehouseId: 'warehouse-1',
+      },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.payload.message).toBe('Package items changed while moving from dispatched to delivered.');
+    expect(session.abortTransaction).toHaveBeenCalled();
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+  });
 });

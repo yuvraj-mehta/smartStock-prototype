@@ -17,10 +17,6 @@ import {
 import { ROUTES, USER_ROLES } from '../../constants';
 
 const INTERNAL_STAFF_ROLES = [USER_ROLES.ADMIN, USER_ROLES.STAFF];
-const APP_NAV_ROUTES = {
-  RETURNS: '/returns',
-  TRANSPORTS: '/transports',
-};
 
 const normalizeRole = (role) => (
   typeof role === 'string' ? role.trim().toLowerCase() : ''
@@ -35,21 +31,22 @@ const Navbar = () => {
   const canViewTransport = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
   const canUseAIAssistant = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
   const canUseAdminPanel = hasAnyRole(user?.role, [USER_ROLES.ADMIN]);
+  const canUseOperations = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
 
   const navItems = [
     { path: ROUTES.DASHBOARD, icon: BarChart3, label: 'Dashboard' },
-    { path: ROUTES.ORDERS, icon: RotateCcw, label: 'Orders' },
-    { path: ROUTES.INVENTORY, icon: Package, label: 'Inventory' },
-    { path: ROUTES.PRODUCTS, icon: Settings, label: 'Products' },
+    ...(canUseOperations ? [{ path: ROUTES.ORDERS, icon: RotateCcw, label: 'Orders' }] : []),
+    ...(canUseOperations ? [{ path: ROUTES.INVENTORY, icon: Package, label: 'Inventory' }] : []),
+    ...(canUseOperations ? [{ path: ROUTES.PRODUCTS, icon: Settings, label: 'Products' }] : []),
     ...(canUseAIAssistant ? [{ path: ROUTES.AI_ASSISTANT, icon: Brain, label: 'AI Assistant' }] : []),
-    ...(canViewTransport ? [{ path: APP_NAV_ROUTES.TRANSPORTS, icon: Truck, label: 'Transport' }] : []),
-    { path: APP_NAV_ROUTES.RETURNS, icon: RotateCcw, label: 'Returns' },
+    ...(canViewTransport ? [{ path: ROUTES.TRANSPORT, icon: Truck, label: 'Transport' }] : []),
+    ...(canUseOperations ? [{ path: ROUTES.RETURNS, icon: RotateCcw, label: 'Returns' }] : []),
     ...(canUseAdminPanel ? [{ path: ROUTES.ADMIN, icon: Users, label: 'Admin Panel' }] : []),
   ];
 
   const isActivePath = (path) => {
-    if (path === APP_NAV_ROUTES.TRANSPORTS) {
-      return location.pathname.startsWith(APP_NAV_ROUTES.TRANSPORTS);
+    if (path === ROUTES.TRANSPORT) {
+      return location.pathname.startsWith(ROUTES.TRANSPORT);
     }
 
     return location.pathname === path;

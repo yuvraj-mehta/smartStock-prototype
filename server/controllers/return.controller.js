@@ -219,7 +219,9 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
       notes
     }], { session });
 
+    packageDoc.packageStatus = 'returned';
     packageDoc.orderId.orderStatus = 'returned';
+    await packageDoc.save({ session });
     await packageDoc.orderId.save({ session });
 
     await session.commitTransaction();

@@ -154,20 +154,11 @@ const updateExternalUser = catchAsyncErrors(async (req, res) => {
     return res.status(404).json({ message: "External user not found." });
   }
 
-  // For admin users, allow update regardless of warehouse
-  // Check if user belongs to the same warehouse (convert both to strings for comparison)
-  if (req.user.role !== 'admin') {
-    const userWarehouseId = externalUser.warehouseId ? externalUser.warehouseId.toString() : null;
-    const requestWarehouseId = req.user.assignedWarehouseId ? req.user.assignedWarehouseId.toString() : null;
+  const userWarehouseId = externalUser.warehouseId ? externalUser.warehouseId.toString() : null;
+  const requestWarehouseId = req.user.assignedWarehouseId ? req.user.assignedWarehouseId.toString() : null;
 
-    if (userWarehouseId !== requestWarehouseId) {
-      console.log('Warehouse mismatch:', {
-        externalUserWarehouse: userWarehouseId,
-        requestUserWarehouse: requestWarehouseId,
-        user: req.user
-      });
-      return res.status(403).json({ message: "Access denied." });
-    }
+  if (userWarehouseId !== requestWarehouseId) {
+    return res.status(403).json({ message: "Access denied." });
   }
 
   // Check if email already exists (if email is being changed)
@@ -221,20 +212,11 @@ const deleteExternalUser = catchAsyncErrors(async (req, res) => {
     return res.status(404).json({ message: "External user not found." });
   }
 
-  // For admin users, allow deletion regardless of warehouse
-  // Check if user belongs to the same warehouse (convert both to strings for comparison)
-  if (req.user.role !== 'admin') {
-    const userWarehouseId = externalUser.warehouseId ? externalUser.warehouseId.toString() : null;
-    const requestWarehouseId = req.user.assignedWarehouseId ? req.user.assignedWarehouseId.toString() : null;
+  const userWarehouseId = externalUser.warehouseId ? externalUser.warehouseId.toString() : null;
+  const requestWarehouseId = req.user.assignedWarehouseId ? req.user.assignedWarehouseId.toString() : null;
 
-    if (userWarehouseId !== requestWarehouseId) {
-      console.log('Warehouse mismatch:', {
-        externalUserWarehouse: userWarehouseId,
-        requestUserWarehouse: requestWarehouseId,
-        user: req.user
-      });
-      return res.status(403).json({ message: "Access denied." });
-    }
+  if (userWarehouseId !== requestWarehouseId) {
+    return res.status(403).json({ message: "Access denied." });
   }
 
   // Delete the external user

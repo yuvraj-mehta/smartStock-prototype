@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { PaymentReceived, SalesInvoice, SalesOrder } from '../models/index.js';
-import { catchAsyncErrors } from '../middlewares/index.js';
+import { Batch, PaymentReceived, SalesInvoice, SalesOrder } from '../models/index.js';
+import { catchAsyncErrors, normalizeId, requireAssignedWarehouseId } from '../middlewares/index.js';
 import {
   recordCustomerPaymentEvent,
   reverseUnreversedFinancialEventsForSource,
@@ -12,6 +12,7 @@ const CUSTOMER_PAYMENT_EVENT_TYPE = 'customer_payment';
 const PAYMENT_RECEIVED_SOURCE_MODEL = 'PaymentReceived';
 
 const withSession = (options, session) => ({ ...options, session });
+const uniqueIds = (ids) => [...new Set(ids.map(normalizeId).filter(Boolean))];
 
 const asObjectId = (id) => (
   id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
@@ -22,8 +23,6 @@ const invoiceStatusToPaymentStatus = (status) => {
   if (status === 'partial') return 'partial';
   return 'unpaid';
 };
-
-const normalizeId = (id) => (id?._id || id)?.toString();
 
 const normalizePaymentStatus = (payment) => payment?.status || 'pending';
 
@@ -75,6 +74,55 @@ const getCompletedPaymentSummary = async (salesInvoiceId, session, excludePaymen
     paidAmount: summary?.paidAmount || 0,
     paidDate: summary?.paidDate,
   };
+};
+
+const getScopedSalesOrderIds = async (req) => {
+  const warehouseId = requireAssignedWarehouseId(req);
+  const batchIds = await Batch.find({ warehouseId }).distinct('_id');
+  if (batchIds.length === 0) return [];
+
+  return SalesOrder.find({ 'fulfilledItems.batchId': { $in: batchIds } }).distinct('_id');
+};
+
+const getScopedSalesInvoiceIds = async (req) => {
+  const salesOrderIds = await getScopedSalesOrderIds(req);
+  if (salesOrderIds.length === 0) return [];
+
+  return SalesInvoice.find({ salesOrderId: { $in: salesOrderIds } }).distinct('_id');
+};
+
+const assertSalesOrderWarehouseAccess = async (req, salesOrderId, session) => {
+  const warehouseId = requireAssignedWarehouseId(req);
+  const salesOrder = await SalesOrder.findById(salesOrderId).session(session);
+  if (!salesOrder) {
+    throw Object.assign(new Error('Sales order not found.'), { statusCode: 404 });
+  }
+
+  const batchIds = uniqueIds(salesOrder.fulfilledItems?.map((item) => item.batchId) || []);
+  if (batchIds.length === 0) {
+    throw Object.assign(new Error('Sales order has no warehouse-scoped fulfilled inventory.'), { statusCode: 403 });
+  }
+
+  const scopedBatchCount = await Batch.countDocuments({
+    _id: { $in: batchIds },
+    warehouseId,
+  }).session(session);
+
+  if (scopedBatchCount !== batchIds.length) {
+    throw Object.assign(new Error('Access denied for this warehouse.'), { statusCode: 403 });
+  }
+
+  return salesOrder;
+};
+
+const assertSalesInvoiceWarehouseAccess = async (req, salesInvoiceId, session) => {
+  const invoice = await SalesInvoice.findById(salesInvoiceId).session(session);
+  if (!invoice) {
+    throw Object.assign(new Error('Sales invoice not found.'), { statusCode: 404 });
+  }
+
+  await assertSalesOrderWarehouseAccess(req, invoice.salesOrderId, session);
+  return invoice;
 };
 
 const assertCompletedReceiptDoesNotOverpay = async ({
@@ -196,6 +244,7 @@ export const createPaymentReceived = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
+      await assertSalesInvoiceWarehouseAccess(req, salesInvoiceId, session);
       await assertCompletedReceiptDoesNotOverpay({
         salesInvoiceId,
         amount,
@@ -209,7 +258,7 @@ export const createPaymentReceived = catchAsyncErrors(async (req, res) => {
         previousPayment: null,
         payment,
         actorId: req.user?._id,
-        warehouseId: req.user?.assignedWarehouseId,
+        warehouseId: requireAssignedWarehouseId(req),
         session,
       });
     });
@@ -222,7 +271,8 @@ export const createPaymentReceived = catchAsyncErrors(async (req, res) => {
 
 // Get all Payments Received
 export const getAllPaymentsReceived = catchAsyncErrors(async (req, res) => {
-  const payments = await PaymentReceived.find().populate('salesInvoiceId');
+  const salesInvoiceIds = await getScopedSalesInvoiceIds(req);
+  const payments = await PaymentReceived.find({ salesInvoiceId: { $in: salesInvoiceIds } }).populate('salesInvoiceId');
   res.json(payments);
 });
 
@@ -237,6 +287,11 @@ export const updatePaymentReceived = catchAsyncErrors(async (req, res) => {
       const existingPayment = await PaymentReceived.findById(id).session(session);
       if (!existingPayment) {
         throw Object.assign(new Error('Payment received not found.'), { statusCode: 404 });
+      }
+
+      await assertSalesInvoiceWarehouseAccess(req, existingPayment.salesInvoiceId, session);
+      if (req.body.salesInvoiceId !== undefined) {
+        await assertSalesInvoiceWarehouseAccess(req, req.body.salesInvoiceId, session);
       }
 
       await assertCompletedReceiptDoesNotOverpay({
@@ -264,7 +319,7 @@ export const updatePaymentReceived = catchAsyncErrors(async (req, res) => {
         previousPayment: existingPayment,
         payment,
         actorId: req.user?._id,
-        warehouseId: req.user?.assignedWarehouseId,
+        warehouseId: requireAssignedWarehouseId(req),
         session,
       });
     });
@@ -283,6 +338,11 @@ export const deletePaymentReceived = catchAsyncErrors(async (req, res) => {
   try {
     await session.withTransaction(async () => {
       const payment = await PaymentReceived.findById(id).session(session);
+      if (!payment) {
+        throw Object.assign(new Error('Payment received not found.'), { statusCode: 404 });
+      }
+
+      await assertSalesInvoiceWarehouseAccess(req, payment.salesInvoiceId, session);
       await PaymentReceived.findByIdAndDelete(id).session(session);
 
       if (payment?.salesInvoiceId) {
