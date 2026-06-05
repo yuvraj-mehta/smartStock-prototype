@@ -1,11 +1,21 @@
 export { Batch } from "./batch.model.js";
 export { Customer } from "./customer.model.js";
 export { ExternalUser } from "./externalUsers.model.js";
+export {
+  FinancialEvent,
+  FINANCIAL_EVENT_TYPES,
+  FINANCIAL_EVENT_STATUSES,
+} from "./financialEvent.model.js";
 export { FulfillmentOrder } from "./fulfillmentOrder.model.js";
 export { IncomingSupply } from "./incomingSupply.model.js";
 export { Inventory } from "./inventory.model.js";
 export { InventoryMovement } from "./inventoryMovement.model.js";
 export { Item } from "./item.model.js";
+export {
+  JournalEntry,
+  JOURNAL_ENTRY_DIRECTIONS,
+  FINANCE_ACCOUNT_TYPES,
+} from "./journalEntry.model.js";
 export { Order } from "./order.model.js";
 export { Package } from "./package.model.js";
 export { Product } from "./product.model.js";

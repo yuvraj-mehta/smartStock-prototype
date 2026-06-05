@@ -1,45 +1,12 @@
-import { SalesOrder, Item, Inventory, Batch, Product } from '../models/index.js';
+import { SalesOrder, Item, Batch, Product } from '../models/index.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
+import { normalizeId, transitionItemsStatus } from '../services/inventory/index.js';
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
-const normalizeId = (id) => (id?._id || id)?.toString();
-
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
-
-const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
-
-const getInventoryValueForBatch = async (batchId, session) => {
-  const items = await runWithOptionalSession(
-    Item.find({ batchId, status: 'in_stock' }).select('purchasePrice'),
-    session
-  );
-
-  if (items.every((item) => typeof item.purchasePrice === 'number')) {
-    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
-  }
-
-  const batch = await runWithOptionalSession(Batch.findById(batchId).select('unitCost'), session);
-  return (batch?.unitCost || 0) * items.length;
-};
-
-const syncInventoryForBatch = async (batchId, warehouseId, session) => {
-  const [quantity, inventoryValue] = await Promise.all([
-    runWithOptionalSession(Item.countDocuments({ batchId, status: 'in_stock' }), session),
-    getInventoryValueForBatch(batchId, session),
-  ]);
-
-  await Inventory.updateOne(
-    { batchId, warehouseId },
-    {
-      $set: { quantity, inventoryValue },
-      $setOnInsert: { batchId, warehouseId },
-    },
-    { upsert: true, session }
-  );
-};
 
 // Create Sales Order
 export const createSalesOrder = catchAsyncErrors(async (req, res) => {
@@ -82,6 +49,7 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
     const selectedItems = [];
     const batchCostMap = new Map();
     const batchWarehouseMap = new Map();
+    const batchItemIdsMap = new Map();
 
     for (const batch of batches) {
       if (remainingQuantity <= 0) break;
@@ -97,8 +65,13 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
       if (items.length === 0) continue;
 
       selectedItems.push(...items);
-      batchCostMap.set(batch._id.toString(), batch.unitCost || 0);
-      batchWarehouseMap.set(batch._id.toString(), batch.warehouseId);
+      const batchId = batch._id.toString();
+      batchCostMap.set(batchId, batch.unitCost || 0);
+      batchWarehouseMap.set(batchId, batch.warehouseId);
+      batchItemIdsMap.set(batchId, [
+        ...(batchItemIdsMap.get(batchId) || []),
+        ...items.map((item) => item._id),
+      ]);
       remainingQuantity -= items.length;
     }
 
@@ -112,31 +85,6 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
     }, 0);
     profit = orderTotalPrice - cogs;
 
-    const itemIds = selectedItems.map((item) => item._id);
-    const updateResult = await Item.updateMany(
-      { _id: { $in: itemIds }, status: 'in_stock' },
-      {
-        $set: { status: 'dispatched' },
-        $push: {
-          history: {
-            action: 'dispatched',
-            date: new Date(),
-            notes: 'Sold via sales order',
-          }
-        }
-      },
-      { session }
-    );
-
-    const modifiedCount = updateResult.modifiedCount ?? updateResult.nModified ?? 0;
-    if (modifiedCount !== itemIds.length) {
-      throw httpError(409, 'Inventory changed while creating the sales order.');
-    }
-
-    for (const [batchId, warehouseId] of batchWarehouseMap.entries()) {
-      await syncInventoryForBatch(batchId, warehouseId, session);
-    }
-
     [order] = await SalesOrder.create([{
       customerId,
       productId,
@@ -146,6 +94,25 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
       status,
       salesInvoiceId
     }], { session });
+
+    for (const [batchId, itemIds] of batchItemIdsMap.entries()) {
+      const transitionResult = await transitionItemsStatus({
+        itemIds,
+        fromStatus: 'in_stock',
+        toStatus: 'dispatched',
+        actorId: req.user?._id,
+        warehouseId: batchWarehouseMap.get(batchId),
+        notes: 'Sold via sales order',
+        referenceType: 'SalesOrder',
+        referenceId: order._id,
+        movementType: 'dispatch',
+        session
+      });
+
+      if (transitionResult.modifiedCount !== itemIds.length) {
+        throw httpError(409, 'Inventory changed while creating the sales order.');
+      }
+    }
 
     await session.commitTransaction();
   } catch (error) {

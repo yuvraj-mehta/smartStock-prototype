@@ -1,45 +1,12 @@
-import { Order, Package, Product, Batch, Item, Inventory, Transport, SalesHistory, ExternalUser } from "../models/index.js";
+import { Order, Package, Product, Batch, Item, Transport, SalesHistory, ExternalUser } from "../models/index.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import mongoose from "mongoose";
 import { logAudit } from '../utils/auditLogger.js';
+import { normalizeId, runWithOptionalSession, transitionItemsStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
-const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
-
-const normalizeId = (id) => (id?._id || id)?.toString();
-
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
-
-const getInventoryValueForBatch = async (batchId, session) => {
-  const items = await runWithOptionalSession(
-    Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
-    session
-  );
-
-  if (items.every((item) => typeof item.purchasePrice === "number")) {
-    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
-  }
-
-  const batch = await runWithOptionalSession(Batch.findById(batchId).select("unitCost"), session);
-  return (batch?.unitCost || 0) * items.length;
-};
-
-const syncInventoryForBatch = async (batchId, warehouseId, session) => {
-  const [quantity, inventoryValue] = await Promise.all([
-    runWithOptionalSession(Item.countDocuments({ batchId, status: "in_stock" }), session),
-    getInventoryValueForBatch(batchId, session),
-  ]);
-
-  await Inventory.updateOne(
-    { batchId, warehouseId },
-    {
-      $set: { quantity, inventoryValue },
-      $setOnInsert: { batchId, warehouseId },
-    },
-    { upsert: true, session }
-  );
-};
 
 const uniqueIds = (ids) => [...new Set(ids.filter(Boolean).map(normalizeId).filter(Boolean))];
 
@@ -210,29 +177,23 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
         if (items.length === 0) continue;
 
         const itemIds = items.map((item) => item._id);
-        const now = new Date();
-        const updateResult = await Item.updateMany(
-          { _id: { $in: itemIds }, status: 'in_stock' },
-          {
-            $set: { status: 'allocated' },
-            $push: {
-              history: {
-                action: 'allocated',
-                location: batch.warehouseId?.toString() || 'Processing',
-                notes: `Allocated for order ${order.orderNumber}`,
-                date: now
-              }
-            }
-          },
-          { session }
-        );
+        const transitionResult = await transitionItemsStatus({
+          itemIds,
+          fromStatus: 'in_stock',
+          toStatus: 'allocated',
+          actorId: req.user?._id,
+          warehouseId: batch.warehouseId,
+          location: batch.warehouseId?.toString() || 'Processing',
+          notes: `Allocated for order ${order.orderNumber}`,
+          referenceType: 'Order',
+          referenceId: order._id,
+          movementType: 'allocation',
+          session
+        });
 
-        const modifiedCount = updateResult.modifiedCount ?? updateResult.nModified ?? 0;
-        if (modifiedCount !== itemIds.length) {
+        if (transitionResult.modifiedCount !== itemIds.length) {
           throw httpError(409, `Inventory changed while allocating product: ${product.productName}`);
         }
-
-        await syncInventoryForBatch(batch._id, batch.warehouseId, session);
 
         productAllocatedItems.push({
           productId: product._id,
@@ -422,26 +383,20 @@ export const markDelivered = catchAsyncErrors(async (req, res) => {
     if (Array.isArray(packageDoc.allocatedItems)) {
       for (const alloc of packageDoc.allocatedItems) {
         if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
-          await Item.updateMany(
-            { _id: { $in: alloc.itemIds } },
-            {
-              $set: { status: 'delivered' },
-              $push: {
-                history: {
-                  action: 'delivered',
-                  location: 'Customer',
-                  notes: `Delivered via package ${packageDoc.packageId}`,
-                  date: new Date()
-                }
-              }
-            },
-            { session }
-          );
-
           const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
-          if (warehouseId) {
-            await syncInventoryForBatch(alloc.batchId, warehouseId, session);
-          }
+          await transitionItemsStatus({
+            itemIds: alloc.itemIds,
+            toStatus: 'delivered',
+            allowSameStatus: true,
+            actorId: req.user?._id,
+            warehouseId,
+            location: 'Customer',
+            notes: `Delivered via package ${packageDoc.packageId}`,
+            referenceType: 'Package',
+            referenceId: packageDoc._id,
+            movementType: 'delivery',
+            session
+          });
         }
       }
     }

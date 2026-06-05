@@ -83,7 +83,17 @@ The script refuses protected database names such as `admin`, `config`, `local`, 
 Run the backend smoke and contract tests:
 
 ```bash
+cd server
 npm test
 ```
 
-The current tests cover public health contracts, unauthenticated route protection, validation contracts, finance route protection, returns list shape, and the guarded database-clear script.
+The current tests cover public health contracts, unauthenticated route protection, validation contracts, finance route protection, returns list shape, inventory-service transitions, finance ledger validation, retired legacy routes, and the guarded database-clear script.
+
+Run the client smoke gate:
+
+```bash
+cd client
+npm test
+```
+
+The client test script intentionally uses only installed tooling. It runs the quiet ESLint pass and the Vite production build, which catches route import errors, broken React modules, and production bundling regressions without adding a browser or unit-test dependency.

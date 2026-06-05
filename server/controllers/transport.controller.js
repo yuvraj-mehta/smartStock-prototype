@@ -1,44 +1,11 @@
-import { Transport, Package, Item, Batch, Inventory } from "../models/index.js";
+import { Transport, Package, Batch } from "../models/index.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import mongoose from "mongoose";
+import { normalizeId, runWithOptionalSession, transitionItemsStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
-const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
-
-const normalizeId = (id) => (id?._id || id)?.toString();
-
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
-
-const getInventoryValueForBatch = async (batchId, session) => {
-  const items = await runWithOptionalSession(
-    Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
-    session
-  );
-
-  if (items.every((item) => typeof item.purchasePrice === "number")) {
-    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
-  }
-
-  const batch = await runWithOptionalSession(Batch.findById(batchId).select("unitCost"), session);
-  return (batch?.unitCost || 0) * items.length;
-};
-
-const syncInventoryForBatch = async (batchId, warehouseId, session) => {
-  const [quantity, inventoryValue] = await Promise.all([
-    runWithOptionalSession(Item.countDocuments({ batchId, status: "in_stock" }), session),
-    getInventoryValueForBatch(batchId, session),
-  ]);
-
-  await Inventory.updateOne(
-    { batchId, warehouseId },
-    {
-      $set: { quantity, inventoryValue },
-      $setOnInsert: { batchId, warehouseId },
-    },
-    { upsert: true, session }
-  );
-};
 
 const uniqueIds = (ids) => [...new Set(ids.filter(Boolean).map(normalizeId).filter(Boolean))];
 
@@ -210,26 +177,20 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
         if (Array.isArray(packageDoc.allocatedItems)) {
           for (const alloc of packageDoc.allocatedItems) {
             if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
-              await Item.updateMany(
-                { _id: { $in: alloc.itemIds } },
-                {
-                  $set: { status: 'delivered' },
-                  $push: {
-                    history: {
-                      action: 'delivered',
-                      location: 'Customer',
-                      notes: `Delivered via package ${packageDoc.packageId}`,
-                      date: new Date()
-                    }
-                  }
-                },
-                { session }
-              );
-
               const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
-              if (warehouseId) {
-                await syncInventoryForBatch(alloc.batchId, warehouseId, session);
-              }
+              await transitionItemsStatus({
+                itemIds: alloc.itemIds,
+                toStatus: 'delivered',
+                allowSameStatus: true,
+                actorId: req.user?._id,
+                warehouseId,
+                location: 'Customer',
+                notes: `Delivered via package ${packageDoc.packageId}`,
+                referenceType: 'Package',
+                referenceId: packageDoc._id,
+                movementType: 'delivery',
+                session
+              });
             }
           }
         }

@@ -1,44 +1,11 @@
-import { Package, Transport, Item, Batch, Inventory, ExternalUser } from "../models/index.js";
+import { Package, Transport, Batch, ExternalUser } from "../models/index.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import mongoose from "mongoose";
+import { normalizeId, runWithOptionalSession, transitionItemsStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
-const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
-
-const normalizeId = (id) => (id?._id || id)?.toString();
-
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
-
-const getInventoryValueForBatch = async (batchId, session) => {
-  const items = await runWithOptionalSession(
-    Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
-    session
-  );
-
-  if (items.every((item) => typeof item.purchasePrice === "number")) {
-    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
-  }
-
-  const batch = await runWithOptionalSession(Batch.findById(batchId).select("unitCost"), session);
-  return (batch?.unitCost || 0) * items.length;
-};
-
-const syncInventoryForBatch = async (batchId, warehouseId, session) => {
-  const [quantity, inventoryValue] = await Promise.all([
-    runWithOptionalSession(Item.countDocuments({ batchId, status: "in_stock" }), session),
-    getInventoryValueForBatch(batchId, session),
-  ]);
-
-  await Inventory.updateOne(
-    { batchId, warehouseId },
-    {
-      $set: { quantity, inventoryValue },
-      $setOnInsert: { batchId, warehouseId },
-    },
-    { upsert: true, session }
-  );
-};
 
 const uniqueIds = (ids) => [...new Set(ids.filter(Boolean).map(normalizeId).filter(Boolean))];
 
@@ -212,23 +179,22 @@ export const updatePackageStatus = catchAsyncErrors(async (req, res) => {
     // Update all items in the package to 'packed' and log the action
     for (const alloc of packageDoc.allocatedItems) {
       if (alloc.itemIds && alloc.itemIds.length > 0) {
-        const updateResult = await Item.updateMany(
-          { _id: { $in: alloc.itemIds }, status: 'allocated' },
-          {
-            $set: { status: 'packed' },
-            $push: { history: { action: 'packed', date: new Date(), notes: notes || '' } }
-          },
-          { session }
-        );
-
-        const modifiedCount = updateResult.modifiedCount ?? updateResult.nModified ?? 0;
-        if (modifiedCount !== alloc.itemIds.length) {
-          throw httpError(409, "Package items changed while packing.");
-        }
-
         const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
-        if (warehouseId) {
-          await syncInventoryForBatch(alloc.batchId, warehouseId, session);
+        const transitionResult = await transitionItemsStatus({
+          itemIds: alloc.itemIds,
+          fromStatus: 'allocated',
+          toStatus: 'packed',
+          actorId: req.user?._id,
+          warehouseId,
+          notes: notes || '',
+          referenceType: 'Package',
+          referenceId: packageDoc._id,
+          movementType: 'packing',
+          session
+        });
+
+        if (transitionResult.modifiedCount !== alloc.itemIds.length) {
+          throw httpError(409, "Package items changed while packing.");
         }
       }
     }

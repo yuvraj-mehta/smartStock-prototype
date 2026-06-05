@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:quiet": "eslint . --quiet",
+    "smoke": "npm run lint:quiet && npm run build",
+    "test": "npm run smoke",
     "preview": "vite preview"
   },
   "dependencies": {
