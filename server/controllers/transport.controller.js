@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { normalizeId, runWithOptionalSession, transitionItemsStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+const TRANSPORT_STATUS_SEQUENCE = ['dispatched', 'in_transit', 'delivered'];
 
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
 
@@ -142,6 +143,16 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
     }
 
     const previousStatus = transport.status;
+    const previousIndex = TRANSPORT_STATUS_SEQUENCE.indexOf(previousStatus);
+    const nextIndex = TRANSPORT_STATUS_SEQUENCE.indexOf(status);
+
+    if (previousStatus === 'delivered') {
+      throw httpError(400, 'Delivered transports cannot be updated.');
+    }
+    if (nextIndex !== previousIndex + 1) {
+      throw httpError(400, `Invalid transport status transition from ${previousStatus} to ${status}.`);
+    }
+
     const packageDoc = await Package.findById(transport.packageId).populate('orderId').session(session);
     const batchWarehouseMap = packageDoc
       ? await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session)
@@ -180,8 +191,8 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
               const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
               await transitionItemsStatus({
                 itemIds: alloc.itemIds,
+                fromStatus: 'dispatched',
                 toStatus: 'delivered',
-                allowSameStatus: true,
                 actorId: req.user?._id,
                 warehouseId,
                 location: 'Customer',

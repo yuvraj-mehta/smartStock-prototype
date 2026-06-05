@@ -12,10 +12,7 @@ const ReturnInitiateModal = ({ onClose, onSubmit }) => {
   const [items, setItems] = useState([]);
   const [returnedItems, setReturnedItems] = useState([]);
   const REASON_OPTIONS = [
-    { value: 'defective', label: 'Defective' },
-    { value: 'damaged', label: 'Damaged' },
     { value: 'wrong_item', label: 'Wrong Item' },
-    { value: 'quality_issue', label: 'Quality Issue' },
     { value: 'customer_request', label: 'Customer Request' },
   ];
   const [returnReason, setReturnReason] = useState('');

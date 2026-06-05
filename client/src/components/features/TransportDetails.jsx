@@ -59,7 +59,7 @@ const TransportDetails = () => {
           <button type="submit">Update Status</button>
         </form>
       ) : (
-        <div style={{ marginTop: 20, color: 'gray' }}><i>Only admins can update transport status.</i></div>
+        <div style={{ marginTop: 20, color: 'gray' }}><i>Only admins and staff can update transport status.</i></div>
       )}
     </div>
   );

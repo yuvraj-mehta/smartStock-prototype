@@ -272,7 +272,7 @@ class AnalyticsService {
   // Demand prediction with AI
   async predictDemandWithAI(productId, forecastDays = 30) {
     try {
-      const product = await Product.findById(productId);
+      const product = await Product.findOne({ _id: productId, isDeleted: { $ne: true } });
       if (!product) {
         throw new Error('Product not found');
       }
@@ -360,12 +360,46 @@ class AnalyticsService {
   }
 
   getReorderRecommendation(currentStock, avgDailySales) {
-    if (avgDailySales === 0) return 'monitor';
+    if (avgDailySales === 0) {
+      return {
+        action: 'monitor',
+        reason: 'No recent sales velocity detected',
+        urgency: 'low',
+        suggestedQuantity: 0,
+      };
+    }
+
     const daysOfStock = currentStock / avgDailySales;
-    if (daysOfStock < 7) return 'urgent';
-    if (daysOfStock < 14) return 'soon';
-    if (daysOfStock > 60) return 'reduce';
-    return 'maintain';
+    if (daysOfStock < 7) {
+      return {
+        action: 'reorder',
+        reason: `Only ${Math.max(Math.floor(daysOfStock), 0)} days of stock remaining`,
+        urgency: 'high',
+        suggestedQuantity: Math.ceil(avgDailySales * 30),
+      };
+    }
+    if (daysOfStock < 14) {
+      return {
+        action: 'reorder_soon',
+        reason: `Stock covers about ${Math.floor(daysOfStock)} days`,
+        urgency: 'medium',
+        suggestedQuantity: Math.ceil(avgDailySales * 21),
+      };
+    }
+    if (daysOfStock > 60) {
+      return {
+        action: 'reduce_reorder',
+        reason: `Stock covers about ${Math.floor(daysOfStock)} days`,
+        urgency: 'low',
+        suggestedQuantity: 0,
+      };
+    }
+    return {
+      action: 'maintain',
+      reason: `Stock covers about ${Math.floor(daysOfStock)} days`,
+      urgency: 'low',
+      suggestedQuantity: 0,
+    };
   }
 
   calculateYearlyTrend(yearlyData) {

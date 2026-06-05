@@ -135,12 +135,47 @@ describe('item controller architecture contracts', () => {
     expect(transitionItemStatus).toHaveBeenCalledWith(item, 'damaged', expect.objectContaining({
       actorId: 'user-1',
       warehouseId: 'warehouse-1',
-      referenceType: 'Item',
+      referenceType: 'ManualAdjustment',
       referenceId: 'item-1',
       movementType: 'adjustment',
       notes: 'Cycle count adjustment',
     }));
     expect(res.statusCode).toBe(200);
     expect(res.payload.item.status).toBe('damaged');
+  });
+
+  it('rejects manual status updates without an explicit reason', async () => {
+    const res = await invokeJsonController(itemController.updateItemStatus, {
+      params: { id: 'item-1' },
+      body: { status: 'damaged' },
+      user: { _id: 'user-1', assignedWarehouseId: 'warehouse-1' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.payload.error).toMatch(/reason is required/i);
+    expect(Item.findOne).not.toHaveBeenCalled();
+    expect(transitionItemStatus).not.toHaveBeenCalled();
+  });
+
+  it('blocks delivered item restocks outside the return workflow', async () => {
+    const item = {
+      _id: 'item-1',
+      currentWarehouseId: 'warehouse-1',
+      status: 'delivered',
+    };
+    Item.findOne.mockResolvedValue(item);
+
+    const res = await invokeJsonController(itemController.updateItemStatus, {
+      params: { id: 'item-1' },
+      body: {
+        status: 'in_stock',
+        reason: 'Manual restock',
+      },
+      user: { _id: 'user-1', assignedWarehouseId: 'warehouse-1' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.payload.error).toMatch(/return workflow/i);
+    expect(transitionItemStatus).not.toHaveBeenCalled();
   });
 });

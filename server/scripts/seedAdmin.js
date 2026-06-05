@@ -22,21 +22,25 @@ const UNSAFE_PASSWORDS = new Set([
 ]);
 
 const cleanEnv = (key, fallback = "") => process.env[key]?.trim() || fallback;
+const isTruthy = (value) => ["1", "true", "yes", "y"].includes(String(value).toLowerCase());
 
 export const getAdminSeedConfig = () => {
-  const nodeEnv = process.env.NODE_ENV || "development";
-  const isDevelopment = nodeEnv === "development";
-  const password = process.env.ADMIN_PASSWORD || (isDevelopment ? DEV_ADMIN_PASSWORD : "");
-  const passwordIsUnsafe = password.length < 12 || UNSAFE_PASSWORDS.has(password.toLowerCase());
+  const allowDevDefaultPassword = process.env.NODE_ENV === "development"
+    && isTruthy(process.env.ALLOW_DEV_SEED_CREDENTIALS);
+  const password = process.env.ADMIN_PASSWORD || (allowDevDefaultPassword ? DEV_ADMIN_PASSWORD : "");
+  const usesDevDefaultPassword = allowDevDefaultPassword && !process.env.ADMIN_PASSWORD;
+  const passwordIsUnsafe = !usesDevDefaultPassword
+    && (password.length < 12 || UNSAFE_PASSWORDS.has(password.toLowerCase()));
 
-  if (!isDevelopment && (!password || passwordIsUnsafe)) {
+  if (!password || passwordIsUnsafe) {
     throw new Error(
-      "Refusing to seed an admin with an unsafe password outside development. "
-      + "Set ADMIN_PASSWORD to a unique value with at least 12 characters."
+      "Refusing to seed an admin with an unsafe password. "
+      + "Set ADMIN_PASSWORD to a unique value with at least 12 characters. "
+      + "For local development defaults, set NODE_ENV=development and ALLOW_DEV_SEED_CREDENTIALS=1."
     );
   }
 
-  if (isDevelopment && !process.env.ADMIN_PASSWORD) {
+  if (allowDevDefaultPassword && !process.env.ADMIN_PASSWORD) {
     console.warn(`Using development admin password "${DEV_ADMIN_PASSWORD}". Set ADMIN_PASSWORD to override it.`);
   }
 

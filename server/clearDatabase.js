@@ -34,7 +34,7 @@ import { conf } from './config/config.js';
 
 const protectedDatabaseNames = new Set(['admin', 'config', 'local', 'prod', 'production']);
 
-const collectionsToClear = [
+export const collectionsToClear = [
   ['items', Item],
   ['inventories', Inventory],
   ['inventorymovements', InventoryMovement],
@@ -60,12 +60,12 @@ const collectionsToClear = [
   ['demandforecasts', DemandForecast],
   ['aiinsights', AIInsight],
   ['wages', Wage],
-  ['warehouses', Warehouse],
 ];
 
-const preservedCollections = [
+export const preservedCollections = [
   ['users', User],
   ['externalusers', ExternalUser],
+  ['warehouses', Warehouse],
 ];
 
 const isTruthy = (value) => ['1', 'true', 'yes', 'y'].includes(String(value).toLowerCase());
@@ -151,7 +151,7 @@ export async function clearDatabase(options = {}) {
       databaseName,
       targets: results,
       preserved: plan.preserved,
-      message: 'Database cleared except for users and external users.',
+      message: 'Database cleared except for users, external users, and warehouses.',
     };
   } finally {
     await mongoose.disconnect();

@@ -60,6 +60,43 @@ const ensureTransporterWarehouseAccess = async (transporterId, assignedWarehouse
   }
 };
 
+const transitionPackageItemsStatus = async ({
+  packageDoc,
+  batchWarehouseMap,
+  fromStatus,
+  toStatus,
+  actorId,
+  location,
+  notes,
+  movementType,
+  session,
+}) => {
+  if (!Array.isArray(packageDoc.allocatedItems)) return;
+
+  for (const alloc of packageDoc.allocatedItems) {
+    if (!Array.isArray(alloc.itemIds) || alloc.itemIds.length === 0) continue;
+
+    const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
+    const transitionResult = await transitionItemsStatus({
+      itemIds: alloc.itemIds,
+      fromStatus,
+      toStatus,
+      actorId,
+      warehouseId,
+      location,
+      notes,
+      referenceType: 'Package',
+      referenceId: packageDoc._id,
+      movementType,
+      session,
+    });
+
+    if (transitionResult.modifiedCount !== alloc.itemIds.length) {
+      throw httpError(409, `Package items changed while moving from ${fromStatus} to ${toStatus}.`);
+    }
+  }
+};
+
 const applyScopedOrderFilter = async (filter, req) => {
   const assignedWarehouseId = getAssignedWarehouseId(req);
   if (!assignedWarehouseId) return filter;
@@ -93,7 +130,7 @@ export const createOrder = catchAsyncErrors(async (req, res) => {
 
   // Validate all products exist
   for (const item of items) {
-    const product = await Product.findById(item.productId);
+    const product = await Product.findOne({ _id: item.productId, isDeleted: { $ne: true } });
     if (!product) {
       return res.status(404).json({ message: `Product not found: ${item.productId}` });
     }
@@ -152,6 +189,9 @@ export const processOrder = catchAsyncErrors(async (req, res) => {
     // Allocate inventory for each item using FIFO. Item.status is the source of truth for availability.
     for (const orderItem of order.items) {
       const product = orderItem.productId;
+      if (!product || product.isDeleted) {
+        throw httpError(404, `Product not found: ${orderItem.productId}`);
+      }
       let remainingQuantity = orderItem.quantity;
 
       const batchQuery = { productId: product._id };
@@ -263,7 +303,7 @@ export const assignTransport = catchAsyncErrors(async (req, res) => {
       throw httpError(400, "Package is not ready for transport assignment");
     }
 
-    await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session);
+    const batchWarehouseMap = await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session);
     await ensureTransporterWarehouseAccess(transporterId, assignedWarehouseId, session);
 
     const [transport] = await Transport.create([{
@@ -273,6 +313,18 @@ export const assignTransport = catchAsyncErrors(async (req, res) => {
       assignedBy: req.user._id,
       notes
     }], { session });
+
+    await transitionPackageItemsStatus({
+      packageDoc,
+      batchWarehouseMap,
+      fromStatus: 'packed',
+      toStatus: 'dispatched',
+      actorId: req.user?._id,
+      location: 'Dispatch',
+      notes: `Dispatched via transport ${transport.trackingNumber}`,
+      movementType: 'dispatch',
+      session,
+    });
 
     packageDoc.packageStatus = 'dispatched';
     await packageDoc.save({ session });
@@ -312,11 +364,29 @@ export const dispatchPackage = catchAsyncErrors(async (req, res) => {
       throw httpError(404, "Package not found");
     }
 
-    await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session);
+    const batchWarehouseMap = await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session);
+
+    if (!['ready_for_dispatch', 'dispatched'].includes(packageDoc.packageStatus)) {
+      throw httpError(400, `Cannot dispatch package in status: ${packageDoc.packageStatus}`);
+    }
 
     const transport = await Transport.findOne({ packageId: packageDoc._id }).session(session);
     if (!transport) {
       throw httpError(404, "Transport not found for this package");
+    }
+
+    if (packageDoc.packageStatus === 'ready_for_dispatch') {
+      await transitionPackageItemsStatus({
+        packageDoc,
+        batchWarehouseMap,
+        fromStatus: 'packed',
+        toStatus: 'dispatched',
+        actorId: req.user?._id,
+        location: 'Dispatch',
+        notes: notes || `Dispatched via transport ${transport.trackingNumber}`,
+        movementType: 'dispatch',
+        session,
+      });
     }
 
     packageDoc.packageStatus = 'dispatched';
@@ -367,6 +437,9 @@ export const markDelivered = catchAsyncErrors(async (req, res) => {
     if (!transport) {
       throw httpError(404, "Transport not found for this package");
     }
+    if (transport.status !== 'in_transit') {
+      throw httpError(400, "Transport must be in transit before delivery.");
+    }
 
     packageDoc.packageStatus = 'delivered';
     await packageDoc.save({ session });
@@ -380,26 +453,17 @@ export const markDelivered = catchAsyncErrors(async (req, res) => {
     order.orderStatus = 'delivered';
     await order.save({ session });
 
-    if (Array.isArray(packageDoc.allocatedItems)) {
-      for (const alloc of packageDoc.allocatedItems) {
-        if (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0) {
-          const warehouseId = batchWarehouseMap.get(normalizeId(alloc.batchId));
-          await transitionItemsStatus({
-            itemIds: alloc.itemIds,
-            toStatus: 'delivered',
-            allowSameStatus: true,
-            actorId: req.user?._id,
-            warehouseId,
-            location: 'Customer',
-            notes: `Delivered via package ${packageDoc.packageId}`,
-            referenceType: 'Package',
-            referenceId: packageDoc._id,
-            movementType: 'delivery',
-            session
-          });
-        }
-      }
-    }
+    await transitionPackageItemsStatus({
+      packageDoc,
+      batchWarehouseMap,
+      fromStatus: 'dispatched',
+      toStatus: 'delivered',
+      actorId: req.user?._id,
+      location: 'Customer',
+      notes: `Delivered via package ${packageDoc.packageId}`,
+      movementType: 'delivery',
+      session,
+    });
 
     await session.commitTransaction();
 

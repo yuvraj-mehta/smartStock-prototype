@@ -11,6 +11,9 @@ const Item = {
 const SalesOrder = {
   find: jest.fn(),
 };
+const Package = {
+  find: jest.fn(),
+};
 const PurchaseOrder = {
   find: jest.fn(),
 };
@@ -29,6 +32,7 @@ jest.unstable_mockModule('../models/index.js', () => ({
   Item,
   Payment,
   PaymentReceived: {},
+  Package,
   PurchaseOrder,
   Invoice,
   SalesInvoice: {},
@@ -57,6 +61,12 @@ const invokeJsonController = (controller, req = {}) =>
 
 let financialReportController;
 
+const buildMovementQuery = (movements) => ({
+  select: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockResolvedValue(movements),
+  then: (resolve, reject) => Promise.resolve(movements).then(resolve, reject),
+});
+
 describe('financial report source-of-truth contracts', () => {
   beforeAll(async () => {
     financialReportController = await import('../controllers/financialReport.controller.js');
@@ -75,11 +85,73 @@ describe('financial report source-of-truth contracts', () => {
       createdAt: new Date('2026-01-01T00:00:00Z'),
     };
     SalesOrder.find.mockResolvedValue([order]);
-    InventoryMovement.find.mockReturnValue({
-      select: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockResolvedValue([
+    InventoryMovement.find
+      .mockReturnValueOnce(buildMovementQuery([
         { itemId: 'item-1' },
         { itemId: 'item-2' },
+      ]))
+      .mockReturnValueOnce(buildMovementQuery([]));
+    Item.find.mockReturnValue({
+      populate: jest.fn().mockResolvedValue([
+        { purchasePrice: 100, batchId: { unitCost: 90 } },
+        { purchasePrice: undefined, batchId: { unitCost: 125 } },
+      ]),
+    });
+
+    const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
+
+    expect(SalesOrder.find).toHaveBeenCalledWith({ status: 'fulfilled' });
+    expect(InventoryMovement.find).toHaveBeenCalledWith({
+      referenceType: 'SalesOrder',
+      referenceId: order._id,
+      movementType: 'dispatch',
+    });
+    expect(Item.find).toHaveBeenCalledWith({ _id: { $in: ['item-1', 'item-2'] } });
+    expect(res.payload).toEqual({
+      totalCOGS: 225,
+      totalRevenue: 500,
+      profit: 275,
+    });
+  });
+
+  it('skips fulfilled sales orders that have no dispatch movements', async () => {
+    SalesOrder.find.mockResolvedValue([
+      {
+        _id: '507f1f77bcf86cd799439011',
+        productId: '507f1f77bcf86cd799439012',
+        quantity: 2,
+        totalPrice: 500,
+      },
+    ]);
+    InventoryMovement.find
+      .mockReturnValueOnce(buildMovementQuery([]))
+      .mockReturnValueOnce(buildMovementQuery([]));
+
+    const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
+
+    expect(Item.find).not.toHaveBeenCalled();
+    expect(res.payload).toEqual({
+      totalCOGS: 0,
+      totalRevenue: 0,
+      profit: 0,
+    });
+  });
+
+  it('includes delivered package movements from the canonical order flow in COGS and revenue', async () => {
+    SalesOrder.find.mockResolvedValue([]);
+    InventoryMovement.find.mockReturnValue(buildMovementQuery([
+      { itemId: 'item-1', referenceId: 'package-1' },
+      { itemId: 'item-2', referenceId: 'package-1' },
+    ]));
+    Package.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([
+        {
+          _id: { toString: () => 'package-1' },
+          totalValue: 500,
+          allocatedItems: [
+            { itemIds: ['item-1', 'item-2'], quantity: 2 },
+          ],
+        },
       ]),
     });
     Item.find.mockReturnValue({
@@ -91,12 +163,10 @@ describe('financial report source-of-truth contracts', () => {
 
     const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
 
-    expect(InventoryMovement.find).toHaveBeenCalledWith({
-      referenceType: 'SalesOrder',
-      referenceId: order._id,
-      movementType: 'dispatch',
+    expect(Package.find).toHaveBeenCalledWith({
+      _id: { $in: ['package-1'] },
+      packageStatus: 'delivered',
     });
-    expect(Item.find).toHaveBeenCalledWith({ _id: { $in: ['item-1', 'item-2'] } });
     expect(res.payload).toEqual({
       totalCOGS: 225,
       totalRevenue: 500,

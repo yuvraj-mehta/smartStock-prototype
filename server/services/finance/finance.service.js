@@ -324,6 +324,9 @@ export const recordFinancialEvent = async ({
   if (!session) {
     throw createFinanceError(500, 'Financial event recording requires a Mongo session.');
   }
+  if (typeof session.inTransaction !== 'function' || !session.inTransaction()) {
+    throw createFinanceError(500, 'Financial event recording requires an active Mongo transaction.');
+  }
 
   assertKnownEventType(eventType);
 

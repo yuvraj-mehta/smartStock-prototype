@@ -31,18 +31,26 @@ export const getItemsByBatch = catchAsyncErrors(async (req, res) => {
 });
 
 export const updateItemStatus = catchAsyncErrors(async (req, res) => {
-  const { status, notes } = req.body;
+  const { status, notes, reason, referenceType = "ManualAdjustment", referenceId } = req.body;
+  const adjustmentReason = notes?.message || reason;
+  if (!adjustmentReason) {
+    return res.status(400).json({ error: "A reason is required for manual item status changes." });
+  }
+
   const item = await Item.findOne(buildWarehouseScopedFilter(req, { _id: req.params.id }));
   if (!item) return res.status(404).json({ error: "Item not found" });
+  if (item.status === "delivered" && status === "in_stock") {
+    return res.status(400).json({ error: "Delivered items must be restocked through the return workflow." });
+  }
 
   try {
     const result = await transitionItemStatus(item, status, {
       actorId: req.user?._id,
       warehouseId: item.currentWarehouseId,
       location: notes?.location || normalizeId(item.currentWarehouseId),
-      notes: notes?.message || "Manual item status update",
-      referenceType: "Item",
-      referenceId: item._id,
+      notes: adjustmentReason,
+      referenceType,
+      referenceId: referenceId || item._id,
       movementType: "adjustment",
     });
 

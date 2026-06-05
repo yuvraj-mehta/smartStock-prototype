@@ -24,20 +24,20 @@ router.get(
   getAllTransports
 );
 
-// Get transport by ID
-router.get(
-  "/:transportId",
-  isAuthenticated,
-  isAuthorized("admin", "staff"),
-  getTransportById
-);
-
 // Get transports by package ID
 router.get(
   "/package/:packageId",
   isAuthenticated,
   isAuthorized("admin", "staff", "viewer"),
   getTransportsByPackageId
+);
+
+// Get transport by ID
+router.get(
+  "/:transportId",
+  isAuthenticated,
+  isAuthorized("admin", "staff"),
+  getTransportById
 );
 
 // Update transport status

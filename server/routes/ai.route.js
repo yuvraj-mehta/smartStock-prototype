@@ -11,15 +11,35 @@ import {
   getAIInventoryDashboard,
   analyzeJSONInventoryData
 } from '../controllers/ai.controller.js';
-import { isAuthenticated } from '../middlewares/auth.middleware.js';
+import { isAuthenticated, isAuthorized } from '../middlewares/auth.middleware.js';
 import { body, query, param } from 'express-validator';
 import handleValidationErrors from '../middlewares/validationErrors.middleware.js';
 
 const router = express.Router();
 
+const normalizeId = (id) => (id?._id || id)?.toString();
+
+const enforceAIWarehouseScope = (req, res, next) => {
+  const assignedWarehouseId = normalizeId(req.user?.assignedWarehouseId);
+  const requestedWarehouseId = normalizeId(req.body?.warehouseId || req.query?.warehouseId);
+
+  if (assignedWarehouseId && requestedWarehouseId && requestedWarehouseId !== assignedWarehouseId) {
+    return res.status(403).json({ message: 'Access denied for this warehouse.' });
+  }
+
+  if (assignedWarehouseId) {
+    if (!req.body) req.body = {};
+    req.body.warehouseId = assignedWarehouseId;
+    req.query.warehouseId = assignedWarehouseId;
+  }
+
+  return next();
+};
+
+router.use(isAuthenticated, isAuthorized('admin', 'staff'), enforceAIWarehouseScope);
+
 // Demand forecast routes
 router.post('/forecast/demand',
-  isAuthenticated,
   [
     body('productId').isMongoId().withMessage('Valid product ID is required'),
     body('periodType').optional().isIn(['daily', 'weekly', 'monthly', 'quarterly']).withMessage('Invalid period type'),
@@ -31,7 +51,6 @@ router.post('/forecast/demand',
 
 // Stock optimization routes
 router.post('/optimize/stock',
-  isAuthenticated,
   [
     body('warehouseId').optional().isMongoId().withMessage('Valid warehouse ID required'),
     body('productIds').optional().isArray().withMessage('Product IDs must be an array'),
@@ -43,7 +62,6 @@ router.post('/optimize/stock',
 
 // Seasonal demand prediction
 router.get('/predict/seasonal',
-  isAuthenticated,
   [
     query('productCategory').optional().isIn(['electronics', 'apparel', 'decor', 'furniture']).withMessage('Invalid product category'),
     query('months').optional().isInt({ min: 1, max: 24 }).withMessage('Months must be between 1 and 24')
@@ -54,7 +72,6 @@ router.get('/predict/seasonal',
 
 // Intelligent inventory insights with AI
 router.get('/insights/intelligent',
-  isAuthenticated,
   [
     query('warehouseId').optional().isMongoId().withMessage('Valid warehouse ID required')
   ],
@@ -64,7 +81,6 @@ router.get('/insights/intelligent',
 
 // AI-powered demand prediction for specific product
 router.get('/predict/demand/:productId',
-  isAuthenticated,
   [
     param('productId').isMongoId().withMessage('Valid product ID is required'),
     query('forecastDays').optional().isInt({ min: 7, max: 365 }).withMessage('Forecast days must be between 7 and 365')
@@ -75,7 +91,6 @@ router.get('/predict/demand/:productId',
 
 // Seasonal trends analysis with AI
 router.get('/analysis/seasonal',
-  isAuthenticated,
   [
     query('productCategory').isString().withMessage('Product category is required')
   ],
@@ -85,7 +100,6 @@ router.get('/analysis/seasonal',
 
 // AI inventory dashboard
 router.get('/dashboard',
-  isAuthenticated,
   [
     query('warehouseId').optional().isMongoId().withMessage('Valid warehouse ID required')
   ],
@@ -95,7 +109,6 @@ router.get('/dashboard',
 
 // AI insights routes
 router.get('/insights',
-  isAuthenticated,
   [
     query('type').optional().isIn(['demand_forecast', 'stock_optimization', 'seasonal_analysis', 'risk_assessment', 'market_trend']).withMessage('Invalid insight type'),
     query('severity').optional().isIn(['critical', 'high', 'medium', 'low', 'info']).withMessage('Invalid severity level'),
@@ -109,7 +122,6 @@ router.get('/insights',
 
 // Update insight feedback
 router.patch('/insights/:insightId/feedback',
-  isAuthenticated,
   [
     param('insightId').isMongoId().withMessage('Valid insight ID is required'),
     body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5'),
@@ -122,7 +134,6 @@ router.patch('/insights/:insightId/feedback',
 
 // JSON Data Analysis route
 router.post('/analyze/json-data',
-  isAuthenticated,
   [
     body('inventoryData').isObject().withMessage('Inventory data object is required'),
     body('inventoryData.products').isArray().withMessage('Products array is required'),

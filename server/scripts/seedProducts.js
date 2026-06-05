@@ -100,6 +100,7 @@ const productSeeds = [
 ];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isTruthy = (value) => ["1", "true", "yes", "y"].includes(String(value).toLowerCase());
 
 const addDays = (date, days) => {
   const result = new Date(date);
@@ -108,19 +109,22 @@ const addDays = (date, days) => {
 };
 
 export const getSeedSupplierConfig = () => {
-  const nodeEnv = process.env.NODE_ENV || "development";
-  const isDevelopment = nodeEnv === "development";
-  const password = process.env.SEED_SUPPLIER_PASSWORD || (isDevelopment ? DEV_SUPPLIER_PASSWORD : "");
-  const passwordIsUnsafe = password.length < 12 || UNSAFE_SUPPLIER_PASSWORDS.has(password.toLowerCase());
+  const allowDevDefaultPassword = process.env.NODE_ENV === "development"
+    && isTruthy(process.env.ALLOW_DEV_SEED_CREDENTIALS);
+  const password = process.env.SEED_SUPPLIER_PASSWORD || (allowDevDefaultPassword ? DEV_SUPPLIER_PASSWORD : "");
+  const usesDevDefaultPassword = allowDevDefaultPassword && !process.env.SEED_SUPPLIER_PASSWORD;
+  const passwordIsUnsafe = !usesDevDefaultPassword
+    && (password.length < 12 || UNSAFE_SUPPLIER_PASSWORDS.has(password.toLowerCase()));
 
-  if (!isDevelopment && (!password || passwordIsUnsafe)) {
+  if (!password || passwordIsUnsafe) {
     throw new Error(
-      "Refusing to seed a supplier with an unsafe password outside development. "
-      + "Set SEED_SUPPLIER_PASSWORD to a unique value with at least 12 characters."
+      "Refusing to seed a supplier with an unsafe password. "
+      + "Set SEED_SUPPLIER_PASSWORD to a unique value with at least 12 characters. "
+      + "For local development defaults, set NODE_ENV=development and ALLOW_DEV_SEED_CREDENTIALS=1."
     );
   }
 
-  if (isDevelopment && !process.env.SEED_SUPPLIER_PASSWORD) {
+  if (allowDevDefaultPassword && !process.env.SEED_SUPPLIER_PASSWORD) {
     console.warn(`Using development supplier password "${DEV_SUPPLIER_PASSWORD}". Set SEED_SUPPLIER_PASSWORD to override it.`);
   }
 

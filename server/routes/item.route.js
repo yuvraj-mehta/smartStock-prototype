@@ -25,30 +25,15 @@ router.get(
 );
 
 router.get(
-  "/:id",
-  isAuthenticated,
-  isAuthorized('admin', 'staff'),
-  getItemById
-);
-
-router.get(
   "/batch/:batchId",
   isAuthenticated,
   isAuthorized('admin', 'staff'),
   getItemsByBatch
 );
 
-router.put(
-  "/update-status/:id",
-  isAuthenticated,
-  isAuthorized('admin', 'staff'),
-  updateItemStatus
-);
-
-// New tracking routes (safe additions)
 router.get(
   "/track/:serialNumber",
-  trackItemBySerial // No auth required for customer tracking
+  trackItemBySerial
 );
 
 router.get(
@@ -56,6 +41,20 @@ router.get(
   isAuthenticated,
   isAuthorized('admin', 'staff'),
   getProductMovementHistory
+);
+
+router.put(
+  "/update-status/:id",
+  isAuthenticated,
+  isAuthorized('admin'),
+  updateItemStatus
+);
+
+router.get(
+  "/:id",
+  isAuthenticated,
+  isAuthorized('admin', 'staff'),
+  getItemById
 );
 
 export default router;

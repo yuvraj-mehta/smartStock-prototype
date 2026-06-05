@@ -1,4 +1,4 @@
-import { Batch, Inventory, IncomingSupply, Item, Product } from "../models/index.js";
+import { Batch, Inventory, IncomingSupply, InventoryMovement, Item, Product } from "../models/index.js";
 import { logAudit } from "../utils/auditLogger.js";
 import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
@@ -72,7 +72,7 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
     session.startTransaction();
 
     // Fetch product
-    const product = await Product.findById(productId).session(session);
+    const product = await Product.findOne({ _id: productId, isDeleted: { $ne: true } }).session(session);
     if (!product) throw httpError(404, "Product not found.");
 
     const purchaseOrder = await recordPurchaseOrderReceipt({
@@ -137,7 +137,26 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
       });
     }
 
-    await Item.insertMany(items, { session });
+    const createdItems = await Item.insertMany(items, { session });
+
+    await InventoryMovement.insertMany(
+      createdItems.map((item) => ({
+        itemId: item._id,
+        batchId: batch._id,
+        productId: product._id,
+        warehouseId,
+        toWarehouseId: warehouseId,
+        toStatus: "in_stock",
+        action: "added",
+        movementType: "receipt",
+        quantity: 1,
+        actorId: req.user?._id,
+        referenceType: purchaseOrderId ? "PurchaseOrder" : "IncomingSupply",
+        referenceId: purchaseOrderId || batch._id,
+        notes: notes || "Inventory supply received",
+      })),
+      { session }
+    );
 
     if (!product.supplierIds.some((supplier) => supplier.toString() === supplierId.toString())) {
       product.supplierIds.push(supplierId);

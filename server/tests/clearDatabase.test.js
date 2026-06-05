@@ -26,7 +26,6 @@ const targetModelNames = [
   'DemandForecast',
   'AIInsight',
   'Wage',
-  'Warehouse',
 ];
 
 const buildModelMock = () => ({
@@ -40,6 +39,7 @@ const targetModels = Object.fromEntries(
 
 const userModel = buildModelMock();
 const externalUserModel = buildModelMock();
+const warehouseModel = buildModelMock();
 
 const mongooseMock = {
   connect: jest.fn().mockResolvedValue(undefined),
@@ -53,16 +53,21 @@ jest.unstable_mockModule('../config/config.js', () => ({
     dbName: 'smartstock_test',
   },
 }));
-jest.unstable_mockModule('../models/index.js', () => targetModels);
+jest.unstable_mockModule('../models/index.js', () => ({
+  ...targetModels,
+  Warehouse: warehouseModel,
+}));
 jest.unstable_mockModule('../models/user.model.js', () => ({ User: userModel }));
 jest.unstable_mockModule('../models/externalUsers.model.js', () => ({ ExternalUser: externalUserModel }));
 
 const {
   clearDatabase,
+  collectionsToClear,
   parseClearDatabaseArgs,
+  preservedCollections,
 } = await import('../clearDatabase.js');
 
-const allModels = [...Object.values(targetModels), userModel, externalUserModel];
+const allModels = [...Object.values(targetModels), userModel, externalUserModel, warehouseModel];
 
 describe('clearDatabase safety guard', () => {
   beforeEach(() => {
@@ -94,6 +99,7 @@ describe('clearDatabase safety guard', () => {
     targetModels.Item.countDocuments.mockResolvedValue(7);
     userModel.countDocuments.mockResolvedValue(2);
     externalUserModel.countDocuments.mockResolvedValue(1);
+    warehouseModel.countDocuments.mockResolvedValue(1);
 
     const result = await clearDatabase({ dryRun: true });
 
@@ -114,6 +120,7 @@ describe('clearDatabase safety guard', () => {
         preserved: expect.arrayContaining([
           expect.objectContaining({ name: 'users', count: 2 }),
           expect.objectContaining({ name: 'externalusers', count: 1 }),
+          expect.objectContaining({ name: 'warehouses', count: 1 }),
         ]),
       }),
     );
@@ -126,7 +133,18 @@ describe('clearDatabase safety guard', () => {
     });
     expect(userModel.deleteMany).not.toHaveBeenCalled();
     expect(externalUserModel.deleteMany).not.toHaveBeenCalled();
+    expect(warehouseModel.deleteMany).not.toHaveBeenCalled();
     expect(mongooseMock.disconnect).toHaveBeenCalled();
+  });
+
+  it('keeps model registry entries either cleared or explicitly preserved', () => {
+    const targetNames = collectionsToClear.map(([name]) => name);
+    const preservedNames = preservedCollections.map(([name]) => name);
+
+    expect(targetNames).not.toContain('users');
+    expect(targetNames).not.toContain('externalusers');
+    expect(targetNames).not.toContain('warehouses');
+    expect(preservedNames).toEqual(['users', 'externalusers', 'warehouses']);
   });
 
   it('refuses destructive deletion without matching database confirmation', async () => {
@@ -162,6 +180,7 @@ describe('clearDatabase safety guard', () => {
     });
     expect(userModel.deleteMany).not.toHaveBeenCalled();
     expect(externalUserModel.deleteMany).not.toHaveBeenCalled();
+    expect(warehouseModel.deleteMany).not.toHaveBeenCalled();
     expect(mongooseMock.disconnect).toHaveBeenCalled();
   });
 });

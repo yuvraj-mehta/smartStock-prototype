@@ -24,20 +24,20 @@ router.get(
   getAllPackages
 );
 
-// Get package by ID
-router.get(
-  "/:packageId",
-  isAuthenticated,
-  isAuthorized("admin", "staff", "viewer"),
-  getPackageById
-);
-
 // Get packages by order ID
 router.get(
   "/order/:orderId",
   isAuthenticated,
   isAuthorized("admin", "staff", "viewer"),
   getPackagesByOrderId
+);
+
+// Get package by ID
+router.get(
+  "/:packageId",
+  isAuthenticated,
+  isAuthorized("admin", "staff", "viewer"),
+  getPackageById
 );
 
 // Update package status

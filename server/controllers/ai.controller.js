@@ -26,7 +26,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
 
   try {
     // Get product information
-    const product = await Product.findById(productId);
+    const product = await Product.findOne({ _id: productId, isDeleted: { $ne: true } });
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }

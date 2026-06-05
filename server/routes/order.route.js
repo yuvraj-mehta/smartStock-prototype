@@ -22,6 +22,13 @@ import handleValidationErrors from "../middlewares/validationErrors.middleware.j
 
 const router = Router();
 
+const retiredOrderDeliveryRoute = (req, res) => {
+  res.status(410).json({
+    message: "Order delivery is completed through transport status updates.",
+    replacementRoute: "/api/v1/transport/status/:transportId",
+  });
+};
+
 router.get("/", (req, res) => {
   res.send("Welcome to the Order API");
 });
@@ -69,7 +76,7 @@ router.post(
   "/delivered/:packageId",
   isAuthenticated,
   isAuthorized("admin", "staff"),
-  markDelivered
+  retiredOrderDeliveryRoute
 );
 
 // Auto-confirm sales (typically called by cron job)

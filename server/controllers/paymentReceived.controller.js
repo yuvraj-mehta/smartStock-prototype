@@ -25,9 +25,12 @@ const deriveInvoiceStatus = (invoice, paidAmount) => {
   return 'unpaid';
 };
 
-const getCompletedPaymentSummary = async (salesInvoiceId, session) => {
+const getCompletedPaymentSummary = async (salesInvoiceId, session, excludePaymentId) => {
+  const match = { salesInvoiceId: asObjectId(salesInvoiceId), status: 'completed' };
+  if (excludePaymentId) match._id = { $ne: asObjectId(excludePaymentId) };
+
   const [summary] = await PaymentReceived.aggregate([
-    { $match: { salesInvoiceId: asObjectId(salesInvoiceId), status: 'completed' } },
+    { $match: match },
     {
       $group: {
         _id: '$salesInvoiceId',
@@ -41,6 +44,29 @@ const getCompletedPaymentSummary = async (salesInvoiceId, session) => {
     paidAmount: summary?.paidAmount || 0,
     paidDate: summary?.paidDate,
   };
+};
+
+const assertCompletedReceiptDoesNotOverpay = async ({
+  salesInvoiceId,
+  amount,
+  status,
+  session,
+  excludePaymentId,
+}) => {
+  if (status !== 'completed') return;
+
+  const invoice = await SalesInvoice.findById(salesInvoiceId).session(session);
+  if (!invoice) {
+    throw Object.assign(new Error('Sales invoice not found.'), { statusCode: 404 });
+  }
+
+  const { paidAmount } = await getCompletedPaymentSummary(salesInvoiceId, session, excludePaymentId);
+  const nextPaidAmount = paidAmount + (Number(amount) || 0);
+  const invoiceAmount = Number(invoice.amount) || 0;
+
+  if (nextPaidAmount > invoiceAmount) {
+    throw Object.assign(new Error('Payment received exceeds the sales invoice amount.'), { statusCode: 400 });
+  }
 };
 
 const syncSalesOrderForInvoice = async (invoice, session) => {
@@ -97,6 +123,12 @@ export const createPaymentReceived = catchAsyncErrors(async (req, res) => {
 
   try {
     await session.withTransaction(async () => {
+      await assertCompletedReceiptDoesNotOverpay({
+        salesInvoiceId,
+        amount,
+        status: status || 'pending',
+        session,
+      });
       payment = new PaymentReceived({ salesInvoiceId, amount, date, method, status });
       await payment.save({ session });
       await syncSalesInvoiceStatus(payment.salesInvoiceId, session);
@@ -123,6 +155,17 @@ export const updatePaymentReceived = catchAsyncErrors(async (req, res) => {
   try {
     await session.withTransaction(async () => {
       const existingPayment = await PaymentReceived.findById(id).session(session);
+      if (!existingPayment) {
+        throw Object.assign(new Error('Payment received not found.'), { statusCode: 404 });
+      }
+
+      await assertCompletedReceiptDoesNotOverpay({
+        salesInvoiceId: req.body.salesInvoiceId || existingPayment.salesInvoiceId,
+        amount: req.body.amount ?? existingPayment.amount,
+        status: req.body.status || existingPayment.status,
+        session,
+        excludePaymentId: existingPayment._id,
+      });
       payment = await PaymentReceived.findByIdAndUpdate(id, req.body, withSession(UPDATE_OPTIONS, session));
 
       if (

@@ -119,10 +119,19 @@ const App = () => {
           <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
           <Route path={ROUTES.ORDERS} element={<OrderManagementPage />} />
           <Route path={ROUTES.INVENTORY} element={<InventoryPage />} />
-          <Route path={ROUTES.AI_ASSISTANT} element={<AIAssistantPage />} />
           <Route path={ROUTES.PROFILE} element={<UserPage />} />
           <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
           <Route path="/returns" element={<ReturnList />} />
+        </Route>
+
+        <Route
+          element={(
+            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={[USER_ROLES.ADMIN, USER_ROLES.STAFF]}>
+              <Layout />
+            </ProtectedRoute>
+          )}
+        >
+          <Route path={ROUTES.AI_ASSISTANT} element={<AIAssistantPage />} />
           <Route path="/transports" element={<TransportList />} />
           <Route path="/transports/:id" element={<TransportDetails />} />
         </Route>

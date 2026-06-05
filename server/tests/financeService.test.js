@@ -46,7 +46,7 @@ jest.unstable_mockModule('../models/journalEntry.model.js', () => ({
 }));
 
 let FinanceService;
-const session = { id: 'session-1' };
+const session = { id: 'session-1', inTransaction: jest.fn(() => true) };
 
 describe('FinanceService ledger foundation', () => {
   beforeAll(async () => {
@@ -55,6 +55,7 @@ describe('FinanceService ledger foundation', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    session.inTransaction.mockReturnValue(true);
   });
 
   it('builds normalized journal lines with known account metadata', () => {
@@ -203,6 +204,34 @@ describe('FinanceService ledger foundation', () => {
     })).rejects.toMatchObject({
       statusCode: 500,
       message: 'Financial event recording requires a Mongo session.',
+    });
+
+    expect(FinancialEvent).not.toHaveBeenCalled();
+    expect(JournalEntry.insertMany).not.toHaveBeenCalled();
+  });
+
+  it('requires the provided session to be inside an active transaction', async () => {
+    session.inTransaction.mockReturnValue(false);
+
+    await expect(FinanceService.recordFinancialEvent({
+      eventType: 'manual_adjustment',
+      amount: 100,
+      session,
+      journalEntries: [
+        FinanceService.buildJournalLine({
+          direction: 'debit',
+          account: FinanceService.FINANCE_ACCOUNTS.INVENTORY_ASSET,
+          amount: 100,
+        }),
+        FinanceService.buildJournalLine({
+          direction: 'credit',
+          account: FinanceService.FINANCE_ACCOUNTS.ACCOUNTS_PAYABLE,
+          amount: 100,
+        }),
+      ],
+    })).rejects.toMatchObject({
+      statusCode: 500,
+      message: 'Financial event recording requires an active Mongo transaction.',
     });
 
     expect(FinancialEvent).not.toHaveBeenCalled();
