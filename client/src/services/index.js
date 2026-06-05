@@ -10,9 +10,6 @@
 // API configuration and base service
 export * from './api';
 
-// Authentication services
-export * from './auth';
-
 // HTTP client service
 export * from './httpClient';
 

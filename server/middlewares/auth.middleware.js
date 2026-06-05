@@ -1,7 +1,12 @@
 import { catchAsyncErrors } from "./index.js";
 import jwt from "jsonwebtoken";
 import { conf } from "../config/config.js";
-import { User } from "../models/index.js";
+import { INTERNAL_USER_ROLES, User } from "../models/user.model.js";
+
+const internalRoleSet = new Set(INTERNAL_USER_ROLES);
+
+const normalizeInternalRoles = (roles) =>
+  roles.filter((role) => internalRoleSet.has(role));
 
 const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -24,7 +29,11 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
       return res.status(401).json({ message: 'User not found, authorization denied.' });
     }
 
-    // Expose user's warehouse location for downstream use
+    if (!internalRoleSet.has(req.user.role)) {
+      return res.status(403).json({ message: 'Forbidden: Unsupported internal user role.' });
+    }
+
+    // Expose user's warehouse assignment for downstream use
     req.assignedWarehouseId = req.user.assignedWarehouseId;
 
     next();
@@ -36,9 +45,17 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
 /**
  * Role-based authorization
  * Accepts one or more roles: isAuthorized('admin'), isAuthorized('admin','staff')
+ * External roles are intentionally ignored here; external users do not use the
+ * internal User JWT surface.
  */
 const isAuthorized = (...roles) => (req, res, next) => {
-  if (!roles.includes(req.user.role)) {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required.' });
+  }
+
+  const allowedRoles = normalizeInternalRoles(roles);
+
+  if (!allowedRoles.includes(req.user.role)) {
     return res
       .status(403)
       .json({ message: 'Forbidden: You are not authorized to access this resource.' });

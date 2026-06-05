@@ -12,7 +12,7 @@ export const fetchAllTransports = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
     }
-  }
+  },
 );
 
 export const fetchTransportById = createAsyncThunk(
@@ -24,7 +24,7 @@ export const fetchTransportById = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
     }
-  }
+  },
 );
 
 export const fetchTransportsByPackageId = createAsyncThunk(
@@ -36,7 +36,7 @@ export const fetchTransportsByPackageId = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
     }
-  }
+  },
 );
 
 export const updateTransportStatus = createAsyncThunk(
@@ -48,7 +48,7 @@ export const updateTransportStatus = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
     }
-  }
+  },
 );
 
 const transportSlice = createSlice({
@@ -60,7 +60,7 @@ const transportSlice = createSlice({
     error: null,
     totalPages: 1,
     currentPage: 1,
-    total: 0
+    total: 0,
   },
   reducers: {},
   extraReducers: (builder) => {

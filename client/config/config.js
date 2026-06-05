@@ -1,5 +1,6 @@
 
+import { API_CONFIG } from '../src/constants/index.js';
+
 export const config = {
-  // TODO: Replace with your new backend URL when ready
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL
+  apiBaseUrl: API_CONFIG.BASE_URL,
 };

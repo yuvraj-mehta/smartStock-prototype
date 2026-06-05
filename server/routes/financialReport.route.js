@@ -1,7 +1,10 @@
 import express from 'express';
 import { getInventoryValue, getCOGSAndProfit, getOutstandingPayables, getOutstandingReceivables, getDamagedLostValue } from '../controllers/financialReport.controller.js';
+import { isAuthenticated, isAuthorized } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
+
+router.use(isAuthenticated, isAuthorized('admin'));
 
 // GET /api/v1/financial-report/inventory-value
 router.get('/inventory-value', getInventoryValue);

@@ -142,7 +142,7 @@ export const getAllProducts = () => async (dispatch) => {
     dispatch(productSlice.actions.getProductsSuccess({
       products: products,
       totalProducts: products.length,
-      message: response.data.message || 'Products fetched successfully.'
+      message: response.data.message || 'Products fetched successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch products';
@@ -157,7 +157,7 @@ export const getProductDetails = (productId) => async (dispatch) => {
 
     dispatch(productSlice.actions.getProductSuccess({
       product: response.data.product,
-      message: response.data.message || 'Product details fetched successfully.'
+      message: response.data.message || 'Product details fetched successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch product details';
@@ -172,7 +172,7 @@ export const createProduct = (productData) => async (dispatch) => {
 
     dispatch(productSlice.actions.createProductSuccess({
       product: response.data.product,
-      message: response.data.message || 'Product created successfully.'
+      message: response.data.message || 'Product created successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to create product';
@@ -187,7 +187,7 @@ export const updateProduct = (productId, productData) => async (dispatch) => {
 
     dispatch(productSlice.actions.updateProductSuccess({
       product: response.data.product,
-      message: response.data.message || 'Product updated successfully.'
+      message: response.data.message || 'Product updated successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to update product';
@@ -202,7 +202,7 @@ export const deleteProduct = (productId) => async (dispatch) => {
 
     dispatch(productSlice.actions.deleteProductSuccess({
       productId: productId,
-      message: response.data.message || 'Product deleted successfully.'
+      message: response.data.message || 'Product deleted successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to delete product';

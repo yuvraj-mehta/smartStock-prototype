@@ -7,6 +7,7 @@ const salesOrderSchema = new mongoose.Schema({
   unitPrice: { type: Number, required: true, min: 0 },
   totalPrice: { type: Number, required: true, min: 0 },
   status: { type: String, enum: ['pending', 'fulfilled', 'cancelled'], default: 'pending' },
+  paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
   salesInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesInvoice' },
 }, { timestamps: true });
 

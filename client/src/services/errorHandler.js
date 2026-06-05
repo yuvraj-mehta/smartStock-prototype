@@ -8,6 +8,10 @@
  */
 
 import { ERROR_MESSAGES } from '../constants';
+import { getAuthUser } from '../utils/storage';
+
+const isDevelopment = import.meta.env.DEV;
+const isProduction = import.meta.env.PROD;
 
 /**
  * Error severity levels
@@ -160,7 +164,7 @@ export const logError = (error, context) => {
   };
 
   // Log to console in development
-  if (process.env.NODE_ENV === 'development') {
+  if (isDevelopment) {
     console.error('Application Error:', errorInfo);
 
     if (error.details) {
@@ -173,7 +177,7 @@ export const logError = (error, context) => {
   }
 
   // Send to error tracking service in production
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction) {
     sendErrorToService(errorInfo);
   }
 };
@@ -183,13 +187,8 @@ export const logError = (error, context) => {
  * @returns {string|null} The current user ID or null
  */
 const getCurrentUserId = () => {
-  try {
-    const userJson = localStorage.getItem('smartstock_user');
-    const user = userJson ? JSON.parse(userJson) : null;
-    return user?.id || null;
-  } catch {
-    return null;
-  }
+  const user = getAuthUser();
+  return user?.id || user?._id || null;
 };
 
 /**

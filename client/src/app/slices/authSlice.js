@@ -1,8 +1,14 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { authAPI } from '../../services/api';
+import {
+  clearAuthStorage,
+  getAuthSession,
+  setAuthSession,
+} from '../../utils/storage';
 
 const initialState = {
   loading: false,
+  isBootstrapping: true,
   error: null,
   message: null,
   user: null,
@@ -10,10 +16,42 @@ const initialState = {
   isAuthenticated: false,
 };
 
+const isValidUser = (user) => {
+  return Boolean(user && typeof user === 'object' && (user.id || user._id || user.email));
+};
+
+const isValidSession = ({ token, user } = {}) => {
+  return Boolean(token && isValidUser(user));
+};
+
+const getErrorMessage = (error, fallback) => {
+  return error.response?.data?.message || error.message || fallback;
+};
+
+const getAuthPayload = (responseData = {}) => {
+  return {
+    token: responseData.token || responseData.accessToken || null,
+    user: responseData.user || responseData.data?.user || null,
+    message: responseData.message,
+  };
+};
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    authBootstrapComplete(state, action) {
+      const { token = null, user = null } = action.payload || {};
+      const hasSession = isValidSession({ token, user });
+
+      state.loading = false;
+      state.isBootstrapping = false;
+      state.error = null;
+      state.message = null;
+      state.user = hasSession ? user : null;
+      state.token = hasSession ? token : null;
+      state.isAuthenticated = hasSession;
+    },
     loginRequest(state) {
       state.loading = true;
       state.error = null;
@@ -25,6 +63,7 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.user = action.payload.user;
       state.token = action.payload.token;
+      state.isBootstrapping = false;
     },
     loginFailed(state, action) {
       state.loading = false;
@@ -32,6 +71,7 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.user = null;
       state.token = null;
+      state.isBootstrapping = false;
     },
 
     logoutRequest(state) {
@@ -45,32 +85,51 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.user = null;
       state.token = null;
+      state.isBootstrapping = false;
     },
     logoutFailed(state, action) {
       state.loading = false;
       state.error = action.payload;
       state.message = null;
+      state.isBootstrapping = false;
     },
 
     rehydrate: (state, action) => {
-      state.user = action.payload.user;
-      state.token = action.payload.token;
-      state.isAuthenticated = !!action.payload.token;
+      const { token = null, user = null } = action.payload || {};
+      const hasSession = isValidSession({ token, user });
+
+      state.user = hasSession ? user : null;
+      state.token = hasSession ? token : null;
+      state.isAuthenticated = hasSession;
+      state.isBootstrapping = false;
       state.loading = false;
       state.error = null;
     },
 
     updateUserData: (state, action) => {
       state.user = { ...state.user, ...action.payload };
-      // Update localStorage as well
-      if (state.user) {
-        localStorage.setItem('user', JSON.stringify(state.user));
+
+      if (state.token && isValidUser(state.user)) {
+        setAuthSession({ token: state.token, user: state.user });
       }
+    },
+
+    refreshUserRequest(state) {
+      state.loading = true;
+      state.error = null;
+      state.message = null;
+    },
+
+    refreshUserFailed(state, action) {
+      state.loading = false;
+      state.error = action.payload;
+      state.message = null;
     },
 
     resetAuthSlice(state) {
       state.error = null;
       state.loading = false;
+      state.isBootstrapping = false;
       state.message = null;
       state.user = null;
       state.token = null;
@@ -79,23 +138,40 @@ const authSlice = createSlice({
   },
 });
 
+export const bootstrapAuth = () => (dispatch) => {
+  const session = getAuthSession();
+
+  if (isValidSession(session)) {
+    setAuthSession(session);
+    dispatch(authSlice.actions.rehydrate(session));
+    return;
+  }
+
+  clearAuthStorage();
+  dispatch(authSlice.actions.authBootstrapComplete());
+};
+
 // Login function with backend integration
 export const login = (data) => async (dispatch) => {
   dispatch(authSlice.actions.loginRequest());
   try {
     const response = await authAPI.login(data);
-    const { user, token, message } = response.data;
+    const { user, token, message } = getAuthPayload(response.data);
 
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
+    if (!isValidSession({ token, user })) {
+      throw new Error('Login response did not include a valid user session.');
+    }
+
+    setAuthSession({ token, user });
 
     dispatch(authSlice.actions.loginSuccess({
       user: user,
       token: token,
-      message: message || 'Login successful'
+      message: message || 'Login successful',
     }));
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+    clearAuthStorage();
+    const errorMessage = getErrorMessage(error, 'Login failed');
     dispatch(authSlice.actions.loginFailed(errorMessage));
   }
 };
@@ -103,45 +179,49 @@ export const login = (data) => async (dispatch) => {
 export const logout = () => async (dispatch) => {
   dispatch(authSlice.actions.logoutRequest());
   try {
-    // Call backend logout endpoint
     await authAPI.logout();
-
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
     dispatch(authSlice.actions.logoutSuccess('Logout successful'));
-    dispatch(authSlice.actions.resetAuthSlice());
-  } catch (error) {
-    // Even if backend logout fails, clear local storage
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  } catch {
     dispatch(authSlice.actions.logoutSuccess('Logout successful'));
-    dispatch(authSlice.actions.resetAuthSlice());
+  } finally {
+    clearAuthStorage();
   }
 };
 
 // Refresh user details function
 export const refreshUserDetails = () => async (dispatch) => {
-  dispatch(authSlice.actions.loginRequest()); // Reuse loading state
+  dispatch(authSlice.actions.refreshUserRequest());
   try {
     const response = await authAPI.getMyDetails();
     const user = response.data.user;
+    const token = getAuthSession().token;
 
-    // Update localStorage with fresh user data
-    localStorage.setItem('user', JSON.stringify(user));
+    if (!token || !isValidUser(user)) {
+      throw new Error('Unable to refresh the current user session.');
+    }
+
+    setAuthSession({ token, user });
 
     dispatch(authSlice.actions.updateUserData(user));
     dispatch(authSlice.actions.loginSuccess({
       user: user,
-      token: localStorage.getItem('token'), // Keep existing token
-      message: 'User details refreshed successfully'
+      token,
+      message: 'User details refreshed successfully',
     }));
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to refresh user details';
-    dispatch(authSlice.actions.loginFailed(errorMessage));
+    const errorMessage = getErrorMessage(error, 'Failed to refresh user details');
+
+    if (error.response?.status === 401) {
+      clearAuthStorage();
+      dispatch(authSlice.actions.loginFailed(errorMessage));
+      return;
+    }
+
+    dispatch(authSlice.actions.refreshUserFailed(errorMessage));
   }
 };
 
 // Export the updateUserData action
-export const { updateUserData } = authSlice.actions;
+export const { rehydrate, updateUserData } = authSlice.actions;
 
 export default authSlice.reducer;

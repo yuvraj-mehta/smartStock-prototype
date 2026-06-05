@@ -1,70 +1,159 @@
-import { SalesOrder, Item, Inventory, Batch } from '../models/index.js';
+import { SalesOrder, Item, Inventory, Batch, Product } from '../models/index.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
 import { logAudit } from '../utils/auditLogger.js';
+import mongoose from 'mongoose';
+
+const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+
+const normalizeId = (id) => (id?._id || id)?.toString();
+
+const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
+
+const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
+
+const getInventoryValueForBatch = async (batchId, session) => {
+  const items = await runWithOptionalSession(
+    Item.find({ batchId, status: 'in_stock' }).select('purchasePrice'),
+    session
+  );
+
+  if (items.every((item) => typeof item.purchasePrice === 'number')) {
+    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
+  }
+
+  const batch = await runWithOptionalSession(Batch.findById(batchId).select('unitCost'), session);
+  return (batch?.unitCost || 0) * items.length;
+};
+
+const syncInventoryForBatch = async (batchId, warehouseId, session) => {
+  const [quantity, inventoryValue] = await Promise.all([
+    runWithOptionalSession(Item.countDocuments({ batchId, status: 'in_stock' }), session),
+    getInventoryValueForBatch(batchId, session),
+  ]);
+
+  await Inventory.updateOne(
+    { batchId, warehouseId },
+    {
+      $set: { quantity, inventoryValue },
+      $setOnInsert: { batchId, warehouseId },
+    },
+    { upsert: true, session }
+  );
+};
 
 // Create Sales Order
 export const createSalesOrder = catchAsyncErrors(async (req, res) => {
   const { customerId, productId, quantity, unitPrice, totalPrice, status, salesInvoiceId } = req.body;
-  if (!customerId || !productId || !quantity || !unitPrice || !totalPrice) {
+
+  if (!customerId || !productId || quantity === undefined || unitPrice === undefined || totalPrice === undefined) {
     return res.status(400).json({ message: 'All required fields must be provided.' });
   }
-  if (quantity <= 0 || unitPrice <= 0 || totalPrice <= 0) {
+
+  const orderQuantity = Number(quantity);
+  const orderUnitPrice = Number(unitPrice);
+  const orderTotalPrice = Number(totalPrice);
+
+  if (!Number.isInteger(orderQuantity) || orderQuantity <= 0 || orderUnitPrice <= 0 || orderTotalPrice <= 0) {
     return res.status(400).json({ message: 'Quantity, unit price, and total price must be positive numbers.' });
   }
 
-  // Find in-stock items for this product
-  const items = await Item.find({ productId, status: 'in_stock' }).limit(quantity);
-  if (items.length < quantity) {
-    return res.status(400).json({ message: 'Not enough in-stock items to fulfill the order.' });
-  }
-
-  // Calculate COGS (sum of purchasePrice or fallback to batch.unitCost)
+  const assignedWarehouseId = getAssignedWarehouseId(req);
+  const session = await mongoose.startSession();
+  let order;
   let cogs = 0;
-  let missingPurchasePrice = false;
-  for (const item of items) {
-    if (typeof item.purchasePrice === 'number') {
-      cogs += item.purchasePrice;
-    } else {
-      missingPurchasePrice = true;
+  let profit = 0;
+
+  try {
+    session.startTransaction();
+
+    const product = await Product.findById(productId).session(session);
+    if (!product) {
+      throw httpError(404, 'Product not found.');
     }
-  }
-  if (missingPurchasePrice) {
-    // Fallback: use batch.unitCost
-    const batchIds = [...new Set(items.map(i => i.batchId))];
-    for (const batchId of batchIds) {
-      const batch = await Batch.findById(batchId);
-      if (batch && typeof batch.unitCost === 'number') {
-        cogs += batch.unitCost * items.filter(i => i.batchId.equals(batchId)).length;
-      }
+
+    const batchQuery = { productId };
+    if (assignedWarehouseId) batchQuery.warehouseId = assignedWarehouseId;
+
+    const batches = await Batch.find(batchQuery)
+      .sort({ mfgDate: 1, receivedAt: 1, createdAt: 1 })
+      .session(session);
+
+    let remainingQuantity = orderQuantity;
+    const selectedItems = [];
+    const batchCostMap = new Map();
+    const batchWarehouseMap = new Map();
+
+    for (const batch of batches) {
+      if (remainingQuantity <= 0) break;
+
+      const items = await Item.find({
+        batchId: batch._id,
+        productId,
+        status: 'in_stock'
+      })
+        .limit(remainingQuantity)
+        .session(session);
+
+      if (items.length === 0) continue;
+
+      selectedItems.push(...items);
+      batchCostMap.set(batch._id.toString(), batch.unitCost || 0);
+      batchWarehouseMap.set(batch._id.toString(), batch.warehouseId);
+      remainingQuantity -= items.length;
     }
-  }
 
-  // Calculate profit
-  const profit = totalPrice - cogs;
+    if (remainingQuantity > 0) {
+      throw httpError(400, 'Not enough in-stock items to fulfill the order.');
+    }
 
-  // Mark items as sold/dispatched
-  const now = new Date();
-  const historyEntry = {
-    action: 'dispatched',
-    date: now,
-    notes: 'Sold via sales order',
-  };
-  const itemIds = items.map(i => i._id);
-  await Item.updateMany(
-    { _id: { $in: itemIds } },
-    { $set: { status: 'dispatched' }, $push: { history: historyEntry } }
-  );
+    cogs = selectedItems.reduce((sum, item) => {
+      if (typeof item.purchasePrice === 'number') return sum + item.purchasePrice;
+      return sum + (batchCostMap.get(item.batchId.toString()) || 0);
+    }, 0);
+    profit = orderTotalPrice - cogs;
 
-  // Update inventory (reduce quantity for each batch)
-  for (const item of items) {
-    await Inventory.updateOne(
-      { batchId: item.batchId },
-      { $inc: { quantity: -1, inventoryValue: -1 * (item.purchasePrice || 0) } }
+    const itemIds = selectedItems.map((item) => item._id);
+    const updateResult = await Item.updateMany(
+      { _id: { $in: itemIds }, status: 'in_stock' },
+      {
+        $set: { status: 'dispatched' },
+        $push: {
+          history: {
+            action: 'dispatched',
+            date: new Date(),
+            notes: 'Sold via sales order',
+          }
+        }
+      },
+      { session }
     );
-  }
 
-  // Create sales order
-  const order = await SalesOrder.create({ customerId, productId, quantity, unitPrice, totalPrice, status, salesInvoiceId });
+    const modifiedCount = updateResult.modifiedCount ?? updateResult.nModified ?? 0;
+    if (modifiedCount !== itemIds.length) {
+      throw httpError(409, 'Inventory changed while creating the sales order.');
+    }
+
+    for (const [batchId, warehouseId] of batchWarehouseMap.entries()) {
+      await syncInventoryForBatch(batchId, warehouseId, session);
+    }
+
+    [order] = await SalesOrder.create([{
+      customerId,
+      productId,
+      quantity: orderQuantity,
+      unitPrice: orderUnitPrice,
+      totalPrice: orderTotalPrice,
+      status,
+      salesInvoiceId
+    }], { session });
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(error.statusCode || 400).json({ message: error.message });
+  } finally {
+    session.endSession();
+  }
 
   // Audit log
   await logAudit({
@@ -73,7 +162,7 @@ export const createSalesOrder = catchAsyncErrors(async (req, res) => {
     entityType: 'SalesOrder',
     entityId: order._id,
     value: profit,
-    details: `COGS: ${cogs}, Profit: ${profit}, Quantity: ${quantity}`
+    details: `COGS: ${cogs}, Profit: ${profit}, Quantity: ${orderQuantity}`
   });
 
   res.status(201).json({ message: 'Sales order created', salesOrder: order, cogs, profit });

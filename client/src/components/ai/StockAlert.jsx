@@ -6,7 +6,7 @@ import {
   ArrowTrendingDownIcon,
   ClockIcon,
   CheckCircleIcon,
-  XMarkIcon
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 const StockAlerts = () => {
@@ -33,8 +33,8 @@ const StockAlerts = () => {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/inventory/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
 
       if (response.ok) {
@@ -77,7 +77,7 @@ const StockAlerts = () => {
           productId: product._id,
           severity: totalQuantity <= 5 ? 'critical' : 'warning',
           icon: totalQuantity <= 5 ? ExclamationTriangleIcon : ArrowTrendingDownIcon,
-          action: 'Reorder immediately'
+          action: 'Reorder immediately',
         });
       }
 
@@ -98,7 +98,7 @@ const StockAlerts = () => {
               batchId: batch.batchId,
               severity: 'critical',
               icon: XMarkIcon,
-              action: 'Remove from inventory'
+              action: 'Remove from inventory',
             });
           } else if (daysUntilExpiry <= 7) {
             generatedAlerts.push({
@@ -111,7 +111,7 @@ const StockAlerts = () => {
               batchId: batch.batchId,
               severity: 'warning',
               icon: ClockIcon,
-              action: 'Plan clearance sale'
+              action: 'Plan clearance sale',
             });
           }
         }
@@ -128,7 +128,7 @@ const StockAlerts = () => {
           productId: product._id,
           severity: 'info',
           icon: ChartBarIcon,
-          action: 'Review demand forecast'
+          action: 'Review demand forecast',
         });
       }
     });
@@ -200,7 +200,7 @@ const StockAlerts = () => {
           { key: 'all', label: 'All Alerts', count: alerts.length },
           { key: 'critical', label: 'Critical', count: alerts.filter(a => a.severity === 'critical').length },
           { key: 'low', label: 'Low Stock', count: alerts.filter(a => a.type === 'low' || a.type === 'critical').length },
-          { key: 'expired', label: 'Expiry', count: alerts.filter(a => a.type === 'expired' || a.type === 'expiring').length }
+          { key: 'expired', label: 'Expiry', count: alerts.filter(a => a.type === 'expired' || a.type === 'expiring').length },
         ].map(tab => (
           <button
             key={tab.key}

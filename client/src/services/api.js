@@ -1,48 +1,12 @@
 /**
  * API Service
- * 
- * This module provides API functions for backend communication
+ *
+ * This module exposes backend API groups using the shared HTTP client.
  */
 
-import axios from 'axios';
-import { API_CONFIG } from '../constants';
+import httpClient from './httpClient';
 
-// Create axios instance
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: API_CONFIG.TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add authentication token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor to handle errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token invalid, redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+const api = httpClient;
 
 // Auth API functions
 export const authAPI = {
@@ -62,7 +26,7 @@ export const userAPI = {
   deleteUser: (userId) => api.delete(`/user/delete/${userId}`),
   createSupplier: (supplierData) => api.post('/user/create-supplier', supplierData),
   createTransporter: (transporterData) => api.post('/user/create-transporter', transporterData),
-  getAllExternalUsers: (role) => api.get('/user/external/all' + (role ? `?role=${role}` : '')),
+  getAllExternalUsers: (role) => api.get(`/user/external/all${  role ? `?role=${role}` : ''}`),
   updateExternalUser: (userId, userData) => api.put(`/user/external/update/${userId}`, userData),
   deleteExternalUser: (userId) => api.delete(`/user/external/delete/${userId}`),
 };

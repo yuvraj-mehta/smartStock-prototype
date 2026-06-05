@@ -7,9 +7,14 @@
  * @module constants
  */
 
+const DEFAULT_API_BASE_URL = '/api/v1';
+const env = import.meta.env;
+
 // API Configuration
+export const API_BASE_URL = env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
+
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_BASE_URL, // Only use env variable
+  BASE_URL: API_BASE_URL,
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
 };
@@ -19,6 +24,8 @@ export const AUTH_CONSTANTS = {
   TOKEN_KEY: 'smartstock_token',
   REFRESH_TOKEN_KEY: 'smartstock_refresh_token',
   USER_KEY: 'smartstock_user',
+  LEGACY_TOKEN_KEY: 'token',
+  LEGACY_USER_KEY: 'user',
   SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutes
 };
 
@@ -42,9 +49,10 @@ export const ROUTES = {
 // User Roles
 export const USER_ROLES = {
   ADMIN: 'admin',
-  MANAGER: 'manager',
-  EMPLOYEE: 'employee',
-  EXTERNAL: 'external',
+  STAFF: 'staff',
+  VIEWER: 'viewer',
+  SUPPLIER: 'supplier',
+  TRANSPORTER: 'transporter',
 };
 
 // Product Categories
@@ -138,8 +146,8 @@ export const THEME = {
 
 // Feature Flags
 export const FEATURE_FLAGS = {
-  ENABLE_AI_ASSISTANT: import.meta.env.VITE_ENABLE_AI_ASSISTANT === 'true',
-  ENABLE_ANALYTICS: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
-  ENABLE_NOTIFICATIONS: import.meta.env.VITE_ENABLE_NOTIFICATIONS === 'true',
-  ENABLE_DARK_MODE: import.meta.env.VITE_ENABLE_DARK_MODE === 'true',
+  ENABLE_AI_ASSISTANT: env.VITE_ENABLE_AI_ASSISTANT === 'true',
+  ENABLE_ANALYTICS: env.VITE_ENABLE_ANALYTICS === 'true',
+  ENABLE_NOTIFICATIONS: env.VITE_ENABLE_NOTIFICATIONS === 'true',
+  ENABLE_DARK_MODE: env.VITE_ENABLE_DARK_MODE === 'true',
 };

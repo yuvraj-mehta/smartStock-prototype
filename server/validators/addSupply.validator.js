@@ -32,6 +32,23 @@ const expDateValidator = () =>
     .notEmpty().withMessage("Expiry date is required")
     .isISO8601().withMessage("Expiry date must be a valid date (YYYY-MM-DD)");
 
+const unitCostValidator = () =>
+  body("unitCost")
+    .exists({ checkNull: true }).withMessage("Unit cost is required")
+    .isFloat({ min: 0 }).withMessage("Unit cost must be a non-negative number");
+
+const currencyValidator = () =>
+  body("currency")
+    .optional()
+    .isString().withMessage("Currency must be a string")
+    .trim()
+    .isLength({ min: 3, max: 3 }).withMessage("Currency must be a 3-letter code");
+
+const purchaseOrderIdValidator = () =>
+  body("purchaseOrderId")
+    .optional()
+    .isMongoId().withMessage("Purchase order ID must be a valid Mongo ID");
+
 const notesValidator = () =>
   body("notes")
     .optional()
@@ -44,5 +61,8 @@ export const addSupplyValidation = [
   supplyQuantityValidator(),
   mfgDateValidator(),
   expDateValidator(),
+  unitCostValidator(),
+  currencyValidator(),
+  purchaseOrderIdValidator(),
   notesValidator(),
 ];

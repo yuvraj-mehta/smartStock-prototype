@@ -4,10 +4,10 @@ import { Button } from '../../ui';
 
 /**
  * TransportManagement Component
- * 
+ *
  * Manages transport assignment, tracking, and logistics operations.
  * Handles vehicle assignment, route planning, and delivery tracking.
- * 
+ *
  * @component
  * @param {Object} props - Component props
  * @param {string} [props.className=''] - Additional CSS classes
@@ -35,7 +35,7 @@ const TransportManagement = ({ className = '' }) => {
         actualDelivery: null,
         distance: '15.2 km',
         route: 'Route A -> Route B -> Downtown',
-        createdDate: new Date('2024-01-16')
+        createdDate: new Date('2024-01-16'),
       },
       {
         id: 'TRP-002',
@@ -49,7 +49,7 @@ const TransportManagement = ({ className = '' }) => {
         actualDelivery: null,
         distance: '22.8 km',
         route: 'Route C -> Route D -> North Campus',
-        createdDate: new Date('2024-01-15')
+        createdDate: new Date('2024-01-15'),
       },
       {
         id: 'TRP-003',
@@ -63,8 +63,8 @@ const TransportManagement = ({ className = '' }) => {
         actualDelivery: new Date('2024-01-16'),
         distance: '18.5 km',
         route: 'Route E -> Route F -> South Mall',
-        createdDate: new Date('2024-01-14')
-      }
+        createdDate: new Date('2024-01-14'),
+      },
     ];
 
     const mockVehicles = [
@@ -74,7 +74,7 @@ const TransportManagement = ({ className = '' }) => {
         plateNumber: 'ABC-1234',
         capacity: '1000 kg',
         status: 'available',
-        currentLocation: 'Warehouse A'
+        currentLocation: 'Warehouse A',
       },
       {
         id: 'VEH-002',
@@ -82,7 +82,7 @@ const TransportManagement = ({ className = '' }) => {
         plateNumber: 'DEF-5678',
         capacity: '2000 kg',
         status: 'in-use',
-        currentLocation: 'En Route'
+        currentLocation: 'En Route',
       },
       {
         id: 'VEH-003',
@@ -90,8 +90,8 @@ const TransportManagement = ({ className = '' }) => {
         plateNumber: 'GHI-9012',
         capacity: '1000 kg',
         status: 'available',
-        currentLocation: 'Warehouse B'
-      }
+        currentLocation: 'Warehouse B',
+      },
     ];
 
     setTransports(mockTransports);
@@ -104,10 +104,10 @@ const TransportManagement = ({ className = '' }) => {
    * @param {string} newStatus - The new status
    */
   const handleStatusUpdate = (transportId, newStatus) => {
-    setTransports(prev => 
-      prev.map(transport => 
-        transport.id === transportId ? { ...transport, status: newStatus } : transport
-      )
+    setTransports(prev =>
+      prev.map(transport =>
+        transport.id === transportId ? { ...transport, status: newStatus } : transport,
+      ),
     );
   };
 
@@ -281,7 +281,7 @@ const TransportManagement = ({ className = '' }) => {
             Close
           </Button>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h4 className="font-medium text-gray-700 mb-3">Transport Information</h4>
@@ -290,7 +290,7 @@ const TransportManagement = ({ className = '' }) => {
               <p><span className="font-medium">Package IDs:</span> {selectedTransport.packageIds.join(', ')}</p>
               <p><span className="font-medium">Vehicle ID:</span> {selectedTransport.vehicleId}</p>
               <p><span className="font-medium">Driver:</span> {selectedTransport.driverName}</p>
-              <p><span className="font-medium">Status:</span> 
+              <p><span className="font-medium">Status:</span>
                 <span className={`ml-2 px-2 py-1 rounded-full text-xs ${getStatusColor(selectedTransport.status)}`}>
                   {selectedTransport.status}
                 </span>
@@ -298,7 +298,7 @@ const TransportManagement = ({ className = '' }) => {
               <p><span className="font-medium">Distance:</span> {selectedTransport.distance}</p>
             </div>
           </div>
-          
+
           <div>
             <h4 className="font-medium text-gray-700 mb-3">Delivery Information</h4>
             <div className="space-y-2">
@@ -387,7 +387,7 @@ const TransportManagement = ({ className = '' }) => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Active Transports</h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -453,7 +453,7 @@ const TransportManagement = ({ className = '' }) => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Fleet Vehicles</h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

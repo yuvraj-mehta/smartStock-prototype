@@ -12,6 +12,7 @@ import {
   updateProductById
 } from "../controllers/index.js"
 import { createProductValidation, updateProductValidation } from "../validators/index.js";
+import handleValidationErrors from "../middlewares/validationErrors.middleware.js";
 const router = Router();
 
 router.get("/", (req, res) => {
@@ -23,6 +24,7 @@ router.post(
   isAuthenticated,
   isAuthorized("admin"),
   createProductValidation,
+  handleValidationErrors,
   createProduct
 );
 router.get(
@@ -48,6 +50,7 @@ router.put(
   isAuthenticated,
   isAuthorized("admin"),
   updateProductValidation,
+  handleValidationErrors,
   updateProductById
 );
 

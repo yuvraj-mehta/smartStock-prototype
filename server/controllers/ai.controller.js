@@ -4,6 +4,17 @@ import { conf } from '../config/config.js';
 import AnalyticsService from '../services/analytics.service.js';
 import { catchAsyncErrors } from '../middlewares/index.js';
 
+const sendAIError = (res, error, fallbackMessage) => {
+  const statusCode = error.statusCode || 500;
+
+  return res.status(statusCode).json({
+    success: false,
+    message: error.statusCode ? error.message : fallbackMessage,
+    ...(error.code && { code: error.code }),
+    error: error.message
+  });
+};
+
 // Generate demand forecast for a specific product
 export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
   const { productId, periodType = 'monthly', daysBack = 90 } = req.body;
@@ -149,11 +160,7 @@ export const generateDemandForecast = catchAsyncErrors(async (req, res) => {
 
   } catch (error) {
     console.error('Error generating demand forecast:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate demand forecast',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to generate demand forecast');
   }
 });
 
@@ -252,11 +259,7 @@ export const generateStockOptimization = catchAsyncErrors(async (req, res) => {
 
   } catch (error) {
     console.error('Error generating stock optimization:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate stock optimization',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to generate stock optimization');
   }
 });
 
@@ -340,11 +343,7 @@ export const getSeasonalDemandPrediction = catchAsyncErrors(async (req, res) => 
 
   } catch (error) {
     console.error('Error generating seasonal prediction:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate seasonal prediction',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to generate seasonal prediction');
   }
 });
 
@@ -506,11 +505,7 @@ export const getIntelligentInventoryInsights = catchAsyncErrors(async (req, res)
     });
   } catch (error) {
     console.error('Error generating intelligent insights:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate intelligent insights',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to generate intelligent insights');
   }
 });
 
@@ -559,11 +554,7 @@ export const getAIDemandPrediction = catchAsyncErrors(async (req, res) => {
     });
   } catch (error) {
     console.error('Error generating AI demand prediction:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate AI demand prediction',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to generate AI demand prediction');
   }
 });
 
@@ -615,11 +606,7 @@ export const getSeasonalTrendsAnalysis = catchAsyncErrors(async (req, res) => {
     });
   } catch (error) {
     console.error('Error analyzing seasonal trends:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to analyze seasonal trends',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to analyze seasonal trends');
   }
 });
 
@@ -688,11 +675,7 @@ export const getAIInventoryDashboard = catchAsyncErrors(async (req, res) => {
     });
   } catch (error) {
     console.error('Error loading AI inventory dashboard:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to load AI inventory dashboard',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to load AI inventory dashboard');
   }
 });
 
@@ -802,11 +785,7 @@ export const analyzeJSONInventoryData = catchAsyncErrors(async (req, res) => {
 
   } catch (error) {
     console.error('Error analyzing JSON inventory data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to analyze inventory data',
-      error: error.message
-    });
+    return sendAIError(res, error, 'Failed to analyze inventory data');
   }
 });
 

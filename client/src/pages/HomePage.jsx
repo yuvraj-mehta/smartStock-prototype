@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 
 const HomePage = () => {
   const { user } = useSelector((state) => state.auth);
@@ -13,48 +14,48 @@ const HomePage = () => {
             This is your SmartStock Home. Here you can quickly access your dashboard, manage inventory, view sales, returns, and get AI-powered insights to optimize your business.
           </p>
           <div className="flex flex-wrap gap-6 justify-center mt-6">
-            <a href="/dashboard" className="home-tile">
+            <Link to="/dashboard" className="home-tile">
               <div className="bg-gradient-to-br from-blue-500 to-purple-500 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
                 <span className="text-3xl mb-2">📊</span>
                 <span className="font-bold text-lg">Dashboard</span>
                 <span className="text-xs mt-1">Overview & Analytics</span>
               </div>
-            </a>
-            <a href="/inventory" className="home-tile">
+            </Link>
+            <Link to="/inventory" className="home-tile">
               <div className="bg-gradient-to-br from-green-400 to-blue-400 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
                 <span className="text-3xl mb-2">📦</span>
                 <span className="font-bold text-lg">Inventory</span>
                 <span className="text-xs mt-1">Stock & Tracking</span>
               </div>
-            </a>
-            <a href="/products" className="home-tile">
+            </Link>
+            <Link to="/products" className="home-tile">
               <div className="bg-gradient-to-br from-yellow-400 to-orange-400 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
                 <span className="text-3xl mb-2">🛒</span>
                 <span className="font-bold text-lg">Products</span>
                 <span className="text-xs mt-1">Manage Products</span>
               </div>
-            </a>
-            <a href="/sales" className="home-tile">
+            </Link>
+            <Link to="/orders" className="home-tile">
               <div className="bg-gradient-to-br from-pink-400 to-red-400 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
                 <span className="text-3xl mb-2">💰</span>
-                <span className="font-bold text-lg">Sales</span>
-                <span className="text-xs mt-1">Sales & Revenue</span>
+                <span className="font-bold text-lg">Orders</span>
+                <span className="text-xs mt-1">Sales Orders</span>
               </div>
-            </a>
-            <a href="/returns" className="home-tile">
+            </Link>
+            <Link to="/returns" className="home-tile">
               <div className="bg-gradient-to-br from-gray-400 to-gray-600 text-white rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
                 <span className="text-3xl mb-2">↩️</span>
                 <span className="font-bold text-lg">Returns</span>
                 <span className="text-xs mt-1">Manage Returns</span>
               </div>
-            </a>
-            <a href="/ai-assistant" className="home-tile">
+            </Link>
+            <Link to="/ai-assistant" className="home-tile">
               <div className="bg-gradient-to-br from-yellow-300 to-pink-300 text-gray-800 rounded-xl p-6 shadow-lg flex flex-col items-center w-44 h-36 hover:scale-105 transition-transform">
                 <span className="text-3xl mb-2">🤖</span>
                 <span className="font-bold text-lg">AI Assistant</span>
                 <span className="text-xs mt-1">Smart Insights</span>
               </div>
-            </a>
+            </Link>
           </div>
         </section>
         <section className="text-center text-gray-500 text-sm mt-8">

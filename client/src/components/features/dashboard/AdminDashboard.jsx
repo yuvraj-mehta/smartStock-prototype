@@ -105,12 +105,12 @@ const AdminDashboard = () => {
       available: typeof stats.totalProducts === 'number',
     },
     {
-      title: 'Total Sales',
+      title: 'Sales Orders',
       value: stats.totalSales ?? 'upcoming feature',
       icon: '💰',
       color: '#43e97b',
-      description: 'Sales recorded',
-      link: '/sales',
+      description: 'Orders recorded',
+      link: '/orders',
       available: typeof stats.totalSales === 'number',
     },
     {
@@ -258,9 +258,9 @@ const AdminDashboard = () => {
                 <span className="text-3xl mb-1 opacity-80">📦</span>
                 <span className="text-sm font-semibold text-center leading-tight">View Inventory</span>
               </Link>
-              <Link to="/sales" className="flex-1 min-w-[120px] max-w-[140px] flex flex-col items-center justify-center gap-2 p-5 bg-gray-50 border border-gray-200 rounded-xl no-underline text-gray-700 transition-all duration-200 hover:bg-gray-100 hover:border-gray-300 hover:-translate-y-1 hover:shadow-md">
+              <Link to="/orders" className="flex-1 min-w-[120px] max-w-[140px] flex flex-col items-center justify-center gap-2 p-5 bg-gray-50 border border-gray-200 rounded-xl no-underline text-gray-700 transition-all duration-200 hover:bg-gray-100 hover:border-gray-300 hover:-translate-y-1 hover:shadow-md">
                 <span className="text-3xl mb-1 opacity-80">💰</span>
-                <span className="text-sm font-semibold text-center leading-tight">View Sales</span>
+                <span className="text-sm font-semibold text-center leading-tight">Manage Orders</span>
               </Link>
             </div>
           </div>

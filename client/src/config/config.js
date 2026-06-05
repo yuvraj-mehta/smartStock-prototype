@@ -1,4 +1,4 @@
-// config.js
-// Centralized config for API URLs and other environment variable
+import { API_CONFIG } from '../constants';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Centralized config for API URLs and other environment variables.
+export const API_BASE_URL = API_CONFIG.BASE_URL;

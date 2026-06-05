@@ -9,7 +9,7 @@ export const fetchAllReturns = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.message);
     }
-  }
+  },
 );
 
 export const initiateReturn = createAsyncThunk(
@@ -20,7 +20,7 @@ export const initiateReturn = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.message);
     }
-  }
+  },
 );
 
 export const scheduleReturnPickup = createAsyncThunk(
@@ -31,7 +31,7 @@ export const scheduleReturnPickup = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.message);
     }
-  }
+  },
 );
 
 export const markReturnPickedUp = createAsyncThunk(
@@ -42,7 +42,7 @@ export const markReturnPickedUp = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.message);
     }
-  }
+  },
 );
 
 export const processReturn = createAsyncThunk(
@@ -53,7 +53,7 @@ export const processReturn = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.message);
     }
-  }
+  },
 );
 
 const returnSlice = createSlice({
@@ -84,7 +84,7 @@ const returnSlice = createSlice({
         state.loading = false;
         state.error = action.payload || 'Failed to initiate return';
       });
-  }
+  },
 });
 
 export default returnSlice.reducer;

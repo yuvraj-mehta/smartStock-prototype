@@ -30,9 +30,9 @@ const DashboardPage = () => {
               location: b.warehouse,
               quantity: b.quantity,
               reorder_point: p.product.reorder_point || 10, // fallback
-              totalValue: b.quantity * (p.product.price || 0)
-            }))
-          )
+              totalValue: b.quantity * (p.product.price || 0),
+            })),
+          ),
         );
         setTotalValue(inventory.totalInventoryValue || 0);
 
@@ -44,8 +44,8 @@ const DashboardPage = () => {
             id: idx + 1,
             message: item.recommendation || item.title || 'Critical alert',
             severity: item.severity || 'high',
-            created_at: item.generatedAt || new Date()
-          }))
+            created_at: item.generatedAt || new Date(),
+          })),
         );
       } catch (err) {
         // fallback: empty data
@@ -188,10 +188,10 @@ const DashboardPage = () => {
                       Add New Product
                     </button>
                   </Link>
-                  <Link to="/analytics">
+                  <Link to="/ai-assistant">
                     <button className="w-full flex items-center gap-3 px-5 py-3 rounded-xl font-semibold bg-white/90 text-purple-700 border border-purple-200 shadow hover:bg-purple-50 transition-all group">
                       <span className="bg-purple-100 rounded-full p-2 group-hover:bg-purple-200 transition"><TrendingUp className="h-5 w-5" /></span>
-                      Generate Report
+                      View AI Insights
                     </button>
                   </Link>
                   <Link to="/ai-assistant">
@@ -273,6 +273,6 @@ const DashboardPage = () => {
       </div>
     </>
   );
-}
+};
 
 export default DashboardPage;

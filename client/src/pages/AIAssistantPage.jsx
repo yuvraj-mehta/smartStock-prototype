@@ -10,7 +10,7 @@ const AIAssistantPage = () => {
     lowStockThreshold: 10,
     criticalStockThreshold: 5,
     demandSensitivity: 'medium',
-    forecastPeriod: '30'
+    forecastPeriod: '30',
   });
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -26,7 +26,7 @@ const AIAssistantPage = () => {
   const handleThresholdChange = (field, value) => {
     setThresholdSettings(prev => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 

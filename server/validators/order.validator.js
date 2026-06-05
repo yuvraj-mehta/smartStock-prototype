@@ -12,11 +12,12 @@ const orderItemsValidator = () =>
     .isArray({ min: 1 }).withMessage("Items must be an array with at least one item")
     .custom((items) => {
       for (const item of items) {
-        if (!item.productId || !item.quantity) {
+        if (!item.productId || item.quantity === undefined) {
           throw new Error("Each item must have productId and quantity");
         }
-        if (typeof item.quantity !== 'number' || item.quantity < 1) {
-          throw new Error("Item quantity must be a positive number");
+        const quantity = Number(item.quantity);
+        if (!Number.isInteger(quantity) || quantity < 1) {
+          throw new Error("Item quantity must be a positive integer");
         }
       }
       return true;
@@ -32,6 +33,10 @@ const orderNotesValidator = () =>
 export const createOrderValidation = [
   platformOrderIdValidator(),
   orderItemsValidator(),
+  body("items.*.productId")
+    .isMongoId().withMessage("Item product ID must be a valid Mongo ID"),
+  body("items.*.quantity")
+    .isInt({ min: 1 }).withMessage("Item quantity must be a positive integer"),
   orderNotesValidator(),
 ];
 

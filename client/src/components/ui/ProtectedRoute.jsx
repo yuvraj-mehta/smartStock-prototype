@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
 /**
@@ -16,17 +16,24 @@ import PropTypes from 'prop-types';
  */
 const ProtectedRoute = ({
   children,
+  fallback = null,
   requiredRoles = [],
   redirectTo = '/login',
 }) => {
-  const { isAuthenticated, user } = useSelector(state => state.auth);
+  const { isAuthenticated, isBootstrapping, user } = useSelector(state => state.auth);
   const location = useLocation();
+
+  const redirectPath = getRedirectPath(redirectTo, location);
+
+  if (isBootstrapping) {
+    return fallback;
+  }
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return (
       <Navigate
-        to={redirectTo}
+        to={redirectPath}
         state={{ from: location }}
         replace
       />
@@ -34,8 +41,10 @@ const ProtectedRoute = ({
   }
 
   // Check role-based access if required roles are specified
-  if (requiredRoles.length > 0 && user?.role) {
-    const hasRequiredRole = requiredRoles.includes(user.role);
+  if (requiredRoles.length > 0) {
+    const userRole = user?.role?.toLowerCase();
+    const allowedRoles = requiredRoles.map(role => role.toLowerCase());
+    const hasRequiredRole = Boolean(userRole && allowedRoles.includes(userRole));
 
     if (!hasRequiredRole) {
       return (
@@ -48,11 +57,23 @@ const ProtectedRoute = ({
     }
   }
 
-  return children;
+  return children || <Outlet />;
+};
+
+const getRedirectPath = (redirectTo, location) => {
+  if (redirectTo !== '/login') {
+    return redirectTo;
+  }
+
+  const currentPath = `${location.pathname}${location.search || ''}${location.hash || ''}`;
+  const params = new URLSearchParams({ redirect: currentPath });
+
+  return `${redirectTo}?${params.toString()}`;
 };
 
 ProtectedRoute.propTypes = {
-  children: PropTypes.node.isRequired,
+  children: PropTypes.node,
+  fallback: PropTypes.node,
   requiredRoles: PropTypes.arrayOf(PropTypes.string),
   redirectTo: PropTypes.string,
 };

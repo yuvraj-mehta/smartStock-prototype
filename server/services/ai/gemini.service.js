@@ -3,14 +3,57 @@ import { conf } from '../../config/config.js';
 
 class GeminiService {
   constructor() {
-    const apiKey = conf.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const apiKey = conf.geminiApiKey;
+    this.ai = null;
+    this.disabledReason = null;
+
     if (!apiKey) {
-      throw new Error('Missing Gemini API key. Set GEMINI_API_KEY or GOOGLE_API_KEY.');
+      this.disabledReason = 'AI service is disabled. Set GEMINI_API_KEY or GOOGLE_API_KEY to enable Gemini features.';
+      return;
     }
+
     this.ai = new GoogleGenAI({ apiKey });
   }
 
+  isEnabled() {
+    return Boolean(this.ai);
+  }
+
+  getStatus() {
+    return {
+      enabled: this.isEnabled(),
+      model: conf.aiModel,
+      disabledReason: this.disabledReason,
+    };
+  }
+
+  createAIUnavailableError() {
+    const error = new Error(this.disabledReason || 'AI service is disabled.');
+    error.statusCode = 503;
+    error.code = 'AI_DISABLED';
+    return error;
+  }
+
+  createAIProviderError(message) {
+    const error = new Error(message);
+    error.statusCode = 502;
+    error.code = 'AI_PROVIDER_ERROR';
+    return error;
+  }
+
+  isAIUnavailableError(error) {
+    return error?.code === 'AI_DISABLED' || error?.statusCode === 503;
+  }
+
+  ensureEnabled() {
+    if (!this.ai) {
+      throw this.createAIUnavailableError();
+    }
+  }
+
   async generateContent(prompt) {
+    this.ensureEnabled();
+
     // Ensure model name is properly formatted for Gemini API
     let modelName = conf.aiModel;
 
@@ -40,58 +83,67 @@ class GeminiService {
 
   async generateDemandForecast(productData, salesHistory, seasonalData = {}) {
     try {
+      this.ensureEnabled();
       const system = 'You are an expert inventory management analyst specializing in demand forecasting for retail and warehouse management. Provide data-driven insights and specific recommendations.';
       const prompt = this.buildDemandForecastPrompt(productData, salesHistory, seasonalData);
       const combined = `${system}\n\n${prompt}`;
       const text = await this.generateContent(combined);
       return this.parseForecastResponse(text);
     } catch (error) {
+      if (this.isAIUnavailableError(error)) throw error;
       console.error('Gemini API Error (generateDemandForecast):', error);
-      throw new Error('Failed to generate demand forecast');
+      throw this.createAIProviderError('Failed to generate demand forecast');
     }
   }
 
   async generateStockOptimization(inventoryData, salesData, seasonalFactors) {
     try {
+      this.ensureEnabled();
       const system = 'You are an inventory optimization expert. Analyze data and provide specific stock level recommendations, reorder points, and safety stock calculations.';
       const prompt = this.buildStockOptimizationPrompt(inventoryData, salesData, seasonalFactors);
       const combined = `${system}\n\n${prompt}`;
       const text = await this.generateContent(combined);
       return this.parseOptimizationResponse(text);
     } catch (error) {
+      if (this.isAIUnavailableError(error)) throw error;
       console.error('Gemini API Error (generateStockOptimization):', error);
-      throw new Error('Failed to generate stock optimization');
+      throw this.createAIProviderError('Failed to generate stock optimization');
     }
   }
 
   async predictSeasonalDemand(productCategory, historicalData, currentSeason) {
     try {
+      this.ensureEnabled();
       const system = 'You are a seasonal demand forecasting specialist. Analyze patterns and predict demand fluctuations based on seasonal trends, holidays, and market factors.';
       const prompt = this.buildSeasonalDemandPrompt(productCategory, historicalData, currentSeason);
       const combined = `${system}\n\n${prompt}`;
       const text = await this.generateContent(combined);
       return this.parseSeasonalResponse(text);
     } catch (error) {
+      if (this.isAIUnavailableError(error)) throw error;
       console.error('Gemini API Error (predictSeasonalDemand):', error);
-      throw new Error('Failed to predict seasonal demand');
+      throw this.createAIProviderError('Failed to predict seasonal demand');
     }
   }
 
   async analyzeJSONInventoryData(jsonData, analysisType = 'comprehensive') {
     try {
+      this.ensureEnabled();
       const system = 'You are an expert inventory management analyst. Analyze the provided JSON inventory data and provide actionable insights for demand forecasting, stock optimization, and risk assessment. Focus on identifying patterns, trends, and recommendations based on the data structure provided.';
       const prompt = this.buildJSONDataAnalysisPrompt(jsonData, analysisType);
       const combined = `${system}\n\n${prompt}`;
       const text = await this.generateContent(combined);
       return this.parseJSONAnalysisResponse(text);
     } catch (error) {
+      if (this.isAIUnavailableError(error)) throw error;
       console.error('Gemini API Error (analyzeJSONInventoryData):', error);
-      throw new Error('Failed to analyze JSON inventory data');
+      throw this.createAIProviderError('Failed to analyze JSON inventory data');
     }
   }
 
   async analyzeInventoryOptimization(analyticsData) {
     try {
+      this.ensureEnabled();
       const system = 'You are an expert inventory management consultant. Analyze inventory data and provide actionable insights.';
       const prompt = `Analyze the following inventory data and provide optimization insights:\n\n${JSON.stringify(analyticsData, null, 2)}\n\nProvide a JSON response with:\n{\n  "summary": "Overall inventory status summary",\n  "criticalItems": [\n    {"productName": "string", "issue": "string", "priority": "high|medium|low"}\n  ],\n  "overallRecommendations": ["recommendation1", "recommendation2"],\n  "costSavingOpportunities": ["opportunity1", "opportunity2"],\n  "riskMitigation": ["risk1", "risk2"]\n}`;
       const combined = `${system}\n\n${prompt}`;
@@ -111,6 +163,7 @@ class GeminiService {
         };
       }
     } catch (error) {
+      if (this.isAIUnavailableError(error)) throw error;
       console.error('Error analyzing inventory optimization (Gemini):', error);
       return {
         summary: 'Basic inventory analysis completed',
@@ -124,6 +177,7 @@ class GeminiService {
 
   async getSeasonalInsights({ category, historicalData, currentMonth, currentYear }) {
     try {
+      this.ensureEnabled();
       const system = 'You are a retail seasonal analysis expert. Produce concise, structured JSON insights.';
       const prompt = `Analyze seasonal trends for category: ${category}.\n\nHistorical data (monthly):\n${historicalData.map(d => `- ${d.period}: volume=${d.volume}, revenue=${d.revenue}, orders=${d.orders}, events=${Array.isArray(d.events) ? d.events.join(', ') : d.events}`).join('\n')}\n\nCurrent context: month=${currentMonth}, year=${currentYear}.\n\nReturn JSON with keys: seasonalPatterns[], upcomingTrends[], preparationSteps[].`;
       const combined = `${system}\n\n${prompt}`;
@@ -136,6 +190,7 @@ class GeminiService {
         preparationSteps: []
       };
     } catch (error) {
+      if (this.isAIUnavailableError(error)) throw error;
       console.error('Gemini API Error (getSeasonalInsights):', error);
       return {
         seasonalPatterns: [],

@@ -6,7 +6,7 @@ const API_BASE = '/transport';
 export const getAllTransports = async (params = {}) => {
   const { status, transportType, page = 1, limit = 10 } = params;
   const response = await api.get(`${API_BASE}/all`, {
-    params: { status, transportType, page, limit }
+    params: { status, transportType, page, limit },
   });
   return response.data;
 };
@@ -34,5 +34,4 @@ export const assignTransport = async (packageId, transporterId, notes = '') => {
   const res = await api.post(`/order/assign-transport/${packageId}`, { transporterId, notes });
   return res.data;
 };
-
 

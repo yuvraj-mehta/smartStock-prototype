@@ -88,9 +88,8 @@ const features = [
 const accent = 'text-orange-500';
 
 
-
 const featureIcons = [
-  '📊', '⏱️', '💰', '📦', '🔒', '📈', '🔁', '📝', '🤖'
+  '📊', '⏱️', '💰', '📦', '🔒', '📈', '🔁', '📝', '🤖',
 ];
 
 const infoIcons = [
@@ -228,7 +227,6 @@ const LandingPage = () => (
 
     {/* Divider */}
     <div className="w-full h-0.5 bg-gradient-to-r from-blue-100 via-purple-100 to-orange-100 my-8 opacity-60" />
-
 
 
     {/* Features Section - Overhauled */}

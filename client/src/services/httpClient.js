@@ -8,13 +8,15 @@
  */
 
 import axios from 'axios';
-import { API_CONFIG, AUTH_CONSTANTS, ERROR_MESSAGES } from '../constants';
-import { getStorageItem, removeStorageItem } from '../utils/storage';
+import { API_CONFIG } from '../constants';
+import { clearAuthStorage, getAuthToken } from '../utils/storage';
+
+const isDevelopment = import.meta.env.DEV;
 
 // Create axios instance with default configuration
 const httpClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL, // Only use env variable
-  timeout: 10000,
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -23,9 +25,10 @@ const httpClient = axios.create({
 // Request interceptor to add authentication token
 httpClient.interceptors.request.use(
   (config) => {
-    const token = getStorageItem('token') || localStorage.getItem('token');
+    const token = getAuthToken();
 
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -43,17 +46,11 @@ httpClient.interceptors.request.use(
 // Response interceptor to handle common responses and errors
 httpClient.interceptors.response.use(
   (response) => {
-    // Log request duration in development
-    if (process.env.NODE_ENV === 'development') {
-      const duration = new Date() - response.config.metadata.startTime;
-      console.log(`API Request: ${response.config.method?.toUpperCase()} ${response.config.url} - ${duration}ms`);
-    }
-
     return response;
   },
-  async (error) => {
+  (error) => {
     // Handle 401 Unauthorized errors
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isLoginRequest(error.config?.url)) {
       handleAuthError();
     }
 
@@ -65,7 +62,7 @@ httpClient.interceptors.response.use(
     }
 
     // Log error in development
-    if (process.env.NODE_ENV === 'development') {
+    if (isDevelopment) {
       console.error('API Error:', {
         url: error.config?.url,
         method: error.config?.method,
@@ -83,11 +80,24 @@ httpClient.interceptors.response.use(
  * Handle authentication errors by clearing tokens and redirecting
  */
 const handleAuthError = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  clearAuthStorage();
 
-  // Redirect to login page
-  window.location.href = '/login';
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.replace(getLoginRedirectUrl());
+  }
+};
+
+const isLoginRequest = (url = '') => url.includes('/auth/login');
+
+const getLoginRedirectUrl = () => {
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  if (!currentPath || currentPath === '/' || currentPath.startsWith('/login')) {
+    return '/login';
+  }
+
+  const params = new URLSearchParams({ redirect: currentPath });
+  return `/login?${params.toString()}`;
 };
 
 /**

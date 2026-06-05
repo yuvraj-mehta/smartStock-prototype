@@ -4,6 +4,73 @@ import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
 import { catchAsyncErrors } from "../middlewares/index.js";
 
+const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+
+const normalizeId = (id) => (id?._id || id)?.toString();
+
+const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
+
+const runWithOptionalSession = (query, session) => (session ? query.session(session) : query);
+
+const getInventoryValueForBatch = async (batchId, session) => {
+  const items = await runWithOptionalSession(
+    Item.find({ batchId, status: "in_stock" }).select("purchasePrice"),
+    session
+  );
+
+  if (items.every((item) => typeof item.purchasePrice === "number")) {
+    return items.reduce((sum, item) => sum + item.purchasePrice, 0);
+  }
+
+  const batch = await runWithOptionalSession(Batch.findById(batchId).select("unitCost"), session);
+  return (batch?.unitCost || 0) * items.length;
+};
+
+const syncInventoryForBatch = async (batchId, warehouseId, session) => {
+  const [quantity, inventoryValue] = await Promise.all([
+    runWithOptionalSession(Item.countDocuments({ batchId, status: "in_stock" }), session),
+    getInventoryValueForBatch(batchId, session),
+  ]);
+
+  await Inventory.updateOne(
+    { batchId, warehouseId },
+    {
+      $set: { quantity, inventoryValue },
+      $setOnInsert: { batchId, warehouseId },
+    },
+    { upsert: true, session }
+  );
+
+  return { quantity, inventoryValue };
+};
+
+const assertBatchInWarehouse = async (batchId, assignedWarehouseId, session) => {
+  const batch = await runWithOptionalSession(Batch.findById(batchId), session);
+  if (!batch) {
+    throw httpError(404, "Batch not found.");
+  }
+
+  if (assignedWarehouseId && batch.warehouseId?.toString() !== assignedWarehouseId.toString()) {
+    throw httpError(403, "Access denied for this warehouse.");
+  }
+
+  return batch;
+};
+
+const getScopedWarehouseFilter = (req, requestedWarehouseId) => {
+  const assignedWarehouseId = getAssignedWarehouseId(req);
+
+  if (
+    assignedWarehouseId &&
+    requestedWarehouseId &&
+    requestedWarehouseId.toString() !== assignedWarehouseId.toString()
+  ) {
+    throw httpError(403, "Access denied for this warehouse.");
+  }
+
+  return assignedWarehouseId || requestedWarehouseId || null;
+};
+
 // Add inventory supply
 export const addInventorySupply = catchAsyncErrors(async (req, res) => {
   const {
@@ -23,89 +90,108 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
   }
 
   // Always use the user's assigned warehouse ID for supply
-  const warehouseId = req.user.assignedWarehouseId;
+  const warehouseId = getAssignedWarehouseId(req);
   if (!warehouseId || !mongoose.Types.ObjectId.isValid(warehouseId)) {
     return res.status(400).json({ message: "User is not assigned to any valid warehouse." });
   }
 
-  // Fetch product
-  const product = await Product.findById(productId);
-  if (!product) return res.status(404).json({ message: "Product not found." });
+  const session = await mongoose.startSession();
+  let responsePayload;
 
-  // Calculate total cost
-  const totalCost = unitCost * quantity;
+  try {
+    session.startTransaction();
 
-  // 1. Create a new Batch with financial fields
-  const batch = await Batch.create({
-    batchNumber: `BATCH-${Date.now()}`,
-    productId,
-    warehouseId,
-    supplierId,
-    quantity,
-    mfgDate,
-    expDate,
-    unitCost,
-    totalCost,
-    currency,
-    purchaseOrderId
-  });
+    // Fetch product
+    const product = await Product.findById(productId).session(session);
+    if (!product) throw httpError(404, "Product not found.");
 
-  // 2. Log Incoming Supply
-  await IncomingSupply.create({
-    batchId: batch._id,
-    receivedBy: req.user._id,
-    notes,
-  });
+    // Calculate total cost
+    const totalCost = unitCost * quantity;
 
-  // 3. Add to Inventory (with inventoryValue)
-  await Inventory.create({
-    batchId: batch._id,
-    quantity,
-    warehouseId,
-    inventoryValue: totalCost
-  });
+    // 1. Create a new Batch with financial fields
+    const [batch] = await Batch.create([{
+      batchNumber: `BATCH-${Date.now()}`,
+      productId,
+      warehouseId,
+      supplierId,
+      quantity,
+      mfgDate,
+      expDate,
+      unitCost,
+      totalCost,
+      currency,
+      purchaseOrderId
+    }], { session });
 
-  // 4. Create individual Items
-  const items = [];
-  for (let i = 0; i < quantity; i++) {
-    items.push({
+    // 2. Log Incoming Supply
+    await IncomingSupply.create([{
       batchId: batch._id,
-      productId: product._id,
-      serialNumber: `${product.sku}-${uuidv4()}`,
-      currentWarehouseId: warehouseId,
-      status: "in_stock",
-      history: [
-        {
-          action: "added",
-          location: `${warehouseId}`,
-          notes: "Item received via supply",
-        },
-      ],
-      purchasePrice: unitCost
-    });
+      receivedBy: req.user._id,
+      notes,
+    }], { session });
+
+    // 3. Add to Inventory (with inventoryValue)
+    await Inventory.create([{
+      batchId: batch._id,
+      quantity,
+      warehouseId,
+      inventoryValue: totalCost
+    }], { session });
+
+    // 4. Create individual Items
+    const items = [];
+    for (let i = 0; i < quantity; i++) {
+      items.push({
+        batchId: batch._id,
+        productId: product._id,
+        serialNumber: `${product.sku}-${uuidv4()}`,
+        currentWarehouseId: warehouseId,
+        status: "in_stock",
+        history: [
+          {
+            action: "added",
+            location: `${warehouseId}`,
+            notes: "Item received via supply",
+          },
+        ],
+        purchasePrice: unitCost
+      });
+    }
+
+    await Item.insertMany(items, { session });
+
+    // No longer update product.quantity directly. SupplierIds update retained.
+    if (!product.supplierIds.some((supplier) => supplier.toString() === supplierId.toString())) {
+      product.supplierIds.push(supplierId);
+      await product.save({ session });
+    }
+
+    responsePayload = {
+      message: "Supply added to inventory successfully.",
+      batchId: batch._id,
+      itemsCreated: quantity,
+      totalCost,
+      currency,
+      purchaseOrderId: purchaseOrderId || null
+    };
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(error.statusCode || 400).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 
-  await Item.insertMany(items);
-
-  // No longer update product.quantity directly. SupplierIds update retained.
-  if (!product.supplierIds.includes(supplierId)) {
-    product.supplierIds.push(supplierId);
-    await product.save();
-  }
-
-  return res.status(201).json({
-    message: "Supply added to inventory successfully.",
-    batchId: batch._id,
-    itemsCreated: quantity,
-    totalCost,
-    currency,
-    purchaseOrderId: purchaseOrderId || null
-  });
+  return res.status(201).json(responsePayload);
 });
 
 // view all inventory
 export const viewInventory = catchAsyncErrors(async (req, res) => {
-  const inventory = await Inventory.find()
+  const warehouseId = getScopedWarehouseFilter(req);
+  const inventoryFilter = warehouseId ? { warehouseId } : {};
+
+  const inventory = await Inventory.find(inventoryFilter)
     .populate({
       path: "batchId",
       populate: [
@@ -174,8 +260,10 @@ export const viewInventory = catchAsyncErrors(async (req, res) => {
 // Get inventory by product ID
 export const getInventoryByProduct = catchAsyncErrors(async (req, res) => {
   const { productId } = req.params;
+  const warehouseId = getScopedWarehouseFilter(req);
+  const inventoryFilter = warehouseId ? { warehouseId } : {};
 
-  const inventoryEntries = await Inventory.find()
+  const inventoryEntries = await Inventory.find(inventoryFilter)
     .populate({
       path: "batchId",
       match: { productId }, // Filter batches by the productId
@@ -198,56 +286,59 @@ export const getInventoryByProduct = catchAsyncErrors(async (req, res) => {
 
 // adjust inventory 
 export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
-  console.log("Marking inventory as damaged");
-
   const { batchId, quantity, reason } = req.body;
-  // Only update item status, do not update Inventory or Product quantities
-  const items = await Item.find({ batchId, status: "in_stock" }).limit(quantity);
-  console.log(`Found ${items.length} items to mark as damaged for batch ${batchId}`);
 
-  if (items.length < quantity) {
-    return res.status(400).json({ message: "Not enough in-stock items to mark damaged" });
+  if (!batchId || !quantity || quantity < 1) {
+    return res.status(400).json({ message: "Batch ID and positive quantity are required." });
   }
 
-  // Calculate financial loss
+  const session = await mongoose.startSession();
   let totalLoss = 0;
-  let missingPurchasePrice = false;
-  for (const item of items) {
-    if (typeof item.purchasePrice === 'number') {
-      totalLoss += item.purchasePrice;
-    } else {
-      missingPurchasePrice = true;
+
+  try {
+    session.startTransaction();
+
+    const batch = await assertBatchInWarehouse(batchId, getAssignedWarehouseId(req), session);
+
+    // Only update item status. Inventory.quantity is then synchronized from Item.status.
+    const items = await Item.find({ batchId, status: "in_stock" }).limit(quantity).session(session);
+
+    if (items.length < quantity) {
+      throw httpError(400, "Not enough in-stock items to mark damaged");
     }
+
+    const missingPurchasePrice = items.some((item) => typeof item.purchasePrice !== "number");
+    totalLoss = missingPurchasePrice
+      ? (batch?.unitCost || 0) * quantity
+      : items.reduce((sum, item) => sum + item.purchasePrice, 0);
+
+    const itemIds = items.map(item => item._id);
+    const now = new Date();
+    const historyEntry = {
+      action: "damaged",
+      location: items[0]?.currentWarehouseId ? items[0].currentWarehouseId.toString() : "Unknown",
+      notes: reason || "Marked as damaged",
+      date: now
+    };
+
+    await Item.updateMany(
+      { _id: { $in: itemIds } },
+      {
+        $set: { status: "damaged" },
+        $push: { history: historyEntry }
+      },
+      { session }
+    );
+
+    await syncInventoryForBatch(batchId, batch?.warehouseId || items[0]?.currentWarehouseId, session);
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(error.statusCode || 400).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
-  // If any item is missing purchasePrice, fallback to batch.unitCost
-  if (missingPurchasePrice) {
-    const batch = await Batch.findById(batchId);
-    if (batch && typeof batch.unitCost === 'number') {
-      totalLoss = batch.unitCost * quantity;
-    } else {
-      totalLoss = 0;
-    }
-  }
-
-  const itemIds = items.map(item => item._id);
-  const now = new Date();
-  const historyEntry = {
-    action: "damaged",
-    location: items[0]?.currentWarehouseId ? items[0].currentWarehouseId.toString() : "Unknown",
-    notes: reason || "Marked as damaged",
-    date: now
-  };
-
-  // Bulk update
-  await Item.updateMany(
-    { _id: { $in: itemIds } },
-    {
-      $set: { status: "damaged" },
-      $push: { history: historyEntry }
-    }
-  );
-
-  console.log(`Marked ${items.length} items as damaged for batch ${batchId}`);
 
   // Audit log
   await logAudit({
@@ -267,13 +358,20 @@ export const markDamagedInventory = catchAsyncErrors(async (req, res) => {
 
 // Real-time inventory status (safe addition)
 export const getRealTimeInventoryStatus = catchAsyncErrors(async (req, res) => {
-  const { warehouseId, productId } = req.query;
+  const { warehouseId: requestedWarehouseId, productId } = req.query;
 
-  const matchStage = {};
-  if (warehouseId) matchStage.warehouseId = new mongoose.Types.ObjectId(warehouseId);
+  let warehouseId;
+  try {
+    warehouseId = getScopedWarehouseFilter(req, requestedWarehouseId);
+  } catch (error) {
+    return res.status(error.statusCode || 400).json({ message: error.message });
+  }
 
-  // Compute real-time inventory status using Item status as source of truth
-  // Find all batches (optionally filter by warehouse/product)
+  if (warehouseId && !mongoose.Types.ObjectId.isValid(warehouseId)) {
+    return res.status(400).json({ message: "Warehouse ID must be a valid Mongo ID." });
+  }
+
+  // Compute real-time inventory status using Item status as source of truth.
   const batchQuery = {};
   if (warehouseId) batchQuery.warehouseId = warehouseId;
   if (productId) batchQuery.productId = productId;
@@ -313,6 +411,7 @@ export const getRealTimeInventoryStatus = catchAsyncErrors(async (req, res) => {
 // Track batch by number
 export const trackBatchByNumber = catchAsyncErrors(async (req, res) => {
   const { batchNumber } = req.params;
+  const assignedWarehouseId = getAssignedWarehouseId(req);
 
   const batch = await Batch.findOne({ batchNumber })
     .populate('productId', 'productName sku price')
@@ -321,6 +420,10 @@ export const trackBatchByNumber = catchAsyncErrors(async (req, res) => {
 
   if (!batch) {
     return res.status(404).json({ message: "Batch not found" });
+  }
+
+  if (assignedWarehouseId && batch.warehouseId?._id?.toString() !== assignedWarehouseId.toString()) {
+    return res.status(403).json({ message: "Access denied for this warehouse." });
   }
 
   // Get items in this batch

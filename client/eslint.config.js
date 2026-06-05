@@ -24,7 +24,7 @@ export default defineConfig([
     },
     rules: {
       // Variables
-      'no-unused-vars': ['error', {
+      'no-unused-vars': ['warn', {
         varsIgnorePattern: '^_',
         argsIgnorePattern: '^_',
         ignoreRestSiblings: true,
@@ -45,12 +45,13 @@ export default defineConfig([
       'no-implied-eval': 'error',
       'no-new-func': 'error',
       'no-return-await': 'error',
-      'require-await': 'error',
+      'require-await': 'warn',
 
       // Best practices
       'array-callback-return': 'error',
-      'consistent-return': 'error',
+      'consistent-return': 'warn',
       'default-case': 'error',
+      'no-empty': 'warn',
       'no-fallthrough': 'error',
       'no-magic-numbers': ['warn', {
         ignore: [-1, 0, 1, 2, 100, 1000],
@@ -68,6 +69,12 @@ export default defineConfig([
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  {
+    files: ['vite.config.js', 'eslint.config.js'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ]);

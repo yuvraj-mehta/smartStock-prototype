@@ -5,10 +5,10 @@ import Footer from './Footer';
 
 /**
  * Layout Component
- * 
+ *
  * Main layout wrapper that provides the overall structure for the application.
  * Includes navigation, main content area, and footer.
- * 
+ *
  * @param {Object} props - Component props
  * @param {React.ReactNode} [props.children] - Content to render in layout
  * @param {boolean} [props.showNavigation=true] - Whether to show navigation bar
@@ -16,11 +16,11 @@ import Footer from './Footer';
  * @param {string} [props.className=''] - Additional CSS classes
  * @returns {React.ReactElement} The layout component
  */
-const Layout = ({ 
-  children, 
-  showNavigation = true, 
-  showFooter = true, 
-  className = '' 
+const Layout = ({
+  children,
+  showNavigation = true,
+  showFooter = true,
+  className = '',
 }) => {
   return (
     <div className={`min-h-screen flex flex-col bg-gray-50 ${className}`}>

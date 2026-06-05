@@ -8,9 +8,6 @@
  * @module utils
  */
 
-// Helper functions
-export * from './helpers';
-
 // Storage utilities
 export * from './storage';
 

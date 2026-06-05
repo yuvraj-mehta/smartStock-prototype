@@ -1,7 +1,13 @@
 # Environment variables
 .env
+.env.local
+.env.*.local
 server/.env
+server/.env.local
+server/.env.*.local
 client/.env
+client/.env.local
+client/.env.*.local
 
 # Dependencies
 node_modules/

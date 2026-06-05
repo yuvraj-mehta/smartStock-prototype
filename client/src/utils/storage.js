@@ -7,6 +7,24 @@
  * @module storage
  */
 
+import { AUTH_CONSTANTS } from '../constants';
+
+const getLocalStorage = () => {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null;
+  }
+
+  return window.localStorage;
+};
+
+const getSessionStorage = () => {
+  if (typeof window === 'undefined' || !window.sessionStorage) {
+    return null;
+  }
+
+  return window.sessionStorage;
+};
+
 /**
  * Get item from localStorage
  * @param {string} key - The storage key
@@ -14,15 +32,20 @@
  * @returns {*} The stored value or default value
  */
 export const getStorageItem = (key, defaultValue = null) => {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return defaultValue;
+  }
+
   try {
-    const item = localStorage.getItem(key);
+    const item = storage.getItem(key);
     if (item === null) {
       return defaultValue;
     }
     return JSON.parse(item);
-  } catch (error) {
-    console.error(`Error getting item from localStorage: ${key}`, error);
-    return defaultValue;
+  } catch {
+    const rawItem = storage.getItem(key);
+    return rawItem ?? defaultValue;
   }
 };
 
@@ -33,8 +56,13 @@ export const getStorageItem = (key, defaultValue = null) => {
  * @returns {boolean} Success status
  */
 export const setStorageItem = (key, value) => {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return false;
+  }
+
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    storage.setItem(key, JSON.stringify(value));
     return true;
   } catch (error) {
     console.error(`Error setting item in localStorage: ${key}`, error);
@@ -48,8 +76,13 @@ export const setStorageItem = (key, value) => {
  * @returns {boolean} Success status
  */
 export const removeStorageItem = (key) => {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return false;
+  }
+
   try {
-    localStorage.removeItem(key);
+    storage.removeItem(key);
     return true;
   } catch (error) {
     console.error(`Error removing item from localStorage: ${key}`, error);
@@ -62,8 +95,13 @@ export const removeStorageItem = (key) => {
  * @returns {boolean} Success status
  */
 export const clearStorage = () => {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return false;
+  }
+
   try {
-    localStorage.clear();
+    storage.clear();
     return true;
   } catch (error) {
     console.error('Error clearing localStorage', error);
@@ -78,15 +116,20 @@ export const clearStorage = () => {
  * @returns {*} The stored value or default value
  */
 export const getSessionItem = (key, defaultValue = null) => {
+  const storage = getSessionStorage();
+  if (!storage) {
+    return defaultValue;
+  }
+
   try {
-    const item = sessionStorage.getItem(key);
+    const item = storage.getItem(key);
     if (item === null) {
       return defaultValue;
     }
     return JSON.parse(item);
-  } catch (error) {
-    console.error(`Error getting item from sessionStorage: ${key}`, error);
-    return defaultValue;
+  } catch {
+    const rawItem = storage.getItem(key);
+    return rawItem ?? defaultValue;
   }
 };
 
@@ -97,8 +140,13 @@ export const getSessionItem = (key, defaultValue = null) => {
  * @returns {boolean} Success status
  */
 export const setSessionItem = (key, value) => {
+  const storage = getSessionStorage();
+  if (!storage) {
+    return false;
+  }
+
   try {
-    sessionStorage.setItem(key, JSON.stringify(value));
+    storage.setItem(key, JSON.stringify(value));
     return true;
   } catch (error) {
     console.error(`Error setting item in sessionStorage: ${key}`, error);
@@ -112,8 +160,13 @@ export const setSessionItem = (key, value) => {
  * @returns {boolean} Success status
  */
 export const removeSessionItem = (key) => {
+  const storage = getSessionStorage();
+  if (!storage) {
+    return false;
+  }
+
   try {
-    sessionStorage.removeItem(key);
+    storage.removeItem(key);
     return true;
   } catch (error) {
     console.error(`Error removing item from sessionStorage: ${key}`, error);
@@ -126,8 +179,13 @@ export const removeSessionItem = (key) => {
  * @returns {boolean} Success status
  */
 export const clearSessionStorage = () => {
+  const storage = getSessionStorage();
+  if (!storage) {
+    return false;
+  }
+
   try {
-    sessionStorage.clear();
+    storage.clear();
     return true;
   } catch (error) {
     console.error('Error clearing sessionStorage', error);
@@ -142,12 +200,59 @@ export const clearSessionStorage = () => {
  */
 export const isStorageAvailable = (type = 'localStorage') => {
   try {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
     const storage = window[type];
     const testKey = '__storage_test__';
     storage.setItem(testKey, 'test');
     storage.removeItem(testKey);
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
+};
+
+export const getAuthToken = () => {
+  return (
+    getStorageItem(AUTH_CONSTANTS.TOKEN_KEY) ||
+    getStorageItem(AUTH_CONSTANTS.LEGACY_TOKEN_KEY)
+  );
+};
+
+export const getAuthUser = () => {
+  const user =
+    getStorageItem(AUTH_CONSTANTS.USER_KEY) ||
+    getStorageItem(AUTH_CONSTANTS.LEGACY_USER_KEY);
+
+  return user && typeof user === 'object' ? user : null;
+};
+
+export const getAuthSession = () => {
+  return {
+    token: getAuthToken(),
+    user: getAuthUser(),
+  };
+};
+
+export const setAuthSession = ({ token, user }) => {
+  if (token) {
+    setStorageItem(AUTH_CONSTANTS.TOKEN_KEY, token);
+  }
+
+  if (user) {
+    setStorageItem(AUTH_CONSTANTS.USER_KEY, user);
+  }
+
+  removeStorageItem(AUTH_CONSTANTS.LEGACY_TOKEN_KEY);
+  removeStorageItem(AUTH_CONSTANTS.LEGACY_USER_KEY);
+};
+
+export const clearAuthStorage = () => {
+  removeStorageItem(AUTH_CONSTANTS.TOKEN_KEY);
+  removeStorageItem(AUTH_CONSTANTS.USER_KEY);
+  removeStorageItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY);
+  removeStorageItem(AUTH_CONSTANTS.LEGACY_TOKEN_KEY);
+  removeStorageItem(AUTH_CONSTANTS.LEGACY_USER_KEY);
 };

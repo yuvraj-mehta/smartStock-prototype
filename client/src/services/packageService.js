@@ -9,7 +9,7 @@ export const getPackagesByOrderId = async (orderId) => {
 // Update package status (e.g., for packing)
 export const updatePackageStatus = async (packageId, status, notes) => {
   const res = await api.patch(`/package/status/${packageId}`,
-    { status, notes }
+    { status, notes },
   );
   return res.data;
 };

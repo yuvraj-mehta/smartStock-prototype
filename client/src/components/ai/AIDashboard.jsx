@@ -7,7 +7,7 @@ import {
   ArrowPathIcon,
   CheckCircleIcon,
   XCircleIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const AIDashboard = () => {
@@ -27,8 +27,8 @@ const AIDashboard = () => {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/ai/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!response.ok) {

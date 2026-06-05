@@ -6,7 +6,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   CpuChipIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 const DemandForecast = () => {
@@ -18,7 +18,7 @@ const DemandForecast = () => {
   const [forecasting, setForecasting] = useState(false);
   const [forecastParams, setForecastParams] = useState({
     periodType: 'monthly',
-    daysBack: 90
+    daysBack: 90,
   });
 
   useEffect(() => {
@@ -40,8 +40,8 @@ const DemandForecast = () => {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/product/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
 
       console.log('Response status:', response.status);
@@ -104,12 +104,12 @@ const DemandForecast = () => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           productId: selectedProduct,
-          ...forecastParams
-        })
+          ...forecastParams,
+        }),
       });
 
       console.log('Forecast response status:', response.status);
@@ -194,7 +194,7 @@ const DemandForecast = () => {
           {/* Product Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Product {loading && "(Loading...)"}
+              Select Product {loading && '(Loading...)'}
             </label>
             <select
               value={selectedProduct}
@@ -203,7 +203,7 @@ const DemandForecast = () => {
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">
-                {loading ? "Loading products..." : products.length === 0 ? "No products available" : "Choose a product..."}
+                {loading ? 'Loading products...' : products.length === 0 ? 'No products available' : 'Choose a product...'}
               </option>
               {products.map((product) => (
                 <option key={product._id} value={product._id}>

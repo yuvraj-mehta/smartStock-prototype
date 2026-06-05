@@ -142,7 +142,7 @@ export const getAllUsers = () => async (dispatch) => {
     dispatch(userSlice.actions.getUsersSuccess({
       users: users,
       totalUsers: users.length,
-      message: response.data.message || 'Users fetched successfully.'
+      message: response.data.message || 'Users fetched successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch users';
@@ -157,7 +157,7 @@ export const getUserDetails = (userId) => async (dispatch) => {
 
     dispatch(userSlice.actions.getUserSuccess({
       user: response.data.user,
-      message: response.data.message || 'User details fetched successfully.'
+      message: response.data.message || 'User details fetched successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch user details';
@@ -172,7 +172,7 @@ export const createUser = (userData) => async (dispatch) => {
 
     dispatch(userSlice.actions.createUserSuccess({
       user: response.data.user,
-      message: response.data.message || 'User created successfully.'
+      message: response.data.message || 'User created successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to create user';
@@ -187,7 +187,7 @@ export const updateUser = (userId, userData) => async (dispatch) => {
 
     dispatch(userSlice.actions.updateUserSuccess({
       user: response.data.user,
-      message: response.data.message || 'User updated successfully.'
+      message: response.data.message || 'User updated successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to update user';
@@ -202,7 +202,7 @@ export const deleteUser = (userId) => async (dispatch) => {
 
     dispatch(userSlice.actions.deleteUserSuccess({
       userId: userId,
-      message: response.data.message || 'User deleted successfully.'
+      message: response.data.message || 'User deleted successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to delete user';
@@ -217,7 +217,7 @@ export const createSupplier = (supplierData) => async (dispatch) => {
 
     dispatch(userSlice.actions.createUserSuccess({
       user: response.data.user || response.data.supplier,
-      message: response.data.message || 'Supplier created successfully.'
+      message: response.data.message || 'Supplier created successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to create supplier';
@@ -232,7 +232,7 @@ export const createTransporter = (transporterData) => async (dispatch) => {
 
     dispatch(userSlice.actions.createUserSuccess({
       user: response.data.user || response.data.transporter,
-      message: response.data.message || 'Transporter created successfully.'
+      message: response.data.message || 'Transporter created successfully.',
     }));
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to create transporter';
@@ -254,7 +254,7 @@ export const updateProfile = (profileData) => async (dispatch) => {
 
     dispatch(userSlice.actions.updateUserSuccess({
       user: updatedUser,
-      message: response.data.message || 'Profile updated successfully.'
+      message: response.data.message || 'Profile updated successfully.',
     }));
 
     return updatedUser;

@@ -1,8 +1,8 @@
 /**
  * Order Management Components
- * 
+ *
  * This module exports all components related to order management functionality.
- * 
+ *
  * @module order-management
  */
 
