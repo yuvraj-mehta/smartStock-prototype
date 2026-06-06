@@ -1,16 +1,12 @@
 import { Item } from "../models/item.model.js";
-import { catchAsyncErrors } from "../middlewares/index.js";
+import { catchAsyncErrors, requireAssignedWarehouseId } from "../middlewares/index.js";
 import { normalizeId, transitionItemStatus } from "../services/inventory/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
-const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
-
 const buildWarehouseScopedFilter = (req, baseFilter = {}) => {
-  const assignedWarehouseId = getAssignedWarehouseId(req);
-  return assignedWarehouseId
-    ? { ...baseFilter, currentWarehouseId: assignedWarehouseId }
-    : baseFilter;
+  const assignedWarehouseId = requireAssignedWarehouseId(req);
+  return { ...baseFilter, currentWarehouseId: assignedWarehouseId };
 };
 
 export const getAllItems = catchAsyncErrors(async (req, res) => {
@@ -63,7 +59,7 @@ export const updateItemStatus = catchAsyncErrors(async (req, res) => {
 export const trackItemBySerial = catchAsyncErrors(async (req, res) => {
   const { serialNumber } = req.params;
 
-  const item = await Item.findOne({ serialNumber })
+  const item = await Item.findOne(buildWarehouseScopedFilter(req, { serialNumber }))
     .select("serialNumber status updatedAt")
     .populate('productId', 'productName sku')
     .populate('batchId', 'batchNumber expDate');

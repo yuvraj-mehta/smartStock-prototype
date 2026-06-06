@@ -1,9 +1,12 @@
 import mongoose from 'mongoose';
 import { ApiError } from '../../middlewares/error.handler.js';
 import {
+  Batch,
   FINANCE_ACCOUNT_TYPES,
   FinancialEvent,
+  Item,
   JournalEntry,
+  SalesHistory,
 } from '../../models/index.js';
 import { FINANCIAL_EVENT_TYPES } from '../../models/financialEvent.model.js';
 import { JOURNAL_ENTRY_DIRECTIONS } from '../../models/journalEntry.model.js';
@@ -63,6 +66,12 @@ const normalizeObjectId = (id) => {
   return id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id);
 };
 
+const normalizeId = (id) => (id?._id || id)?.toString();
+
+const uniqueIds = (ids = []) => [
+  ...new Set(ids.map(normalizeId).filter(Boolean)),
+];
+
 const requireValidObjectId = (id, label) => {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     throw createFinanceError(400, `${label} must be a valid Mongo ID.`);
@@ -93,6 +102,22 @@ const parsePositiveAmount = (value, label = 'Amount') => {
   return amount;
 };
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const parseBoundaryDate = (value, boundary) => {
+  const date = new Date(value);
+
+  if (typeof value === 'string' && DATE_ONLY_PATTERN.test(value)) {
+    if (boundary === 'end') {
+      date.setUTCHours(23, 59, 59, 999);
+    } else {
+      date.setUTCHours(0, 0, 0, 0);
+    }
+  }
+
+  return date;
+};
+
 const assertKnownEventType = (eventType) => {
   if (!FINANCIAL_EVENT_TYPES.includes(eventType)) {
     throw createFinanceError(400, `Unsupported financial event type: ${eventType}.`);
@@ -115,8 +140,8 @@ const normalizeDateRange = ({ startDate, endDate } = {}) => {
   if (!startDate && !endDate) return undefined;
 
   const createdAt = {};
-  if (startDate) createdAt.$gte = new Date(startDate);
-  if (endDate) createdAt.$lte = new Date(endDate);
+  if (startDate) createdAt.$gte = parseBoundaryDate(startDate, 'start');
+  if (endDate) createdAt.$lte = parseBoundaryDate(endDate, 'end');
   return createdAt;
 };
 
@@ -485,6 +510,187 @@ export const recordSupplierInvoiceEvent = async ({
   session,
 });
 
+const buildSalesReceivableJournalEntries = (amount) => [
+  buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.ACCOUNTS_RECEIVABLE, amount }),
+  buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.SALES_REVENUE, amount }),
+];
+
+const buildCogsJournalEntries = (amount) => [
+  buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.COST_OF_GOODS_SOLD, amount }),
+  buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.INVENTORY_ASSET, amount }),
+];
+
+const buildInventoryDamageJournalEntries = (amount) => [
+  buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.INVENTORY_LOSS, amount }),
+  buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.INVENTORY_ASSET, amount }),
+];
+
+const getAllocationItemIds = (allocations = []) => uniqueIds(
+  allocations.flatMap((allocation) => allocation?.itemIds || [])
+);
+
+const getAllocationBatchQuantitiesWithoutItems = (allocations = []) => {
+  const quantitiesByBatchId = new Map();
+
+  for (const allocation of allocations) {
+    if (!allocation?.batchId || allocation?.itemIds?.length > 0) continue;
+
+    const quantity = Number(allocation.quantity) || 0;
+    if (quantity <= 0) continue;
+
+    const batchId = normalizeId(allocation.batchId);
+    quantitiesByBatchId.set(batchId, (quantitiesByBatchId.get(batchId) || 0) + quantity);
+  }
+
+  return quantitiesByBatchId;
+};
+
+const loadBatchUnitCosts = async (batchIds, session) => {
+  const normalizedBatchIds = uniqueIds(batchIds);
+  if (normalizedBatchIds.length === 0) return new Map();
+
+  const batches = await runQuery(
+    Batch.find({ _id: { $in: normalizedBatchIds.map((batchId) => requireValidObjectId(batchId, 'Batch ID')) } })
+      .select('_id unitCost'),
+    session
+  );
+
+  return new Map(
+    batches.map((batch) => [normalizeId(batch._id), Number(batch.unitCost) || 0])
+  );
+};
+
+const getPopulatedBatchUnitCost = (batch) => (
+  batch && typeof batch === 'object' && !batch._bsontype && typeof batch.unitCost === 'number'
+    ? batch.unitCost
+    : undefined
+);
+
+const loadCostItems = async (itemIds, providedItems = [], session) => {
+  const expectedItemIds = uniqueIds(itemIds);
+  if (expectedItemIds.length === 0) return [];
+
+  const providedItemsById = new Map(
+    providedItems
+      .map((item) => [normalizeId(item?._id), item])
+      .filter(([id]) => Boolean(id))
+  );
+  const missingItemIds = expectedItemIds.filter((itemId) => !providedItemsById.has(itemId));
+
+  if (missingItemIds.length > 0) {
+    const loadedItems = await runQuery(
+      Item.find({ _id: { $in: missingItemIds.map((itemId) => requireValidObjectId(itemId, 'Item ID')) } })
+        .select('_id productId batchId purchasePrice')
+        .populate('batchId', 'unitCost'),
+      session
+    );
+
+    for (const item of loadedItems) {
+      providedItemsById.set(normalizeId(item._id), item);
+    }
+  }
+
+  const items = expectedItemIds.map((itemId) => providedItemsById.get(itemId)).filter(Boolean);
+  if (items.length !== expectedItemIds.length) {
+    throw createFinanceError(400, 'Unable to resolve inventory cost for all referenced items.');
+  }
+
+  return items;
+};
+
+const calculateInventoryCostSnapshot = async ({
+  amount,
+  itemIds = [],
+  items = [],
+  allocations = [],
+  session,
+} = {}) => {
+  if (!isBlank(amount)) {
+    const normalizedAmount = parseNonNegativeAmount(amount, 'Inventory cost amount');
+    return {
+      amount: normalizedAmount,
+      itemIds: uniqueIds(itemIds),
+      batchIds: [],
+      productIds: [],
+    };
+  }
+
+  const explicitItemIds = uniqueIds([
+    ...itemIds,
+    ...items.map((item) => item?._id),
+    ...getAllocationItemIds(allocations),
+  ]);
+  const costItems = await loadCostItems(explicitItemIds, items, session);
+  const batchQuantityFallbacks = getAllocationBatchQuantitiesWithoutItems(allocations);
+  const batchIdsNeedingCosts = [
+    ...costItems
+      .filter((item) => typeof item.purchasePrice !== 'number' && getPopulatedBatchUnitCost(item.batchId) === undefined)
+      .map((item) => item.batchId),
+    ...batchQuantityFallbacks.keys(),
+  ];
+  const batchUnitCosts = await loadBatchUnitCosts(batchIdsNeedingCosts, session);
+
+  let totalCost = 0;
+  const productIds = [];
+  const batchIds = [];
+
+  for (const item of costItems) {
+    const batchId = normalizeId(item.batchId);
+    const itemCost = typeof item.purchasePrice === 'number'
+      ? item.purchasePrice
+      : getPopulatedBatchUnitCost(item.batchId) ?? batchUnitCosts.get(batchId) ?? 0;
+
+    totalCost += itemCost;
+    if (item.productId) productIds.push(item.productId);
+    if (item.batchId) batchIds.push(item.batchId);
+  }
+
+  for (const [batchId, quantity] of batchQuantityFallbacks.entries()) {
+    totalCost += (batchUnitCosts.get(batchId) || 0) * quantity;
+    batchIds.push(batchId);
+  }
+
+  return {
+    amount: totalCost,
+    itemIds: costItems.map((item) => normalizeId(item._id)),
+    batchIds: uniqueIds(batchIds),
+    productIds: uniqueIds(productIds),
+  };
+};
+
+const resolveConfirmedSaleCogsSnapshot = async ({
+  cogsAmount,
+  cogsItemIds,
+  cogsItems,
+  allocatedItems,
+  salesHistoryId,
+  session,
+}) => {
+  if (!isBlank(cogsAmount)) {
+    return calculateInventoryCostSnapshot({ amount: cogsAmount, itemIds: cogsItemIds, session });
+  }
+
+  let allocations = allocatedItems;
+  if ((!Array.isArray(allocations) || allocations.length === 0) && salesHistoryId) {
+    const salesHistory = await runQuery(
+      SalesHistory.findById(salesHistoryId).select('products'),
+      session
+    );
+    allocations = salesHistory?.products || [];
+  }
+
+  if ((!Array.isArray(allocations) || allocations.length === 0) && !cogsItemIds?.length && !cogsItems?.length) {
+    return { amount: 0, itemIds: [], batchIds: [], productIds: [] };
+  }
+
+  return calculateInventoryCostSnapshot({
+    itemIds: cogsItemIds,
+    items: cogsItems,
+    allocations,
+    session,
+  });
+};
+
 export const recordSalesInvoiceEvent = async ({
   amount,
   salesInvoiceId,
@@ -509,43 +715,154 @@ export const recordSalesInvoiceEvent = async ({
     documentId: salesInvoiceId,
   },
   memo: 'Sales invoice issued',
-  journalEntries: [
-    buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.ACCOUNTS_RECEIVABLE, amount }),
-    buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.SALES_REVENUE, amount }),
-  ],
+  journalEntries: buildSalesReceivableJournalEntries(amount),
   session,
 });
+
+export const recordConfirmedSaleReceivableEvent = async ({
+  amount,
+  orderId,
+  packageId,
+  packageNumber,
+  salesHistoryId,
+  allocatedItems,
+  cogsAmount,
+  cogsItemIds,
+  cogsItems,
+  warehouseId,
+  currency,
+  occurredAt,
+  deliveryDate,
+  actorId,
+  session,
+}) => {
+  const receivable = await recordFinancialEvent({
+    eventType: 'sales_invoice',
+    amount,
+    occurredAt,
+    currency,
+    warehouseId,
+    actorId,
+    referenceType: 'Order',
+    referenceId: orderId,
+    idempotencyKey: packageId
+      ? `order-sale-confirmation-package:${packageId.toString()}`
+      : orderId
+        ? `order-sale-confirmation:${orderId.toString()}`
+        : undefined,
+    source: {
+      module: 'sales',
+      model: 'SalesHistory',
+      documentId: salesHistoryId,
+      documentNumber: packageNumber,
+    },
+    memo: 'Confirmed sale receivable recorded',
+    metadata: {
+      packageId,
+      deliveryDate,
+    },
+    journalEntries: buildSalesReceivableJournalEntries(amount),
+    session,
+  });
+
+  const cogsSnapshot = await resolveConfirmedSaleCogsSnapshot({
+    cogsAmount,
+    cogsItemIds,
+    cogsItems,
+    allocatedItems,
+    salesHistoryId,
+    session,
+  });
+
+  if (cogsSnapshot.amount <= 0) {
+    return {
+      event: receivable.event,
+      journalEntries: receivable.journalEntries,
+      receivable,
+      cogs: null,
+    };
+  }
+
+  const cogs = await recordFinancialEvent({
+    eventType: 'cogs_recognition',
+    amount: cogsSnapshot.amount,
+    occurredAt,
+    currency,
+    warehouseId,
+    actorId,
+    referenceType: 'Order',
+    referenceId: orderId,
+    idempotencyKey: packageId
+      ? `order-sale-cogs-package:${packageId.toString()}`
+      : orderId
+        ? `order-sale-cogs:${orderId.toString()}`
+        : undefined,
+    source: {
+      module: 'inventory',
+      model: 'SalesHistory',
+      documentId: salesHistoryId,
+      documentNumber: packageNumber,
+    },
+    memo: 'Cost of goods sold recognized for confirmed sale',
+    metadata: {
+      packageId,
+      deliveryDate,
+      itemIds: cogsSnapshot.itemIds,
+      batchIds: cogsSnapshot.batchIds,
+      productIds: cogsSnapshot.productIds,
+    },
+    journalEntries: buildCogsJournalEntries(cogsSnapshot.amount),
+    session,
+  });
+
+  return {
+    event: receivable.event,
+    journalEntries: receivable.journalEntries,
+    receivable,
+    cogs,
+  };
+};
 
 export const recordCustomerPaymentEvent = async ({
   amount,
   salesInvoiceId,
+  orderId,
   paymentReceivedId,
   warehouseId,
   currency,
   occurredAt,
   actorId,
   session,
-}) => recordFinancialEvent({
-  eventType: 'customer_payment',
-  amount,
-  occurredAt,
-  currency,
-  warehouseId,
-  actorId,
-  referenceType: 'SalesInvoice',
-  referenceId: salesInvoiceId,
-  source: {
-    module: 'sales',
-    model: 'PaymentReceived',
-    documentId: paymentReceivedId,
-  },
-  memo: 'Customer payment received',
-  journalEntries: [
-    buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.CASH, amount }),
-    buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.ACCOUNTS_RECEIVABLE, amount }),
-  ],
-  session,
-});
+}) => {
+  if (Boolean(salesInvoiceId) === Boolean(orderId)) {
+    throw createFinanceError(400, 'Customer payment must reference exactly one sales invoice or canonical order.');
+  }
+
+  const referenceType = orderId ? 'Order' : 'SalesInvoice';
+  const referenceId = orderId || salesInvoiceId;
+
+  return recordFinancialEvent({
+    eventType: 'customer_payment',
+    amount,
+    occurredAt,
+    currency,
+    warehouseId,
+    actorId,
+    referenceType,
+    referenceId,
+    source: {
+      module: 'sales',
+      model: 'PaymentReceived',
+      documentId: paymentReceivedId,
+    },
+    memo: 'Customer payment received',
+    journalEntries: [
+      buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.CASH, amount }),
+      buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.ACCOUNTS_RECEIVABLE, amount }),
+    ],
+    session,
+  });
+};
 
 export const recordCogsRecognitionEvent = async ({
   amount,
@@ -574,10 +891,7 @@ export const recordCogsRecognitionEvent = async ({
   metadata: {
     productId,
   },
-  journalEntries: [
-    buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.COST_OF_GOODS_SOLD, amount }),
-    buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.INVENTORY_ASSET, amount }),
-  ],
+  journalEntries: buildCogsJournalEntries(amount),
   session,
 });
 
@@ -613,12 +927,63 @@ export const recordInventoryDamageEvent = async ({
     batchId,
     returnId,
   },
-  journalEntries: [
-    buildJournalLine({ direction: 'debit', account: FINANCE_ACCOUNTS.INVENTORY_LOSS, amount }),
-    buildJournalLine({ direction: 'credit', account: FINANCE_ACCOUNTS.INVENTORY_ASSET, amount }),
-  ],
+  journalEntries: buildInventoryDamageJournalEntries(amount),
   session,
 });
+
+export const recordInventoryDamageForItemsEvent = async ({
+  amount,
+  itemIds,
+  items,
+  referenceType = 'Item',
+  referenceId,
+  warehouseId,
+  currency,
+  occurredAt,
+  actorId,
+  movementType,
+  notes,
+  session,
+}) => {
+  const costSnapshot = await calculateInventoryCostSnapshot({
+    amount,
+    itemIds,
+    items,
+    session,
+  });
+
+  if (costSnapshot.amount <= 0) {
+    return null;
+  }
+
+  const normalizedItemIds = costSnapshot.itemIds;
+  const normalizedReferenceId = referenceId || normalizedItemIds[0];
+
+  return recordFinancialEvent({
+    eventType: 'inventory_damage',
+    amount: costSnapshot.amount,
+    occurredAt,
+    currency,
+    warehouseId,
+    actorId,
+    referenceType,
+    referenceId: normalizedReferenceId,
+    source: {
+      module: 'inventory',
+      model: referenceType,
+      documentId: normalizedReferenceId,
+    },
+    memo: notes || 'Inventory damage or loss recognized',
+    metadata: {
+      itemIds: normalizedItemIds,
+      batchIds: costSnapshot.batchIds,
+      productIds: costSnapshot.productIds,
+      movementType,
+    },
+    journalEntries: buildInventoryDamageJournalEntries(costSnapshot.amount),
+    session,
+  });
+};
 
 export const recordReversalEvent = async ({
   originalEvent,
@@ -841,9 +1206,9 @@ export const getProfitAndLossFromJournal = async ({ session, ...filters } = {}) 
   });
 
   const getBalance = (accountCode) => balances.find((balance) => balance.accountCode === accountCode);
-  const revenue = Math.max(getBalance(FINANCE_ACCOUNTS.SALES_REVENUE.accountCode)?.netCredit || 0, 0);
-  const cogs = Math.max(getBalance(FINANCE_ACCOUNTS.COST_OF_GOODS_SOLD.accountCode)?.netDebit || 0, 0);
-  const inventoryLoss = Math.max(getBalance(FINANCE_ACCOUNTS.INVENTORY_LOSS.accountCode)?.netDebit || 0, 0);
+  const revenue = getBalance(FINANCE_ACCOUNTS.SALES_REVENUE.accountCode)?.netCredit || 0;
+  const cogs = getBalance(FINANCE_ACCOUNTS.COST_OF_GOODS_SOLD.accountCode)?.netDebit || 0;
+  const inventoryLoss = getBalance(FINANCE_ACCOUNTS.INVENTORY_LOSS.accountCode)?.netDebit || 0;
 
   return {
     revenue,

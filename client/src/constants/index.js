@@ -37,8 +37,10 @@ export const ROUTES = {
   ADMIN: '/admin',
   INVENTORY: '/inventory',
   PRODUCTS: '/products',
+  DOCUMENTATION: '/documentation',
   USERS: '/users',
   ORDERS: '/orders',
+  FINANCE: '/finance',
   PROFILE: '/profile',
   TRANSPORT: '/transports',
   TRANSPORT_DETAILS: '/transports/:id',
@@ -55,6 +57,18 @@ export const USER_ROLES = {
   VIEWER: 'viewer',
   SUPPLIER: 'supplier',
   TRANSPORTER: 'transporter',
+};
+
+export const ROLE_ACCESS = {
+  ADMIN_ONLY: [USER_ROLES.ADMIN],
+  STAFF_WRITE: [USER_ROLES.ADMIN, USER_ROLES.STAFF],
+  INTERNAL_READ: [USER_ROLES.ADMIN, USER_ROLES.STAFF, USER_ROLES.VIEWER],
+};
+
+export const ROLE_DEFAULT_ROUTES = {
+  [USER_ROLES.ADMIN]: ROUTES.DASHBOARD,
+  [USER_ROLES.STAFF]: ROUTES.DASHBOARD,
+  [USER_ROLES.VIEWER]: ROUTES.PRODUCTS,
 };
 
 // Product Categories
@@ -82,10 +96,26 @@ export const INVENTORY_STATUS = {
 export const ORDER_STATUS = {
   PENDING: 'pending',
   PROCESSING: 'processing',
-  SHIPPED: 'shipped',
+  PACKAGED: 'packaged',
+  DISPATCHED: 'dispatched',
   DELIVERED: 'delivered',
-  CANCELLED: 'cancelled',
+  SALE_CONFIRMED: 'sale_confirmed',
   RETURNED: 'returned',
+};
+
+// Payment Constants
+export const PAYMENT_METHODS = {
+  CASH: 'cash',
+  BANK: 'bank',
+  CHEQUE: 'cheque',
+  UPI: 'upi',
+  OTHER: 'other',
+};
+
+export const PAYMENT_STATUS = {
+  PENDING: 'pending',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
 };
 
 // UI Constants

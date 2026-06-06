@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
+import { AlertCircle, CheckCircle2, PackagePlus, Plus, Trash2 } from 'lucide-react';
 import { createOrder } from '../../services/orderService';
 
 const initialItem = { productId: '', quantity: 1 };
+
+const fieldClass = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50';
+const labelClass = 'block text-sm font-medium text-gray-700';
 
 export default function OrderCreateForm({ products, onOrderCreated }) {
   const [platformOrderId, setPlatformOrderId] = useState('');
@@ -38,29 +42,53 @@ export default function OrderCreateForm({ products, onOrderCreated }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-2">
-        <label className="block font-semibold text-blue-700">Platform ID</label>
-        <input
-          className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-          value={platformOrderId}
-          onChange={e => setPlatformOrderId(e.target.value)}
-          required
-          placeholder="Enter platform order ID"
-        />
-      </div>
-      <div className="space-y-2">
-        <label className="block font-semibold text-blue-700">Items</label>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <div className="space-y-2">
+          <label className={labelClass} htmlFor="platform-order-id">Platform order ID</label>
+          <input
+            id="platform-order-id"
+            className={fieldClass}
+            value={platformOrderId}
+            onChange={e => setPlatformOrderId(e.target.value)}
+            required
+            placeholder="SHOP-10042"
+          />
+        </div>
+
+        <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          <div className="mb-1 flex items-center gap-2 font-semibold text-gray-900">
+            <PackagePlus className="h-4 w-4 text-blue-600" />
+            Allocation preview
+          </div>
+          Orders start in pending state and move to packing after inventory allocation.
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <label className={labelClass}>Order items</label>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+            onClick={addItem}
+          >
+            <Plus className="h-4 w-4" />
+            Add item
+          </button>
+        </div>
+
+        <div className="space-y-3">
           {items.map((item, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
+            <div key={idx} className="grid gap-3 rounded-md border border-gray-200 bg-white p-3 shadow-sm sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center">
               <select
-                className="flex-1 px-2 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-900"
+                className={fieldClass}
                 value={item.productId}
                 required
+                aria-label={`Product for item ${idx + 1}`}
                 onChange={e => handleItemChange(idx, 'productId', e.target.value)}
               >
-                <option value='' disabled hidden>Select Product</option>
+                <option value='' disabled hidden>Select product</option>
                 {products && products.length > 0
                   ? products.map(p => <option key={p._id} value={p._id}>{p.name || p.productName || p.sku || p._id}</option>)
                   : <option value='' disabled>No products available</option>
@@ -69,38 +97,62 @@ export default function OrderCreateForm({ products, onOrderCreated }) {
               <input
                 type='number'
                 min={1}
-                className="w-20 px-2 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className={fieldClass}
                 value={item.quantity}
                 required
+                aria-label={`Quantity for item ${idx + 1}`}
                 onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value))}
               />
               {items.length > 1 && (
-                <button type='button' className="text-red-500 font-bold px-2 py-1 hover:bg-red-100 rounded" onClick={() => removeItem(idx)} title="Remove Item">&times;</button>
+                <button
+                  type='button'
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
+                  onClick={() => removeItem(idx)}
+                  title="Remove item"
+                  aria-label={`Remove item ${idx + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               )}
             </div>
           ))}
         </div>
-        <button type='button' className="mt-2 px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold" onClick={addItem}>Add Item</button>
       </div>
       <div className="space-y-2">
-        <label className="block font-semibold text-blue-700">Notes</label>
+        <label className={labelClass} htmlFor="order-notes">Notes</label>
         <textarea
-          className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+          id="order-notes"
+          className={`${fieldClass} min-h-24 resize-y`}
           value={notes}
           onChange={e => setNotes(e.target.value)}
           maxLength={500}
           placeholder="Optional notes (max 500 chars)"
         />
       </div>
-      {error && <div className="text-red-600 font-medium">{error}</div>}
-      {success && <div className="text-green-600 font-medium">{success}</div>}
-      <button
-        type='submit'
-        disabled={loading}
-        className="w-full py-2 px-4 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700 transition-all disabled:opacity-60"
-      >
-        {loading ? 'Creating...' : 'Create Order'}
-      </button>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          {success}
+        </div>
+      )}
+
+      <div className="flex justify-end border-t border-gray-200 pt-5">
+        <button
+          type='submit'
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <PackagePlus className="h-4 w-4" />
+          {loading ? 'Creating...' : 'Create order'}
+        </button>
+      </div>
     </form>
   );
 }

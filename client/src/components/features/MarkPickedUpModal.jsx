@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
+import { AlertCircle, PackageOpen } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { markReturnPickedUp } from '../../app/slices/returnSlice';
+import Button from '../ui/Button';
+import Modal from '../ui/Modal';
+
+const fieldClass = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50';
+const labelClass = 'block text-sm font-medium text-gray-700';
 
 const MarkPickedUpModal = ({ returnId, onClose, onSuccess }) => {
   const dispatch = useDispatch();
@@ -23,24 +29,32 @@ const MarkPickedUpModal = ({ returnId, onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative animate-fadeIn">
-        <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-xl" onClick={onClose}>&times;</button>
-        <h3 className="text-xl font-bold mb-4 text-purple-700">Mark as Picked Up</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="block font-medium mb-1">Notes (optional)</label>
-            <input className="border rounded px-2 py-1 w-full" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Pickup notes" />
+    <Modal isOpen onClose={onClose} title="Mark as picked up" size="medium">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="rounded-md border border-violet-100 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
+            <PackageOpen className="h-4 w-4" />
+            Confirm transporter pickup
           </div>
-          {error && <div className="text-red-600 text-center py-2 font-semibold">{typeof error === 'string' ? error : (error?.message || 'An error occurred')}</div>}
-          {loading && <div className="text-blue-600 text-center py-2 font-semibold">Loading...</div>}
-          <div className="flex gap-2 mt-4">
-            <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded shadow hover:bg-purple-700" disabled={loading}>{loading ? 'Marking...' : 'Mark as Picked Up'}</button>
-            <button type="button" className="px-4 py-2 text-gray-500 hover:text-gray-700" onClick={onClose}>Cancel</button>
+          The return will move into the warehouse inbound processing queue.
+        </div>
+
+          <div className="space-y-2">
+            <label className={labelClass}>Notes</label>
+            <textarea className={`${fieldClass} min-h-24 resize-y`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Pickup notes" />
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              {typeof error === 'string' ? error : (error?.message || 'An error occurred')}
+            </div>
+          )}
+          <div className="flex flex-col-reverse gap-2 border-t border-gray-200 pt-5 sm:flex-row sm:justify-end">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={loading}>Mark picked up</Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

@@ -2,6 +2,14 @@ import { createSlice } from '@reduxjs/toolkit';
 import { authAPI, userAPI } from '../../services/api';
 import { setAuthSession } from '../../utils/storage';
 
+const getEntityId = (entity) => entity?._id || entity?.id;
+
+const getErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
+
+const createError = (message) => new Error(message);
+
 const initialState = {
   loading: false,
   error: null,
@@ -79,7 +87,8 @@ const userSlice = createSlice({
       state.message = action.payload.message;
       // Update user in the existing users array
       if (action.payload.user) {
-        const index = state.users.findIndex(user => user._id === action.payload.user._id);
+        const updatedUserId = action.payload.user._id || action.payload.user.id;
+        const index = state.users.findIndex(user => (user._id || user.id) === updatedUserId);
         if (index !== -1) {
           state.users[index] = action.payload.user;
         }
@@ -101,8 +110,8 @@ const userSlice = createSlice({
       state.message = action.payload.message;
       // Remove user from the existing users array
       if (action.payload.userId) {
-        state.users = state.users.filter(user => user._id !== action.payload.userId);
-        state.totalUsers -= 1;
+        state.users = state.users.filter(user => getEntityId(user) !== action.payload.userId);
+        state.totalUsers = Math.max(0, state.totalUsers - 1);
       }
     },
     deleteUserFailed(state, action) {
@@ -133,7 +142,7 @@ const userSlice = createSlice({
   },
 });
 
-// Mock action creators - replace with your new backend integration
+// Action creators
 export const getAllUsers = () => async (dispatch) => {
   dispatch(userSlice.actions.getUsersRequest());
   try {
@@ -146,7 +155,7 @@ export const getAllUsers = () => async (dispatch) => {
       message: response.data.message || 'Users fetched successfully.',
     }));
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch users';
+    const errorMessage = getErrorMessage(error, 'Failed to fetch users');
     dispatch(userSlice.actions.getUsersFailed(errorMessage));
   }
 };
@@ -161,7 +170,7 @@ export const getUserDetails = (userId) => async (dispatch) => {
       message: response.data.message || 'User details fetched successfully.',
     }));
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch user details';
+    const errorMessage = getErrorMessage(error, 'Failed to fetch user details');
     dispatch(userSlice.actions.getUserFailed(errorMessage));
   }
 };
@@ -170,14 +179,17 @@ export const createUser = (userData) => async (dispatch) => {
   dispatch(userSlice.actions.createUserRequest());
   try {
     const response = await userAPI.createUser(userData);
-
-    dispatch(userSlice.actions.createUserSuccess({
+    const payload = {
       user: response.data.user,
       message: response.data.message || 'User created successfully.',
-    }));
+    };
+
+    dispatch(userSlice.actions.createUserSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to create user';
+    const errorMessage = getErrorMessage(error, 'Failed to create user');
     dispatch(userSlice.actions.createUserFailed(errorMessage));
+    throw createError(errorMessage);
   }
 };
 
@@ -185,14 +197,35 @@ export const updateUser = (userId, userData) => async (dispatch) => {
   dispatch(userSlice.actions.updateUserRequest());
   try {
     const response = await userAPI.updateUser(userId, userData);
-
-    dispatch(userSlice.actions.updateUserSuccess({
+    const payload = {
       user: response.data.user,
       message: response.data.message || 'User updated successfully.',
-    }));
+    };
+
+    dispatch(userSlice.actions.updateUserSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to update user';
+    const errorMessage = getErrorMessage(error, 'Failed to update user');
     dispatch(userSlice.actions.updateUserFailed(errorMessage));
+    throw createError(errorMessage);
+  }
+};
+
+export const updateExternalUser = (userId, userData) => async (dispatch) => {
+  dispatch(userSlice.actions.updateUserRequest());
+  try {
+    const response = await userAPI.updateExternalUser(userId, userData);
+    const payload = {
+      user: response.data.user || response.data.externalUser,
+      message: response.data.message || 'External user updated successfully.',
+    };
+
+    dispatch(userSlice.actions.updateUserSuccess(payload));
+    return { success: true, ...payload };
+  } catch (error) {
+    const errorMessage = getErrorMessage(error, 'Failed to update external user');
+    dispatch(userSlice.actions.updateUserFailed(errorMessage));
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -200,14 +233,17 @@ export const deleteUser = (userId) => async (dispatch) => {
   dispatch(userSlice.actions.deleteUserRequest());
   try {
     const response = await userAPI.deleteUser(userId);
-
-    dispatch(userSlice.actions.deleteUserSuccess({
+    const payload = {
       userId: userId,
       message: response.data.message || 'User deleted successfully.',
-    }));
+    };
+
+    dispatch(userSlice.actions.deleteUserSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to delete user';
+    const errorMessage = getErrorMessage(error, 'Failed to delete user');
     dispatch(userSlice.actions.deleteUserFailed(errorMessage));
+    throw createError(errorMessage);
   }
 };
 
@@ -215,14 +251,17 @@ export const createSupplier = (supplierData) => async (dispatch) => {
   dispatch(userSlice.actions.createUserRequest());
   try {
     const response = await userAPI.createSupplier(supplierData);
-
-    dispatch(userSlice.actions.createUserSuccess({
+    const payload = {
       user: response.data.user || response.data.supplier,
       message: response.data.message || 'Supplier created successfully.',
-    }));
+    };
+
+    dispatch(userSlice.actions.createUserSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to create supplier';
+    const errorMessage = getErrorMessage(error, 'Failed to create supplier');
     dispatch(userSlice.actions.createUserFailed(errorMessage));
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -230,39 +269,47 @@ export const createTransporter = (transporterData) => async (dispatch) => {
   dispatch(userSlice.actions.createUserRequest());
   try {
     const response = await userAPI.createTransporter(transporterData);
-
-    dispatch(userSlice.actions.createUserSuccess({
+    const payload = {
       user: response.data.user || response.data.transporter,
       message: response.data.message || 'Transporter created successfully.',
-    }));
+    };
+
+    dispatch(userSlice.actions.createUserSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to create transporter';
+    const errorMessage = getErrorMessage(error, 'Failed to create transporter');
     dispatch(userSlice.actions.createUserFailed(errorMessage));
+    return { success: false, error: errorMessage };
   }
 };
 
-export const updateProfile = (profileData) => async (dispatch) => {
+export const updateProfile = (profileData) => (dispatch) => {
   dispatch(userSlice.actions.updateUserRequest());
-  try {
-    const response = await authAPI.updateProfile(profileData);
+  const promise = (async () => {
+    try {
+      const response = await authAPI.updateProfile(profileData);
 
-    const updatedUser = response.data.user;
-    setAuthSession({ user: updatedUser });
+      const updatedUser = response.data.user;
+      setAuthSession({ user: updatedUser });
 
-    // Update auth state with the new user data
-    dispatch({ type: 'auth/updateUserData', payload: updatedUser });
+      // Update auth state with the new user data
+      dispatch({ type: 'auth/updateUserData', payload: updatedUser });
 
-    dispatch(userSlice.actions.updateUserSuccess({
-      user: updatedUser,
-      message: response.data.message || 'Profile updated successfully.',
-    }));
+      dispatch(userSlice.actions.updateUserSuccess({
+        user: updatedUser,
+        message: response.data.message || 'Profile updated successfully.',
+      }));
 
-    return updatedUser;
-  } catch (error) {
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to update profile';
-    dispatch(userSlice.actions.updateUserFailed(errorMessage));
-    throw error;
-  }
+      return updatedUser;
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, 'Failed to update profile');
+      dispatch(userSlice.actions.updateUserFailed(errorMessage));
+      throw createError(errorMessage);
+    }
+  })();
+
+  promise.unwrap = () => promise;
+  return promise;
 };
 
 export const { clearUserMessages, resetUserSlice, clearSelectedUser } = userSlice.actions;

@@ -1,14 +1,143 @@
-import { Order, Package, Product, Batch, Item, Transport, SalesHistory, ExternalUser } from "../models/index.js";
+import { Order, Package, Product, Batch, Item, Transport, SalesHistory, ExternalUser, Return } from "../models/index.js";
 import { catchAsyncErrors } from "../middlewares/index.js";
 import mongoose from "mongoose";
 import { logAudit } from '../utils/auditLogger.js';
 import { normalizeId, runWithOptionalSession, transitionItemsStatus } from "../services/inventory/index.js";
+import { recordConfirmedSaleReceivableEvent } from "../services/finance/index.js";
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
 const getAssignedWarehouseId = (req) => normalizeId(req.user?.assignedWarehouseId);
 
 const uniqueIds = (ids) => [...new Set(ids.filter(Boolean).map(normalizeId).filter(Boolean))];
+
+const allocationKey = (item) => `${normalizeId(item.productId)}:${normalizeId(item.batchId)}`;
+
+const addQuantity = (quantities, key, quantity) => {
+  if (quantity <= 0) return;
+  quantities.set(key, (quantities.get(key) || 0) + quantity);
+};
+
+const getAllocationItemIds = (item) => (
+  Array.isArray(item?.itemIds) ? item.itemIds.map(normalizeId).filter(Boolean) : []
+);
+
+const getAllocationQuantity = (item) => {
+  const itemIds = getAllocationItemIds(item);
+  return itemIds.length || Number(item?.quantity) || 0;
+};
+
+const createReturnAllocationState = () => ({
+  returnedItemIds: new Set(),
+  itemlessQuantitiesByAllocation: new Map(),
+  totalQuantitiesByAllocation: new Map(),
+});
+
+const recordReturnedItemInState = (state, returnedItem) => {
+  const key = allocationKey(returnedItem);
+  const itemIds = getAllocationItemIds(returnedItem);
+  const quantity = Number(returnedItem.quantity) || itemIds.length;
+
+  addQuantity(state.totalQuantitiesByAllocation, key, quantity);
+
+  if (itemIds.length > 0) {
+    itemIds.forEach((itemId) => state.returnedItemIds.add(itemId));
+  } else {
+    addQuantity(state.itemlessQuantitiesByAllocation, key, quantity);
+  }
+};
+
+const buildReturnAllocationState = (returnRecords = []) => {
+  const state = createReturnAllocationState();
+
+  for (const returnRecord of returnRecords) {
+    for (const returnedItem of returnRecord?.returnedItems || []) {
+      recordReturnedItemInState(state, returnedItem);
+    }
+  }
+
+  return state;
+};
+
+const getSaleableItemIds = (allocation, returnState) => {
+  const itemIds = Array.isArray(allocation?.itemIds) ? allocation.itemIds : [];
+  if (itemIds.length === 0) return [];
+
+  const key = allocationKey(allocation);
+  const availableAfterExplicitReturns = itemIds.filter(
+    (itemId) => !returnState.returnedItemIds.has(normalizeId(itemId))
+  );
+  const reservedItemlessQuantity = returnState.itemlessQuantitiesByAllocation.get(key) || 0;
+  const reservedItemIds = new Set(
+    availableAfterExplicitReturns.slice(0, reservedItemlessQuantity).map(normalizeId)
+  );
+
+  return availableAfterExplicitReturns.filter((itemId) => !reservedItemIds.has(normalizeId(itemId)));
+};
+
+const getSaleablePackageItems = (packageDoc, returnRecords = []) => {
+  const returnState = buildReturnAllocationState(returnRecords);
+
+  return (packageDoc.allocatedItems || [])
+    .map((allocation) => {
+      const itemIds = getSaleableItemIds(allocation, returnState);
+
+      if (itemIds.length > 0 || getAllocationItemIds(allocation).length > 0) {
+        return {
+          productId: allocation.productId,
+          batchId: allocation.batchId,
+          quantity: itemIds.length,
+          itemIds,
+        };
+      }
+
+      const returnedQuantity = returnState.totalQuantitiesByAllocation.get(allocationKey(allocation)) || 0;
+      const quantity = Math.max(0, (Number(allocation.quantity) || 0) - returnedQuantity);
+      return {
+        productId: allocation.productId,
+        batchId: allocation.batchId,
+        quantity,
+      };
+    })
+    .filter((allocation) => allocation.quantity > 0);
+};
+
+const getPopulatedProductPrice = (product) => (
+  product && typeof product === 'object' && !product._bsontype && typeof product.price === 'number'
+    ? product.price
+    : undefined
+);
+
+const roundCurrency = (amount) => Math.round((Number(amount) || 0) * 100) / 100;
+
+const calculateNetSaleAmount = (packageDoc, saleableItems) => {
+  const totalValue = Number(packageDoc.totalValue) || 0;
+  const totalQuantity = (packageDoc.allocatedItems || []).reduce(
+    (sum, allocation) => sum + getAllocationQuantity(allocation),
+    0
+  );
+  const saleableQuantity = saleableItems.reduce((sum, allocation) => sum + getAllocationQuantity(allocation), 0);
+
+  if (saleableQuantity <= 0) return 0;
+  if (saleableQuantity === totalQuantity) return totalValue;
+
+  let amountFromPrices = 0;
+  let hasAllPrices = true;
+
+  for (const allocation of saleableItems) {
+    const unitPrice = getPopulatedProductPrice(allocation.productId);
+    if (unitPrice === undefined) {
+      hasAllPrices = false;
+      break;
+    }
+    amountFromPrices += unitPrice * getAllocationQuantity(allocation);
+  }
+
+  if (hasAllPrices) return roundCurrency(amountFromPrices);
+  if (totalQuantity <= 0) return 0;
+
+  return roundCurrency(totalValue * (saleableQuantity / totalQuantity));
+};
 
 const getBatchWarehouseMap = async (batchIds, session) => {
   const ids = uniqueIds(batchIds);
@@ -489,12 +618,8 @@ export const markDelivered = catchAsyncErrors(async (req, res) => {
 
 // Auto-confirm sale after 10 days (this would be called by a cron job)
 export const autoConfirmSale = catchAsyncErrors(async (req, res) => {
-  const tenDaysAgo = new Date();
-  tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-
   const packages = await Package.find({
     packageStatus: 'delivered',
-    updatedAt: { $lt: tenDaysAgo }
   }).populate('orderId');
 
   let confirmedCount = 0;
@@ -506,7 +631,10 @@ export const autoConfirmSale = catchAsyncErrors(async (req, res) => {
     try {
       session.startTransaction();
 
-      const scopedPackage = await Package.findById(packageDoc._id).populate('orderId').session(session);
+      const scopedPackage = await Package.findById(packageDoc._id)
+        .populate('orderId')
+        .populate('allocatedItems.productId', 'price')
+        .session(session);
       if (!scopedPackage) throw httpError(404, "Package not found");
 
       if (
@@ -533,16 +661,40 @@ export const autoConfirmSale = catchAsyncErrors(async (req, res) => {
       }
 
       const fallbackWarehouseId = batchWarehouseMap.values().next().value;
+      const returnRecords = await Return.find({ packageId: scopedPackage._id }).session(session);
+      const saleableAllocatedItems = getSaleablePackageItems(scopedPackage, returnRecords);
+      const netSaleAmount = calculateNetSaleAmount(scopedPackage, saleableAllocatedItems);
 
-      await SalesHistory.create([{
+      if (saleableAllocatedItems.length === 0 || netSaleAmount <= 0) {
+        await session.abortTransaction();
+        continue;
+      }
+
+      const saleConfirmationDate = new Date();
+      const warehouseId = assignedWarehouseId || fallbackWarehouseId;
+      const [salesHistory] = await SalesHistory.create([{
         packageId: scopedPackage._id,
         orderId: scopedPackage.orderId._id,
-        products: scopedPackage.allocatedItems,
-        warehouseId: assignedWarehouseId || fallbackWarehouseId,
-        saleConfirmationDate: new Date(),
+        products: saleableAllocatedItems,
+        warehouseId,
+        saleConfirmationDate,
         deliveryDate: transport.deliveredAt,
         notes: 'Auto-confirmed after 10 days'
       }], { session });
+
+      await recordConfirmedSaleReceivableEvent({
+        amount: netSaleAmount,
+        orderId: scopedPackage.orderId._id,
+        packageId: scopedPackage._id,
+        packageNumber: scopedPackage.packageId,
+        salesHistoryId: salesHistory._id,
+        allocatedItems: saleableAllocatedItems,
+        warehouseId,
+        occurredAt: saleConfirmationDate,
+        deliveryDate: transport.deliveredAt,
+        actorId: req.user?._id,
+        session,
+      });
 
       scopedPackage.orderId.orderStatus = 'sale_confirmed';
       await scopedPackage.orderId.save({ session });

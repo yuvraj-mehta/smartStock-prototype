@@ -14,6 +14,7 @@ import paymentRouter from './routes/payment.route.js';
 import financialReportRouter from './routes/financialReport.route.js';
 import { notFound, errorHandler } from './middlewares/index.js';
 import userRouter from './routes/user.route.js';
+import externalUserRouter from './routes/externalUser.route.js';
 import productRouter from './routes/product.route.js';
 import inventoryRouter from './routes/inventory.route.js';
 import authRouter from './routes/auth.route.js';
@@ -38,6 +39,7 @@ app.get('/', (req, res) => {
 // Define routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/user', userRouter);
+app.use('/api/v1/external-user', externalUserRouter);
 app.use('/api/v1/item', itemRouter);
 app.use('/api/v1/order', orderRouter);
 app.use('/api/v1/package', packageRouter);

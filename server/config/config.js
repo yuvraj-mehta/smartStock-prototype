@@ -12,6 +12,18 @@ const parseInteger = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const isLocalDevelopmentOrigin = (origin) => {
+  if (!origin || process.env.NODE_ENV === 'production') {
+    return false;
+  }
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return ['http:', 'https:'].includes(protocol) && ['localhost', '127.0.0.1', '::1'].includes(hostname);
+  } catch {
+    return false;
+  }
+};
 
 export const conf = {
   allowedOrigins: parseCsv(process.env.ALLOWED_ORIGINS),
@@ -86,8 +98,22 @@ export const validateRequiredConfig = () => {
 };
 
 // CORS configuration
+const resolveCorsOrigin = (origin, callback) => {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  if (conf.allowedOrigins?.includes(origin) || isLocalDevelopmentOrigin(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(null, false);
+};
+
 export const corsConfig = {
-  origin: conf.allowedOrigins,
+  origin: resolveCorsOrigin,
   credentials: true,
   optionsSuccessStatus: 200,
   port: conf.port,

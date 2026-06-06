@@ -6,13 +6,13 @@ import { bootstrapAuth } from './app/slices/authSlice';
 import Layout from './components/layout/Layout';
 import NotFound from './components/ui/NotFound';
 import ProtectedRoute from './components/ui/ProtectedRoute';
-import { ROUTES, USER_ROLES } from './constants';
+import { ROLE_ACCESS, ROLE_DEFAULT_ROUTES, ROUTES } from './constants';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/Dashboard.jsx'));
-const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage.jsx'));
+const DocumentationPage = lazy(() => import('./pages/DocumentationPage.jsx'));
 const InventoryPage = lazy(() => import('./pages/InventoryPage.jsx'));
 const AdminPage = lazy(() => import('./pages/AdminPage.jsx'));
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage.jsx'));
@@ -21,9 +21,59 @@ const TransportList = lazy(() => import('./components/features/TransportList'));
 const TransportDetails = lazy(() => import('./components/features/TransportDetails'));
 const ReturnList = lazy(() => import('./components/features/ReturnList'));
 const OrderManagementPage = lazy(() => import('./pages/OrderManagementPage.jsx'));
+const FinancePage = lazy(() => import('./pages/FinancePage.jsx'));
 
-const INTERNAL_STAFF_ROLES = [USER_ROLES.ADMIN, USER_ROLES.STAFF];
-const ADMIN_ROLES = [USER_ROLES.ADMIN];
+const normalizeRole = (role) => (
+  typeof role === 'string' ? role.trim().toLowerCase() : ''
+);
+
+const hasAnyRole = (role, allowedRoles) => allowedRoles.includes(normalizeRole(role));
+
+const getDefaultAuthenticatedRoute = (user) => (
+  ROLE_DEFAULT_ROUTES[normalizeRole(user?.role)] || ROUTES.PROFILE
+);
+
+const getPathnameFromPath = (path) => path.split(/[?#]/)[0];
+
+const routeStartsWith = (pathname, route) => (
+  pathname === route || pathname.startsWith(`${route}/`)
+);
+
+const canAccessPath = (user, path) => {
+  const pathname = getPathnameFromPath(path);
+
+  if ([ROUTES.PROFILE, ROUTES.UNAUTHORIZED].includes(pathname)) {
+    return true;
+  }
+
+  if (pathname === ROUTES.ADMIN) {
+    return hasAnyRole(user?.role, ROLE_ACCESS.ADMIN_ONLY);
+  }
+
+  if ([ROUTES.PRODUCTS, ROUTES.DOCUMENTATION].includes(pathname)) {
+    return hasAnyRole(user?.role, ROLE_ACCESS.INTERNAL_READ);
+  }
+
+  if (
+    [
+      ROUTES.DASHBOARD,
+      ROUTES.INVENTORY,
+      ROUTES.ORDERS,
+      ROUTES.FINANCE,
+      ROUTES.RETURNS,
+      ROUTES.AI_ASSISTANT,
+    ].includes(pathname) ||
+    routeStartsWith(pathname, ROUTES.TRANSPORT)
+  ) {
+    return hasAnyRole(user?.role, ROLE_ACCESS.STAFF_WRITE);
+  }
+
+  return false;
+};
+
+const getRedirectForAuthenticatedUser = (user, ...paths) => (
+  paths.find(path => path && canAccessPath(user, path)) || getDefaultAuthenticatedRoute(user)
+);
 
 const AuthLoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -65,25 +115,21 @@ const getRedirectQueryPath = (search) => {
 };
 
 const RootRoute = () => {
-  const { isAuthenticated, isBootstrapping } = useSelector((state) => state.auth);
+  const { isAuthenticated, isBootstrapping, user } = useSelector((state) => state.auth);
 
   if (isBootstrapping) {
     return <AuthLoadingScreen />;
   }
 
   if (isAuthenticated) {
-    return (
-      <Layout>
-        {renderLazyRoute(HomePage)}
-      </Layout>
-    );
+    return <Navigate to={getDefaultAuthenticatedRoute(user)} replace />;
   }
 
   return renderLazyRoute(LandingPage);
 };
 
 const LoginRoute = () => {
-  const { isAuthenticated, isBootstrapping } = useSelector((state) => state.auth);
+  const { isAuthenticated, isBootstrapping, user } = useSelector((state) => state.auth);
   const location = useLocation();
 
   if (isBootstrapping) {
@@ -91,10 +137,11 @@ const LoginRoute = () => {
   }
 
   if (isAuthenticated) {
-    const redirectPath =
-      getLocationPath(location.state?.from) ||
-      getRedirectQueryPath(location.search) ||
-      ROUTES.DASHBOARD;
+    const redirectPath = getRedirectForAuthenticatedUser(
+      user,
+      getLocationPath(location.state?.from),
+      getRedirectQueryPath(location.search),
+    );
 
     return <Navigate to={redirectPath} replace />;
   }
@@ -125,6 +172,7 @@ const App = () => {
       <Routes>
         <Route path={ROUTES.HOME} element={<RootRoute />} />
         <Route path={ROUTES.LOGIN} element={<LoginRoute />} />
+        <Route path={ROUTES.DOCUMENTATION} element={renderLazyRoute(DocumentationPage)} />
 
         <Route
           element={(
@@ -133,20 +181,30 @@ const App = () => {
             </ProtectedRoute>
           )}
         >
-          <Route path={ROUTES.DASHBOARD} element={renderLazyRoute(DashboardPage)} />
           <Route path={ROUTES.PROFILE} element={renderLazyRoute(UserPage)} />
           <Route path={ROUTES.UNAUTHORIZED} element={<UnauthorizedPage />} />
         </Route>
 
         <Route
           element={(
-            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={INTERNAL_STAFF_ROLES}>
+            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={ROLE_ACCESS.INTERNAL_READ}>
               <Layout />
             </ProtectedRoute>
           )}
         >
           <Route path={ROUTES.PRODUCTS} element={renderLazyRoute(ProductsPage)} />
+        </Route>
+
+        <Route
+          element={(
+            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={ROLE_ACCESS.STAFF_WRITE}>
+              <Layout />
+            </ProtectedRoute>
+          )}
+        >
+          <Route path={ROUTES.DASHBOARD} element={renderLazyRoute(DashboardPage)} />
           <Route path={ROUTES.ORDERS} element={renderLazyRoute(OrderManagementPage)} />
+          <Route path={ROUTES.FINANCE} element={renderLazyRoute(FinancePage)} />
           <Route path={ROUTES.INVENTORY} element={renderLazyRoute(InventoryPage)} />
           <Route path={ROUTES.RETURNS} element={renderLazyRoute(ReturnList)} />
           <Route path={ROUTES.AI_ASSISTANT} element={renderLazyRoute(AIAssistantPage)} />
@@ -156,7 +214,7 @@ const App = () => {
 
         <Route
           element={(
-            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={ADMIN_ROLES}>
+            <ProtectedRoute fallback={<AuthLoadingScreen />} requiredRoles={ROLE_ACCESS.ADMIN_ONLY}>
               <Layout />
             </ProtectedRoute>
           )}

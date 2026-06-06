@@ -87,12 +87,6 @@ export const getAllProducts = catchAsyncErrors(async (req, res) => {
   if (req.user.role !== 'admin') {
     const products = await Product.find({ isDeleted: { $ne: true } }, '-createdAt -updatedAt -__v -restockRecommended -supplierIds -quantity');
 
-    if (!products || products.length === 0) {
-      return res.status(404).json({
-        message: "No products found."
-      });
-    }
-
     return res.status(200).json({
       numberOfProducts: products.length,
       message: "Products fetched successfully.",
@@ -101,11 +95,6 @@ export const getAllProducts = catchAsyncErrors(async (req, res) => {
   }
 
   const products = await Product.find({ isDeleted: { $ne: true } });
-  if (!products || products.length === 0) {
-    return res.status(404).json({
-      message: "No products found."
-    });
-  }
   res.status(200).json({
     numberOfProducts: products.length,
     message: "Products fetched successfully.",

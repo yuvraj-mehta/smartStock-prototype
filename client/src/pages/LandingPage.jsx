@@ -1,419 +1,355 @@
-
-import React from 'react';
 import {
-  FaReact,
-  FaNodeJs,
-  FaCss3Alt,
-  FaHtml5,
-  FaGithub,
-  FaNpm,
-  FaCloud,
-  FaLock,
-  FaDatabase,
-  FaTools,
-  FaRoute,
-  FaRegCheckCircle,
-  FaKey,
-  FaUserSecret,
-  FaMagic,
-  FaBolt,
-  FaEnvelope,
-  FaSyncAlt,
-  FaVial,
-  FaIdBadge,
-  FaSuperpowers,
-  FaLink,
-  FaShieldAlt,
-  FaCalendarAlt,
-  FaCodeBranch,
-  FaCogs,
-  FaChartBar,
-  FaSearch,
-  FaExclamationCircle,
-} from 'react-icons/fa';
+  ArrowRight,
+  BarChart3,
+  Boxes,
+  Brain,
+  ClipboardList,
+  Database,
+  LockKeyhole,
+  PackageCheck,
+  ReceiptText,
+  RotateCcw,
+  Server,
+  ShieldCheck,
+  UserCheck,
+  Warehouse,
+} from 'lucide-react';
+import WorkflowStrip from '../components/ui/WorkflowStrip';
 
-const techStackGroups = [
+const previewMetrics = [
+  { label: 'Stock value', value: 'INR 8.4L', icon: BarChart3 },
+  { label: 'Low stock', value: '12', icon: Boxes },
+  { label: 'Open orders', value: '31', icon: ClipboardList },
+  { label: 'Returns', value: '4', icon: RotateCcw },
+];
+
+const previewFlows = [
+  ['Package confirmation', 'Staff', 'Ready'],
+  ['Return receipt', 'Transport', 'In transit'],
+  ['Payment posting', 'Admin', 'Pending'],
+];
+
+const entryPathRows = [
   {
-    title: 'FrontEnd',
-    items: [
-      { name: 'React', icon: <FaReact /> },
-      { name: 'React DOM', icon: <FaReact /> },
-      { name: 'React Router DOM', icon: <FaRoute /> },
-      { name: 'Redux Toolkit', icon: <FaTools /> },
-      { name: 'React Redux', icon: <FaLink /> },
-      { name: 'Tailwind CSS', icon: <FaCss3Alt /> },
-      { name: 'Vite', icon: <FaBolt /> },
-      { name: 'Axios', icon: <FaCloud /> },
-      { name: 'Heroicons', icon: <FaSuperpowers /> },
-      { name: 'Lucide React', icon: <FaMagic /> },
-      { name: 'React Icons', icon: <FaChartBar /> },
-      { name: 'Prop Types', icon: <FaRegCheckCircle /> },
-    ],
+    icon: UserCheck,
+    title: 'Reviewer entry',
+    detail: 'Start at Landing, sign in through /login, then let auth routing open the right workspace.',
   },
   {
-    title: 'BackEnd',
-    items: [
-      { name: 'Node.js', icon: <FaNodeJs /> },
-      { name: 'Express', icon: <FaCogs /> },
-      { name: 'Mongoose', icon: <FaDatabase /> },
-      { name: 'OpenAI API', icon: <FaMagic /> },
-      { name: 'JWT', icon: <FaKey /> },
-      { name: 'bcrypt', icon: <FaLock /> },
-      { name: 'Cloudinary', icon: <FaCloud /> },
-      { name: 'Nodemailer', icon: <FaEnvelope /> },
-      { name: 'Node-cron', icon: <FaCalendarAlt /> },
-      { name: 'Express Validator', icon: <FaRegCheckCircle /> },
-      { name: 'Axios', icon: <FaCloud /> },
-      { name: 'Node Fetch', icon: <FaSearch /> },
-      { name: 'UUID', icon: <FaIdBadge /> },
-      { name: 'Jest', icon: <FaVial /> },
-      { name: 'Supertest', icon: <FaUserSecret /> },
-      { name: 'Nodemon', icon: <FaSyncAlt /> },
-    ],
+    icon: ShieldCheck,
+    title: 'Role path',
+    detail: 'Admin and staff reach operational pages; other signed-in roles fall back to profile in the current client shell.',
+  },
+  {
+    icon: Database,
+    title: 'Local demo data',
+    detail: 'Use the server seed:dev script or assigned credentials; seeded data creates an admin, warehouse, products, batches, and items.',
   },
 ];
 
-const features = [
-  'AI-driven inventory forecasting and analytics',
-  'Real-time stock tracking and notifications',
-  'Automated financial reconciliation and reporting',
-  'Order and fulfillment management',
-  'Role-based access and secure authentication',
-  'Integrated dashboard for actionable insights',
-  'Automated reordering and supply chain optimization',
-  'Audit logs and compliance tracking',
-  'AI Chat Bot (Upcoming)',
+const capabilityRows = [
+  { icon: Warehouse, label: 'Warehouse scope', detail: 'Internal users work inside assigned warehouse boundaries.' },
+  { icon: PackageCheck, label: 'Item lifecycle', detail: 'Product, batch, item, package, order, and return state stay linked.' },
+  { icon: ReceiptText, label: 'Financial reporting', detail: 'Operational actions connect to payment and ledger-backed reporting.' },
+  { icon: Brain, label: 'Inventory intelligence', detail: 'AI surfaces demand, reorder, and alert guidance for staff review.' },
 ];
 
-const accent = 'text-orange-500';
-
-
-const featureIcons = [
-  '📊', '⏱️', '💰', '📦', '🔒', '📈', '🔁', '📝', '🤖',
+const systemLayers = [
+  {
+    icon: Boxes,
+    title: 'React client',
+    detail: 'Landing, login, home, and protected workflow pages use Redux auth state and React Router gates.',
+  },
+  {
+    icon: Server,
+    title: 'Express API',
+    detail: 'Versioned /api/v1 routes separate auth, users, inventory, orders, packages, returns, transport, finance, and AI.',
+  },
+  {
+    icon: Database,
+    title: 'MongoDB domain data',
+    detail: 'Mongoose models keep users, warehouses, products, batches, item status, packages, returns, payments, and journal events linked.',
+  },
+  {
+    icon: LockKeyhole,
+    title: 'Quality and guards',
+    detail: 'JWT auth, role checks, warehouse scope, readiness endpoints, API contracts, and smoke builds protect the demo path.',
+  },
 ];
 
-const infoIcons = [
-  '🛡️', // Role-Based Access
-  '📦', // Inventory Tracking
-  '🤖', // AI-Powered
+const systemMapRows = [
+  ['Auth entry', 'Landing -> /login -> POST /api/v1/auth/login', 'JWT session, role, assigned warehouse'],
+  ['Inventory source', 'Inventory page -> /api/v1/inventory', 'Item.status is live stock; Inventory is a synchronized aggregate'],
+  ['Fulfillment', 'Orders -> packages -> transport', 'In-stock items move to allocated, packaged, dispatched, delivered'],
+  ['Reverse logistics', 'Returns -> pickup -> warehouse processing', 'Returned items become restocked or damaged through disposition'],
+  ['Finance view', 'Payments, invoices, sales history, financial reports', 'Operational events become ledger and reporting signals'],
 ];
 
+const techRows = [
+  ['Frontend', 'React, Redux Toolkit, React Router, Tailwind CSS, Vite'],
+  ['Backend', 'Node.js, Express, MongoDB/Mongoose, JWT auth'],
+  ['Operations', 'Inventory, orders, returns, transport, finance events'],
+  ['Quality', 'Jest, Supertest, API contracts, production build guard'],
+];
 
 const LandingPage = () => (
-  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex flex-col relative overflow-x-hidden">
-    {/* Decorative Background Shapes */}
-    <div className="absolute top-0 left-0 w-96 h-96 bg-blue-100 rounded-full opacity-30 blur-2xl -z-10" style={{ top: '-6rem', left: '-6rem' }} />
-    <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-200 rounded-full opacity-30 blur-2xl -z-10" style={{ bottom: '-6rem', right: '-6rem' }} />
-
-    {/* Sticky Navigation Bar */}
-    <header className="sticky top-0 w-full py-4 bg-white/90 border-b border-blue-100 flex items-center justify-between px-8 shadow z-20 backdrop-blur-md">
-      <div className="flex items-center gap-2">
-        <span className="text-3xl font-extrabold text-blue-700">Code</span>
-        <span className="text-3xl font-extrabold text-orange-500">-D-Code</span>
-      </div>
-      <nav className="hidden md:flex gap-8 text-blue-700 font-medium">
-        <a href="#home" className="hover:text-orange-500 transition">Home</a>
-        <a href="#problem" className="hover:text-orange-500 transition">Problem</a>
-        <a href="#features" className="hover:text-orange-500 transition">Features</a>
-        <a href="#role-based-access" className="hover:text-orange-500 transition">Role-Based Access</a>
-        <a href="#product-movement" className="hover:text-orange-500 transition">Product Movement</a>
-        <a href="#ai-implementation" className="hover:text-orange-500 transition">AI Implementation</a>
-        <a href="#techstack" className="hover:text-orange-500 transition">Tech Stack</a>
-      </nav>
-      <a href="/login">
-        <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition-all duration-200">Login</button>
-      </a>
-    </header>
-
-    {/* HERO SECTION - Aspirational & Visual */}
-    <section id="home" className="relative flex flex-col md:flex-row items-center justify-center py-28 px-4 gap-16 overflow-hidden bg-gradient-to-br from-orange-50 to-blue-100">
-      <div className="flex-1 flex flex-col items-center md:items-start z-10">
-        <h1 className="text-6xl md:text-7xl font-extrabold text-blue-700 mb-6 leading-tight drop-shadow-lg tracking-tight">
-          <span className="text-orange-500">Revolutionize</span> Your Inventory
-        </h1>
-        <p className="text-2xl md:text-3xl text-blue-600 mb-8 font-medium max-w-2xl">
-          Unlock the power of AI for seamless, real-time stock management. Experience effortless control, instant insights, and smarter decisions—built for ambitious retail teams.
-        </p>
-        <div className="flex gap-6 mb-10">
-          <a href="#features">
-            <button className="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-10 py-4 rounded-2xl shadow-xl text-xl transition-all duration-200">Explore Features</button>
-          </a>
-          <a href="/login">
-            <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-10 py-4 rounded-2xl shadow-xl text-xl transition-all duration-200">Get Started</button>
-          </a>
-        </div>
-        <div className="flex gap-8 mt-4">
-          <div className="flex flex-col items-center">
-            <span className="text-3xl text-orange-500"><FaBolt /></span>
-            <span className="text-sm text-blue-700 font-semibold mt-1">Lightning Fast</span>
+  <div className="min-h-screen bg-slate-50 text-slate-950">
+    <header className="border-b border-slate-200 bg-white">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+        <a href="#home" className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white">
+            <Boxes className="h-5 w-5" />
           </div>
-          <div className="flex flex-col items-center">
-            <span className="text-3xl text-blue-700"><FaLock /></span>
-            <span className="text-sm text-blue-700 font-semibold mt-1">Enterprise Secure</span>
+          <div>
+            <p className="text-lg font-semibold tracking-tight">SmartStock</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Warehouse operations</p>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="text-3xl text-purple-600"><FaMagic /></span>
-            <span className="text-sm text-blue-700 font-semibold mt-1">AI Powered</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 flex justify-center z-10">
-        <div className="w-96 h-96 md:w-[28rem] md:h-[28rem] rounded-[2.5rem] bg-gradient-to-br from-blue-100 via-purple-100 to-orange-100 flex items-center justify-center shadow-2xl border-4 border-white animate-float relative">
-          <span className="text-[8rem] md:text-[10rem] drop-shadow-lg">📦</span>
-          <span className="absolute bottom-8 right-8 text-4xl text-orange-500 animate-bounce">✨</span>
-        </div>
-      </div>
-      <style>{`
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-16px); }
-        }
-        .animate-bounce {
-          animation: bounce 1.2s infinite alternate;
-        }
-        @keyframes bounce {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-10px); }
-        }
-      `}</style>
-    </section>
-
-    {/* Problem Statement Section - Analytical & Solution Focused */}
-    <section id="problem" className="relative py-24 px-4 bg-gradient-to-br from-orange-50 to-blue-50 border-t border-orange-100 shadow-lg">
-      <div className="max-w-5xl mx-auto flex flex-col items-center">
-        <div className="flex flex-col items-center mb-10">
-          <span className="inline-block bg-gradient-to-br from-orange-200 to-blue-100 rounded-full p-4 shadow-lg mb-4">
-            <FaExclamationCircle className="text-5xl text-blue-700" />
-          </span>
-          <h2 className="text-4xl font-extrabold text-blue-700 mb-2 text-center tracking-tight">Why Inventory Management is Broken</h2>
-          <p className="text-xl text-blue-600 mb-4 text-center max-w-8xl">
-            Retailers struggle with fragmented spreadsheets, manual data entry, and outdated inventory systems. These inefficiencies lead to costly errors, missed sales opportunities, overstocking or stockouts, and wasted time—making it difficult to scale and stay competitive in a fast-moving market.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 w-full">
-          <div className="rounded-2xl border shadow-lg flex flex-col items-center py-8 px-6 bg-white">
-            <span className="text-4xl text-orange-500 mb-3"><FaExclamationCircle /></span>
-            <span className="font-bold text-blue-700 text-lg mb-2">Manual Processes</span>
-            <span className="text-blue-900 text-base text-center">Fragmented spreadsheets and manual entry lead to costly errors and missed sales.</span>
-          </div>
-          <div className="rounded-2xl border shadow-lg flex flex-col items-center py-8 px-6 bg-white">
-            <span className="text-4xl text-blue-700 mb-3"><FaLock /></span>
-            <span className="font-bold text-blue-700 text-lg mb-2">Lack of Real-Time Insights</span>
-            <span className="text-blue-900 text-base text-center">Traditional systems can't keep up with fast-moving inventory, leading to stockouts and overstocking.</span>
-          </div>
-          <div className="rounded-2xl border shadow-lg flex flex-col items-center py-8 px-6 bg-white">
-            <span className="text-4xl text-purple-600 mb-3"><FaMagic /></span>
-            <span className="font-bold text-blue-700 text-lg mb-2">No Automation or AI</span>
-            <span className="text-blue-900 text-base text-center">Most platforms lack automation and forecasting, making growth and efficiency difficult.</span>
-          </div>
-        </div>
-        <div className="rounded-2xl border-2 border-blue-200 shadow-xl flex flex-col items-center py-10 px-8 bg-gradient-to-br from-blue-50 to-orange-50 mb-6">
-          <h4 className="text-2xl font-extrabold text-orange-500 mb-4 text-center">How SmartStock Fixes This</h4>
-          <ul className="list-disc list-inside text-blue-900 text-lg space-y-2 max-w-xl mx-auto">
-            <li><span className="font-semibold text-orange-500">Unified tracking</span> for all products, orders, and warehouses.</li>
-            <li><span className="font-semibold text-orange-500">Automated reporting</span> and reconciliation.</li>
-            <li><span className="font-semibold text-orange-500">AI-driven forecasting</span> for smarter reordering and supply chain optimization.</li>
-            <li><span className="font-semibold text-orange-500">Real-time dashboard</span> for instant insights and alerts.</li>
-          </ul>
-        </div>
-        <a href="/login">
-          <button className="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-10 py-4 rounded-2xl shadow-xl text-xl transition-all duration-200 mt-2">Try SmartStock Free</button>
+        </a>
+        <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+          <a href="#workflow" className="hover:text-slate-950">Workflow</a>
+          <a href="#demo-path" className="hover:text-slate-950">Demo path</a>
+          <a href="#capabilities" className="hover:text-slate-950">Capabilities</a>
+          <a href="#architecture" className="hover:text-slate-950">Architecture</a>
+          <a href="#techstack" className="hover:text-slate-950">Stack</a>
+          <a href="/documentation" className="hover:text-slate-950">Documentation</a>
+        </nav>
+        <a
+          href="/login"
+          className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
+          Sign in
+          <ArrowRight className="h-4 w-4" />
         </a>
       </div>
-    </section>
+    </header>
 
-    {/* Divider */}
-    <div className="w-full h-0.5 bg-gradient-to-r from-blue-100 via-purple-100 to-orange-100 my-8 opacity-60" />
-
-
-    {/* Features Section - Overhauled */}
-    <section id="features" className="py-24 px-4 bg-gradient-to-br from-blue-50 to-orange-50">
-      <h2 className="text-3xl font-bold text-orange-500 mb-2 text-center tracking-tight">Features</h2>
-      <h3 className="text-4xl font-extrabold text-blue-700 mb-12 text-center tracking-tight">Smarter Inventory, Smoother Operations</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 max-w-6xl mx-auto mb-20">
-        {features.map((feature, idx) => (
-          <div key={feature} className="flex flex-col items-center bg-white rounded-3xl shadow-2xl border border-blue-100 hover:shadow-lg transition-all duration-200 py-10 px-6 group animate-fade-in">
-            <div className="w-16 h-16 flex items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-blue-100 text-4xl font-bold mb-4 border-2 border-orange-200 group-hover:scale-110 transition-transform">{featureIcons[idx]}</div>
-            <span className="text-blue-900 text-lg font-semibold text-center mb-2">{feature}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-
-    {/* Role-Based Access Section */}
-    <section id="role-based-access" className="py-20 px-4 bg-gradient-to-br from-blue-50 to-purple-50">
-      <h2 className="text-3xl font-extrabold text-center mb-2 tracking-tight flex items-center justify-center gap-2">
-        <span className="inline-block bg-gradient-to-br from-blue-100 to-orange-100 rounded-full p-2 mr-2 shadow">🛡️</span>
-        <span className="bg-gradient-to-r from-orange-500 to-blue-700 bg-clip-text text-transparent">Role-Based Access</span>
-      </h2>
-      <h3 className="text-4xl font-extrabold text-orange-500 mb-12 text-center tracking-tight drop-shadow">Who Does What in SmartStock?</h3>
-      <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-        {/* Admin Card */}
-        <div className="group bg-white rounded-3xl shadow-xl border-2 border-orange-200 p-8 flex flex-col items-center transition-all duration-200 hover:scale-105 hover:shadow-orange-200">
-          <span className="text-6xl mb-4 bg-gradient-to-br from-orange-100 to-orange-300 rounded-full p-4 shadow-lg border-4 border-white group-hover:scale-110 transition-transform">👑</span>
-          <h4 className="text-2xl font-extrabold text-orange-500 mb-3 text-center tracking-tight group-hover:text-blue-700 transition">Admin</h4>
-          <ul className="text-blue-900 text-base text-center leading-relaxed space-y-2 font-medium">
-            <li>Full access to all system features and data</li>
-            <li>Manage users, staff, roles, and permissions</li>
-            <li>Configure warehouses and system settings</li>
-          </ul>
-        </div>
-        {/* Staff Card */}
-        <div className="group bg-white rounded-3xl shadow-xl border-2 border-blue-200 p-8 flex flex-col items-center transition-all duration-200 hover:scale-105 hover:shadow-blue-200">
-          <span className="text-6xl mb-4 bg-gradient-to-br from-blue-100 to-blue-300 rounded-full p-4 shadow-lg border-4 border-white group-hover:scale-110 transition-transform">🧑‍🔧</span>
-          <h4 className="text-2xl font-extrabold text-blue-700 mb-3 text-center tracking-tight group-hover:text-orange-500 transition">Staff</h4>
-          <ul className="text-blue-900 text-base text-center leading-relaxed space-y-2 font-medium">
-            <li>Manage inventory, orders, and fulfillment</li>
-            <li>Approve or reject returns and transfers</li>
-          </ul>
-        </div>
-        {/* Supplier Card */}
-        <div className="group bg-white rounded-3xl shadow-xl border-2 border-green-200 p-8 flex flex-col items-center transition-all duration-200 hover:scale-105 hover:shadow-green-200">
-          <span className="text-6xl mb-4 bg-gradient-to-br from-green-100 to-green-300 rounded-full p-4 shadow-lg border-4 border-white group-hover:scale-110 transition-transform">🚚</span>
-          <h4 className="text-2xl font-extrabold text-green-600 mb-3 text-center tracking-tight group-hover:text-blue-700 transition">Supplier</h4>
-          <ul className="text-blue-900 text-base text-center leading-relaxed space-y-2 font-medium">
-            <li>Supply products to warehouses</li>
-            <li>View and track own orders and shipments</li>
-            <li>Receive notifications and updates</li>
-          </ul>
-        </div>
-        {/* Transporter Card */}
-        <div className="group bg-white rounded-3xl shadow-xl border-2 border-purple-200 p-8 flex flex-col items-center transition-all duration-200 hover:scale-105 hover:shadow-purple-200">
-          <span className="text-6xl mb-4 bg-gradient-to-br from-purple-100 to-purple-300 rounded-full p-4 shadow-lg border-4 border-white group-hover:scale-110 transition-transform">🚛</span>
-          <h4 className="text-2xl font-extrabold text-purple-600 mb-3 text-center tracking-tight group-hover:text-blue-700 transition">Transporter</h4>
-          <ul className="text-blue-900 text-base text-center leading-relaxed space-y-2 font-medium">
-            <li>Manage deliveries and returns</li>
-            <li>View assigned shipments and delivery status</li>
-            <li>Receive notifications and updates</li>
-          </ul>
-        </div>
-      </div>
-      <style>{`
-        #role-based-access .group:hover {
-          box-shadow: 0 8px 32px 0 rgba(255, 140, 0, 0.15);
-        }
-      `}</style>
-    </section>
-
-    {/* Product Movement Tracking Section */}
-    <section id="product-movement" className="py-20 px-4 bg-gradient-to-br from-blue-50 to-orange-50">
-      <h2 className="text-3xl font-bold text-blue-700 mb-2 text-center tracking-tight flex items-center justify-center gap-2">
-        <span className="inline-block bg-gradient-to-br from-blue-100 to-orange-100 rounded-full p-2 mr-2 shadow">🔄</span>
-        Product Movement Tracking
-      </h2>
-      <h3 className="text-4xl font-extrabold text-orange-500 mb-8 text-center tracking-tight">Full Lifecycle Visibility</h3>
-      <div className="flex flex-col items-center justify-center">
-        <div className="flex flex-wrap justify-center gap-4 mb-6 text-lg text-blue-700">
-          <span className="flex items-center gap-2"><span>🚚</span>Arrival</span>
-          <span className="text-xl">→</span>
-          <span className="flex items-center gap-2"><span>📦</span>In Stock</span>
-          <span className="text-xl">→</span>
-          <span className="flex items-center gap-2"><span>🛠️</span>Allocated</span>
-          <span className="text-xl">→</span>
-          <span className="flex items-center gap-2"><span>🎁</span>Packed</span>
-          <span className="text-xl">→</span>
-          <span className="flex items-center gap-2"><span>🚚</span>Shipped</span>
-          <span className="text-xl">→</span>
-          <span className="flex items-center gap-2"><span>✅</span>Delivered</span>
-          <span className="text-xl">→</span>
-          <span className="flex items-center gap-2"><span>↩️</span>Returned</span>
-        </div>
-        <p className="text-blue-900 text-lg text-center max-w-2xl mb-2">Track every product from arrival, through delivery, and even returns—ensuring full visibility and control at every step of the inventory lifecycle.</p>
-      </div>
-    </section>
-
-    {/* AI Implementation Section */}
-    <section id="ai-implementation" className="py-20 px-4 bg-gradient-to-br from-purple-50 to-blue-50">
-      <h2 className="text-3xl font-bold text-purple-700 mb-2 text-center tracking-tight flex items-center justify-center gap-2">
-        <span className="inline-block bg-gradient-to-br from-purple-100 to-blue-100 rounded-full p-2 mr-2 shadow">🤖</span>
-        AI-Powered Inventory Intelligence
-      </h2>
-      <h3 className="text-4xl font-extrabold text-orange-500 mb-8 text-center tracking-tight">How Our Backend AI Works</h3>
-      <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-10 items-center justify-center">
-        <div className="flex-1 flex flex-col gap-6">
-          <div className="bg-white rounded-2xl shadow-lg border border-purple-200 p-6">
-            <h4 className="text-xl font-bold text-blue-700 mb-2 flex items-center gap-2">📈 Demand Forecasting</h4>
-            <p className="text-blue-900 text-base">AI analyzes historical sales, seasonal trends, and market conditions to predict future demand for every product—helping you plan ahead and avoid stockouts.</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-lg border border-purple-200 p-6">
-            <h4 className="text-xl font-bold text-blue-700 mb-2 flex items-center gap-2">🛒 Stock Optimization</h4>
-            <p className="text-blue-900 text-base">Intelligent algorithms recommend optimal stock levels, reorder points, and safety stock—minimizing excess inventory and maximizing cash flow.</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-lg border border-purple-200 p-6">
-            <h4 className="text-xl font-bold text-blue-700 mb-2 flex items-center gap-2">💡 Intelligent Insights</h4>
-            <p className="text-blue-900 text-base">The backend generates actionable recommendations, highlights critical items, and uncovers cost-saving opportunities—empowering smarter decisions.</p>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="bg-gradient-to-br from-purple-100 to-blue-100 rounded-3xl shadow-xl border-2 border-purple-200 p-10 flex flex-col items-center">
-            <span className="text-[5rem] mb-4">🤖</span>
-            <span className="text-xl font-bold text-blue-700 mb-2 text-center">Powered by OpenAI GPT-4</span>
-            <span className="text-blue-900 text-base text-center">Our backend leverages advanced AI models to deliver real-time, data-driven inventory intelligence for modern retail teams.</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    {/* Tech Stack Section */}
-    {/* Divider */}
-    <div className="w-full h-0.5 bg-gradient-to-r from-blue-100 via-purple-100 to-orange-100 my-8 opacity-60" />
-
-    <section id="techstack" className="py-20 px-4">
-      <h2 className="text-3xl font-bold text-orange-500 mb-2 text-center tracking-tight flex items-center justify-center gap-2">
-        <span className="inline-block bg-gradient-to-br from-orange-100 to-blue-100 rounded-full p-2 mr-2 shadow">🛠️</span>
-        Tech Stack
-      </h2>
-      <h3 className="text-4xl font-extrabold text-blue-700 mb-12 text-center tracking-tight">Technologies Powering SmartStock</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        {techStackGroups.map((group, idx) => (
-          <div
-            key={group.title}
-            className={`rounded-2xl shadow-xl border flex flex-col items-center p-6 md:p-8 transition-all duration-200 hover:scale-[1.03] hover:shadow-orange-200 group ${idx === 0
-              ? 'bg-gradient-to-br from-orange-50 to-blue-50 border-orange-200'
-              : 'bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200'
-              }`}
-          >
-            <h4 className="text-xl md:text-2xl font-extrabold mb-4 flex items-center gap-2 text-blue-700 group-hover:text-orange-500 transition">
-              {idx === 0 ? '💻' : '🗄️'} {group.title}
-            </h4>
-            <div className="grid grid-cols-2 gap-4 md:gap-6 w-full">
-              {group.items.map((item) => (
-                <div
-                  key={item.name}
-                  className="flex flex-col items-center bg-white/80 rounded-lg p-3 md:p-4 shadow hover:bg-orange-50 transition-all duration-200 border border-blue-100 min-h-[90px] md:min-h-[110px]"
-                >
-                  <span className="text-3xl md:text-4xl mb-1 md:mb-2 drop-shadow text-blue-500">{item.icon}</span>
-                  <span className="text-xs md:text-base font-semibold text-blue-900 text-center">{item.name}</span>
-                </div>
-              ))}
+    <main>
+      <section id="home" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(460px,1fr)] lg:px-8 lg:py-16">
+          <div className="flex flex-col justify-center">
+            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+              SmartStock is a full-stack control plane for warehouse inventory operations.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
+              The project demonstrates role-scoped inventory management, order fulfillment, reverse logistics, payment recording, and ledger-backed reporting in one portfolio-ready SaaS prototype.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Open workspace
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <a
+                href="#workflow"
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Review workflow
+              </a>
+              <a
+                href="/documentation"
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                Read documentation
+              </a>
+            </div>
+            <div className="mt-6 grid max-w-2xl gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Primary demo route</p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">
+                  Landing {'->'} Login {'->'} Operations workspace
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Admin and staff accounts enter the working product surface instead of a marketing shell.
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data provenance</p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">Preview here, live data after sign-in</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  The public card uses labeled demo values; authenticated pages read protected API data.
+                </p>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-      <style>{`
-        #techstack .group:hover {
-          box-shadow: 0 8px 32px 0 rgba(255, 140, 0, 0.15);
-        }
-      `}</style>
-    </section>
 
-    {/* Footer */}
-    <footer className="w-full py-6 text-center text-blue-400 bg-gradient-to-r from-blue-50 to-purple-50 mt-auto text-sm border-t border-blue-100">
-      &copy; {new Date().getFullYear()} SmartStock. All rights reserved.
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm">
+            <div className="rounded-md border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">Warehouse dashboard preview</p>
+                  <p className="text-xs text-slate-500">Static sample values for reviewer orientation</p>
+                </div>
+                <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+                  Demo metrics
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-4">
+                {previewMetrics.map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <Icon className="h-4 w-4 text-slate-500" />
+                    <p className="mt-3 text-lg font-semibold text-slate-950">{value}</p>
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700">Preview value</p>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-200 p-4">
+                <div className="overflow-hidden rounded-md border border-slate-200">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Flow</th>
+                        <th className="px-3 py-2 font-semibold">Owner</th>
+                        <th className="px-3 py-2 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {previewFlows.map(([flow, owner, status]) => (
+                        <tr key={flow}>
+                          <td className="px-3 py-3 font-medium text-slate-800">{flow}</td>
+                          <td className="px-3 py-3 text-slate-500">{owner}</td>
+                          <td className="px-3 py-3">
+                            <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                              {status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Live metrics are available inside the authenticated dashboard and inventory pages after API-backed data loads.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="workflow" className="border-b border-slate-200">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <WorkflowStrip
+            title="The workflow is shown as the same data path a warehouse reviewer will test."
+            description="SmartStock is organized around item-level stock movement: supply creates sellable items, orders allocate them, returns decide disposition, and finance reports on the business events."
+          />
+        </div>
+      </section>
+
+      <section id="demo-path" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mb-8 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Role and demo entry path</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">How a portfolio reviewer should enter the product</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The public page is only an orientation layer. The real review path is the authenticated workspace, where routes are gated by role and backed by the Express API.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {entryPathRows.map(({ icon: Icon, title, detail }) => (
+              <div key={title} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <Icon className="h-5 w-5 text-slate-600" />
+                <h3 className="mt-3 text-sm font-semibold text-slate-950">{title}</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="capabilities" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:px-8">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Built like an operations product</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              The UI avoids a marketing-only shell and exposes the project's real backend boundaries: users, warehouses, inventory, order lifecycle, reverse logistics, and finance.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {capabilityRows.map(({ icon: Icon, label, detail }) => (
+              <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <Icon className="h-5 w-5 text-slate-600" />
+                <h3 className="mt-3 text-sm font-semibold text-slate-950">{label}</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture" className="border-b border-slate-200">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mb-8 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">System map</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">What the reviewer is actually looking at</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The portfolio story is strongest when the UI makes the client, API, domain data, and validation boundaries visible instead of hiding them behind broad feature cards.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-4">
+            {systemLayers.map(({ icon: Icon, title, detail }) => (
+              <div key={title} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <Icon className="h-5 w-5 text-slate-600" />
+                <h3 className="mt-3 text-sm font-semibold text-slate-950">{title}</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Reviewer question</th>
+                  <th className="px-4 py-3 text-left font-semibold">Route or boundary</th>
+                  <th className="px-4 py-3 text-left font-semibold">Source of truth</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {systemMapRows.map(([question, boundary, truth]) => (
+                  <tr key={question}>
+                    <td className="px-4 py-4 font-semibold text-slate-800">{question}</td>
+                    <td className="px-4 py-4 text-slate-600">{boundary}</td>
+                    <td className="px-4 py-4 text-slate-500">{truth}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="techstack" className="bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mb-8 max-w-3xl">
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Implementation stack</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              A practical full-stack JavaScript application with production build checks and backend test coverage.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {techRows.map(([label, detail]) => (
+                  <tr key={label}>
+                    <td className="w-44 bg-slate-50 px-4 py-4 font-semibold text-slate-700">{label}</td>
+                    <td className="px-4 py-4 text-slate-600">{detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer className="border-t border-slate-200 bg-white">
+      <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <span>SmartStock portfolio project</span>
+        <span>Inventory, fulfillment, returns, transport, and finance</span>
+      </div>
     </footer>
-    {/* Simple fade-in animation */}
-    <style>{`
-      .animate-fade-in {
-        animation: fadeIn 1.2s ease;
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-    `}</style>
   </div>
 );
 

@@ -24,17 +24,17 @@ router.get(
 );
 
 router.get(
-  "/:id",
-  isAuthenticated,
-  isAuthorized("admin", "staff"),
-  getSaleById
-);
-
-router.get(
   "/package/:packageId",
   isAuthenticated,
   isAuthorized("admin", "staff"),
   getSaleByPackageId
+);
+
+router.get(
+  "/:id",
+  isAuthenticated,
+  isAuthorized("admin", "staff"),
+  getSaleById
 );
 
 export default router;

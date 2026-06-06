@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
 import { Batch, SalesInvoice, SalesOrder, PaymentReceived } from '../models/index.js';
 import { catchAsyncErrors, normalizeId, requireAssignedWarehouseId } from '../middlewares/index.js';
-import { reverseUnreversedFinancialEventsForSource } from '../services/finance/index.js';
+import {
+  recordSalesInvoiceEvent,
+  reverseUnreversedFinancialEventsForSource,
+} from '../services/finance/index.js';
 
 const UPDATE_OPTIONS = { new: true, runValidators: true };
 
@@ -181,6 +184,15 @@ export const createSalesInvoice = catchAsyncErrors(async (req, res) => {
       await assertSalesOrderWarehouseAccess(req, salesOrderId, session);
       invoice = new SalesInvoice({ salesOrderId, amount, dueDate, paidDate, status });
       await invoice.save({ session });
+      await recordSalesInvoiceEvent({
+        amount: invoice.amount,
+        salesInvoiceId: invoice._id,
+        salesOrderId,
+        warehouseId: requireAssignedWarehouseId(req),
+        occurredAt: invoice.createdAt || new Date(),
+        actorId: req.user?._id,
+        session,
+      });
       invoice = await syncSalesInvoiceStatus(invoice._id, session) || invoice;
     });
   } finally {

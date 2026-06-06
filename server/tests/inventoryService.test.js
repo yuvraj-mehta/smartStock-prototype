@@ -44,6 +44,8 @@ const Item = {
   findOne: jest.fn(),
 };
 
+const recordInventoryDamageForItemsEvent = jest.fn();
+
 jest.unstable_mockModule('../models/batch.model.js', () => ({ Batch }));
 jest.unstable_mockModule('../models/inventory.model.js', () => ({ Inventory }));
 jest.unstable_mockModule('../models/inventoryMovement.model.js', () => ({ InventoryMovement }));
@@ -51,6 +53,9 @@ jest.unstable_mockModule('../models/item.model.js', () => ({
   Item,
   ITEM_HISTORY_ACTIONS,
   ITEM_STATUSES,
+}));
+jest.unstable_mockModule('../services/finance/index.js', () => ({
+  recordInventoryDamageForItemsEvent,
 }));
 
 let InventoryService;
@@ -78,6 +83,7 @@ describe('InventoryService architecture contracts', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    recordInventoryDamageForItemsEvent.mockResolvedValue(null);
   });
 
   it('rejects unsupported item status transitions with allowed next statuses', () => {
@@ -309,5 +315,60 @@ describe('InventoryService architecture contracts', () => {
       }),
       expect.objectContaining({ upsert: true, session: undefined }),
     );
+  });
+
+  it('records a finance damage event when bulk transitions move items to damaged in a session', async () => {
+    const session = { id: 'session-1' };
+    const items = [
+      {
+        _id: 'item-1',
+        batchId: 'batch-1',
+        productId: 'product-1',
+        currentWarehouseId: 'warehouse-1',
+        status: 'delivered',
+        purchasePrice: 50,
+      },
+      {
+        _id: 'item-2',
+        batchId: 'batch-1',
+        productId: 'product-1',
+        currentWarehouseId: 'warehouse-1',
+        status: 'delivered',
+        purchasePrice: 75,
+      },
+    ];
+    const damageLedgerEvent = { event: { _id: 'finance-event-1' } };
+
+    Item.find.mockReturnValue(buildArrayQuery(items));
+    Item.bulkWrite.mockResolvedValue({ modifiedCount: 2 });
+    InventoryMovement.insertMany.mockResolvedValue([{ _id: 'movement-1' }, { _id: 'movement-2' }]);
+    recordInventoryDamageForItemsEvent.mockResolvedValue(damageLedgerEvent);
+
+    const result = await InventoryService.transitionItemsStatus({
+      itemIds: ['item-1', 'item-2'],
+      fromStatus: 'delivered',
+      toStatus: 'damaged',
+      actorId: 'user-1',
+      warehouseId: 'warehouse-1',
+      referenceType: 'Return',
+      referenceId: 'return-1',
+      movementType: 'damage',
+      notes: 'Return disposition damaged',
+      syncInventory: false,
+      session,
+    });
+
+    expect(result.damageLedgerEvent).toBe(damageLedgerEvent);
+    expect(recordInventoryDamageForItemsEvent).toHaveBeenCalledWith({
+      itemIds: ['item-1', 'item-2'],
+      items,
+      referenceType: 'Return',
+      referenceId: 'return-1',
+      warehouseId: 'warehouse-1',
+      actorId: 'user-1',
+      movementType: 'damage',
+      notes: 'Return disposition damaged',
+      session,
+    });
   });
 });

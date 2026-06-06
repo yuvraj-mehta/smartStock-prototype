@@ -8,6 +8,12 @@ const Item = {
   aggregate: jest.fn(),
   find: jest.fn(),
 };
+const FinancialEvent = {
+  find: jest.fn(),
+};
+const JournalEntry = {
+  aggregate: jest.fn(),
+};
 const SalesOrder = {
   find: jest.fn(),
 };
@@ -27,19 +33,32 @@ const Invoice = {
 const Payment = {
   aggregate: jest.fn(),
 };
+const PaymentReceived = {
+  aggregate: jest.fn(),
+};
+const SalesInvoice = {
+  find: jest.fn(),
+};
+const SalesHistory = {
+  findById: jest.fn(),
+};
 
 jest.unstable_mockModule('../models/index.js', () => ({
   Batch: {},
   ExternalUser: {},
+  FINANCE_ACCOUNT_TYPES: ['asset', 'liability', 'equity', 'revenue', 'expense'],
+  FinancialEvent,
   InventoryMovement,
   Item,
+  JournalEntry,
   Payment,
-  PaymentReceived: {},
+  PaymentReceived,
   Package,
   PurchaseOrder,
   Invoice,
   Return,
-  SalesInvoice: {},
+  SalesInvoice,
+  SalesHistory,
   SalesOrder,
 }));
 jest.unstable_mockModule('../middlewares/index.js', () => ({
@@ -79,133 +98,125 @@ describe('financial report source-of-truth contracts', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    Return.find.mockReturnValue({
-      distinct: jest.fn().mockResolvedValue([]),
-    });
+    Return.find.mockReturnValue(buildMovementQuery([]));
+    FinancialEvent.find.mockResolvedValue([]);
+    JournalEntry.aggregate.mockResolvedValue([]);
+    PaymentReceived.aggregate.mockResolvedValue([]);
+    SalesInvoice.find.mockResolvedValue([]);
   });
 
-  it('computes COGS from sales-order inventory movements instead of current item status', async () => {
-    const order = {
-      _id: '507f1f77bcf86cd799439011',
-      productId: '507f1f77bcf86cd799439012',
-      quantity: 2,
-      totalPrice: 500,
-      createdAt: new Date('2026-01-01T00:00:00Z'),
-    };
-    SalesOrder.find.mockResolvedValue([order]);
-    InventoryMovement.find
-      .mockReturnValueOnce(buildMovementQuery([
-        { itemId: 'item-1' },
-        { itemId: 'item-2' },
-      ]))
-      .mockReturnValueOnce(buildMovementQuery([]));
-    Item.find.mockReturnValue({
-      populate: jest.fn().mockResolvedValue([
-        { purchasePrice: 100, batchId: { unitCost: 90 } },
-        { purchasePrice: undefined, batchId: { unitCost: 125 } },
-      ]),
-    });
-
-    const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
-
-    expect(SalesOrder.find).toHaveBeenCalledWith({ status: 'fulfilled' });
-    expect(InventoryMovement.find).toHaveBeenCalledWith({
-      referenceType: 'SalesOrder',
-      referenceId: order._id,
-      movementType: 'dispatch',
-    });
-    expect(Item.find).toHaveBeenCalledWith({ _id: { $in: ['item-1', 'item-2'] } });
-    expect(res.payload).toEqual({
-      totalCOGS: 225,
-      totalRevenue: 500,
-      profit: 275,
-    });
-  });
-
-  it('skips fulfilled sales orders that have no dispatch movements', async () => {
-    SalesOrder.find.mockResolvedValue([
+  it('uses posted journal balances for COGS and revenue instead of operational inventory state', async () => {
+    JournalEntry.aggregate.mockResolvedValue([
       {
-        _id: '507f1f77bcf86cd799439011',
-        productId: '507f1f77bcf86cd799439012',
-        quantity: 2,
-        totalPrice: 500,
+        accountCode: '4000',
+        accountName: 'Sales Revenue',
+        netCredit: 900,
+        netDebit: -900,
+      },
+      {
+        accountCode: '5000',
+        accountName: 'Cost of Goods Sold',
+        netDebit: 275,
+        netCredit: -275,
       },
     ]);
-    InventoryMovement.find
-      .mockReturnValueOnce(buildMovementQuery([]))
-      .mockReturnValueOnce(buildMovementQuery([]));
 
     const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
 
-    expect(Item.find).not.toHaveBeenCalled();
-    expect(res.payload).toEqual({
-      totalCOGS: 0,
-      totalRevenue: 0,
-      profit: 0,
-    });
-  });
-
-  it('includes delivered package movements from the canonical order flow in COGS and revenue', async () => {
-    SalesOrder.find.mockResolvedValue([]);
-    InventoryMovement.find.mockReturnValue(buildMovementQuery([
-      { itemId: 'item-1', referenceId: 'package-1' },
-      { itemId: 'item-2', referenceId: 'package-1' },
-    ]));
-    Package.find.mockReturnValue({
-      select: jest.fn().mockResolvedValue([
-        {
-          _id: { toString: () => 'package-1' },
-          totalValue: 500,
-          allocatedItems: [
-            { itemIds: ['item-1', 'item-2'], quantity: 2 },
-          ],
+    expect(JournalEntry.aggregate).toHaveBeenCalledWith(expect.arrayContaining([
+      {
+        $match: {
+          accountCode: { $in: ['4000', '5000', '5100'] },
         },
-      ]),
-    });
-    Item.find.mockReturnValue({
-      populate: jest.fn().mockResolvedValue([
-        { purchasePrice: 100, batchId: { unitCost: 90 } },
-        { purchasePrice: undefined, batchId: { unitCost: 125 } },
-      ]),
-    });
-
-    const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
-
-    expect(Package.find).toHaveBeenCalledWith({
-      _id: { $in: ['package-1'] },
-      packageStatus: 'delivered',
-    });
+      },
+    ]));
+    expect(SalesOrder.find).not.toHaveBeenCalled();
+    expect(InventoryMovement.find).not.toHaveBeenCalled();
+    expect(Package.find).not.toHaveBeenCalled();
+    expect(Return.find).not.toHaveBeenCalled();
+    expect(Item.find).not.toHaveBeenCalled();
+    expect(FinancialEvent.find).not.toHaveBeenCalled();
     expect(res.payload).toEqual({
-      totalCOGS: 225,
-      totalRevenue: 500,
-      profit: 275,
+      totalCOGS: 275,
+      totalRevenue: 900,
+      profit: 625,
     });
   });
 
-  it('excludes returned packages from canonical package COGS and revenue', async () => {
-    SalesOrder.find.mockResolvedValue([]);
-    InventoryMovement.find.mockReturnValue(buildMovementQuery([
-      { itemId: 'item-1', referenceId: 'package-1' },
-    ]));
-    Return.find.mockReturnValue({
-      distinct: jest.fn().mockResolvedValue(['package-1']),
+  it('treats a YYYY-MM-DD endDate as the full UTC day for journal-backed profit reporting', async () => {
+    await invokeJsonController(financialReportController.getCOGSAndProfit, {
+      query: {
+        startDate: '2026-04-01',
+        endDate: '2026-04-30',
+      },
     });
-    Package.find.mockReturnValue({
-      select: jest.fn().mockResolvedValue([]),
+
+    expect(JournalEntry.aggregate.mock.calls[0][0][0]).toEqual({
+      $match: {
+        occurredAt: {
+          $gte: new Date('2026-04-01T00:00:00.000Z'),
+          $lte: new Date('2026-04-30T23:59:59.999Z'),
+        },
+        accountCode: { $in: ['4000', '5000', '5100'] },
+      },
     });
+  });
+
+  it('nets reversal journal entries so reversed revenue and COGS are not reported as still posted', async () => {
+    JournalEntry.aggregate.mockResolvedValue([
+      {
+        accountCode: '4000',
+        accountName: 'Sales Revenue',
+        debitTotal: 750,
+        creditTotal: 750,
+        netDebit: 0,
+        netCredit: 0,
+      },
+      {
+        accountCode: '5000',
+        accountName: 'Cost of Goods Sold',
+        debitTotal: 225,
+        creditTotal: 225,
+        netDebit: 0,
+        netCredit: 0,
+      },
+    ]);
 
     const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
 
-    expect(Return.find).toHaveBeenCalledWith({ packageId: { $in: ['package-1'] } });
-    expect(Package.find).toHaveBeenCalledWith({
-      _id: { $in: [] },
-      packageStatus: 'delivered',
-    });
-    expect(Item.find).not.toHaveBeenCalled();
     expect(res.payload).toEqual({
       totalCOGS: 0,
       totalRevenue: 0,
       profit: 0,
+    });
+  });
+
+  it('keeps return-only reversal periods signed instead of clamping report amounts to zero', async () => {
+    JournalEntry.aggregate.mockResolvedValue([
+      {
+        accountCode: '4000',
+        accountName: 'Sales Revenue',
+        debitTotal: 500,
+        creditTotal: 0,
+        netDebit: 500,
+        netCredit: -500,
+      },
+      {
+        accountCode: '5000',
+        accountName: 'Cost of Goods Sold',
+        debitTotal: 0,
+        creditTotal: 125,
+        netDebit: -125,
+        netCredit: 125,
+      },
+    ]);
+
+    const res = await invokeJsonController(financialReportController.getCOGSAndProfit);
+
+    expect(res.payload).toEqual({
+      totalCOGS: -125,
+      totalRevenue: -500,
+      profit: -375,
     });
   });
 
@@ -260,5 +271,47 @@ describe('financial report source-of-truth contracts', () => {
     const res = await invokeJsonController(financialReportController.getOutstandingPayables);
 
     expect(res.payload).toEqual({ totalPayables: 300 });
+  });
+
+  it('includes canonical order sale finance events in outstanding receivables', async () => {
+    SalesInvoice.find.mockResolvedValue([]);
+    FinancialEvent.find.mockResolvedValue([
+      { amount: 500 },
+      { amount: 125 },
+    ]);
+
+    const res = await invokeJsonController(financialReportController.getOutstandingReceivables);
+
+    expect(FinancialEvent.find).toHaveBeenCalledWith({
+      eventType: 'sales_invoice',
+      referenceType: 'Order',
+    });
+    expect(res.payload).toEqual({ totalReceivables: 625 });
+  });
+
+  it('subtracts completed canonical order payments from outstanding receivables', async () => {
+    const orderOneId = { toString: () => 'order-1' };
+    const orderTwoId = { toString: () => 'order-2' };
+    SalesInvoice.find.mockResolvedValue([]);
+    FinancialEvent.find.mockResolvedValue([
+      { referenceId: orderOneId, amount: 500 },
+      { referenceId: orderOneId, amount: 125 },
+      { referenceId: orderTwoId, amount: 250 },
+    ]);
+    PaymentReceived.aggregate
+      .mockResolvedValueOnce([{ totalPaid: 225 }])
+      .mockResolvedValueOnce([{ totalPaid: 50 }]);
+
+    const res = await invokeJsonController(financialReportController.getOutstandingReceivables);
+
+    expect(PaymentReceived.aggregate).toHaveBeenNthCalledWith(1, [
+      { $match: { orderId: orderOneId, status: 'completed' } },
+      { $group: { _id: '$orderId', totalPaid: { $sum: { $ifNull: ['$amount', 0] } } } },
+    ]);
+    expect(PaymentReceived.aggregate).toHaveBeenNthCalledWith(2, [
+      { $match: { orderId: orderTwoId, status: 'completed' } },
+      { $group: { _id: '$orderId', totalPaid: { $sum: { $ifNull: ['$amount', 0] } } } },
+    ]);
+    expect(res.payload).toEqual({ totalReceivables: 600 });
   });
 });

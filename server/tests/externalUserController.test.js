@@ -56,6 +56,78 @@ describe('external user controller warehouse scope', () => {
     jest.clearAllMocks();
   });
 
+  it('creates transporters as active by default so transporter login can work', async () => {
+    ExternalUser.findOne.mockResolvedValue(null);
+    ExternalUser.create.mockResolvedValue({
+      _id: '507f1f77bcf86cd799439021',
+      fullName: 'Driver One',
+      companyName: 'Fast Logistics',
+      email: 'driver@example.com',
+      phone: '9999999999',
+      address: 'Main road',
+      contactPerson: 'Dispatch',
+      role: 'transporter',
+      warehouseId: '507f1f77bcf86cd799439012',
+      status: 'active',
+    });
+
+    const res = await invokeJsonController(externalUserController.createTransporter, {
+      body: {
+        fullName: 'Driver One',
+        companyName: 'Fast Logistics',
+        email: 'driver@example.com',
+        password: 'password123',
+        phone: '9999999999',
+        address: 'Main road',
+        contactPerson: 'Dispatch',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(ExternalUser.create).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'driver@example.com',
+      role: 'transporter',
+      status: 'active',
+      warehouseId: '507f1f77bcf86cd799439012',
+    }));
+    expect(res.payload.transporter.status).toBe('active');
+  });
+
+  it('updates external user status inside the assigned warehouse', async () => {
+    ExternalUser.findById.mockResolvedValue({
+      _id: '507f1f77bcf86cd799439021',
+      email: 'driver@example.com',
+      warehouseId: '507f1f77bcf86cd799439012',
+    });
+    ExternalUser.findByIdAndUpdate.mockResolvedValue({
+      _id: '507f1f77bcf86cd799439021',
+      fullName: 'Driver One',
+      email: 'driver@example.com',
+      phone: '9999999999',
+      companyName: 'Fast Logistics',
+      address: 'Main road',
+      contactPerson: 'Dispatch',
+      role: 'transporter',
+      status: 'suspended',
+      warehouseId: '507f1f77bcf86cd799439012',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    });
+
+    const res = await invokeJsonController(externalUserController.updateExternalUser, {
+      params: { id: '507f1f77bcf86cd799439021' },
+      body: { fullName: 'Driver One', status: 'suspended' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(ExternalUser.findByIdAndUpdate).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439021',
+      expect.objectContaining({ status: 'suspended' }),
+      { new: true },
+    );
+    expect(res.payload.externalUser.status).toBe('suspended');
+  });
+
   it('blocks admin updates for external users in another warehouse', async () => {
     ExternalUser.findById.mockResolvedValue({
       _id: '507f1f77bcf86cd799439021',

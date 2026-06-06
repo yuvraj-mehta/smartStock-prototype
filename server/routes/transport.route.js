@@ -7,12 +7,13 @@ import {
 } from "../controllers/index.js";
 import {
   isAuthenticated,
+  isTransportStatusAuthenticated,
   isAuthorized,
 } from "../middlewares/index.js";
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", isAuthenticated, isAuthorized("admin", "staff", "viewer"), (req, res) => {
   res.send("Welcome to the Transport API");
 });
 
@@ -20,7 +21,7 @@ router.get("/", (req, res) => {
 router.get(
   "/all",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   getAllTransports
 );
 
@@ -36,15 +37,14 @@ router.get(
 router.get(
   "/:transportId",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   getTransportById
 );
 
 // Update transport status
 router.patch(
   "/status/:transportId",
-  isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isTransportStatusAuthenticated,
   updateTransportStatus
 );
 

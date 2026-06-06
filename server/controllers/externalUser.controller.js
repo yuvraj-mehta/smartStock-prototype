@@ -2,6 +2,8 @@ import { catchAsyncErrors } from "../middlewares/index.js";
 import { ExternalUser } from "../models/externalUsers.model.js";
 import bcrypt from "bcryptjs";
 
+const EXTERNAL_USER_STATUSES = ['active', 'inactive', 'suspended'];
+
 const createTransporter = catchAsyncErrors(async (req, res) => {
   const {
     fullName,
@@ -11,7 +13,12 @@ const createTransporter = catchAsyncErrors(async (req, res) => {
     phone,
     address,
     contactPerson,
+    status,
   } = req.body;
+
+  if (status !== undefined && !EXTERNAL_USER_STATUSES.includes(status)) {
+    return res.status(400).json({ message: "Invalid external user status." });
+  }
 
   // Check if email already exists
   const existing = await ExternalUser.findOne({ email });
@@ -32,6 +39,7 @@ const createTransporter = catchAsyncErrors(async (req, res) => {
     address,
     contactPerson,
     role: "transporter",
+    status: status || "active",
     warehouseId: req.user.assignedWarehouseId,
   });
 
@@ -61,7 +69,12 @@ const createSupplier = catchAsyncErrors(async (req, res) => {
     phone,
     address,
     contactPerson,
+    status,
   } = req.body;
+
+  if (status !== undefined && !EXTERNAL_USER_STATUSES.includes(status)) {
+    return res.status(400).json({ message: "Invalid external user status." });
+  }
 
   // Check if email already exists
   const existing = await ExternalUser.findOne({ email });
@@ -82,6 +95,7 @@ const createSupplier = catchAsyncErrors(async (req, res) => {
     address,
     contactPerson,
     role: "supplier",
+    ...(status !== undefined ? { status } : {}),
     warehouseId: req.user.assignedWarehouseId,
   });
 
@@ -146,6 +160,7 @@ const updateExternalUser = catchAsyncErrors(async (req, res) => {
     phone,
     address,
     contactPerson,
+    status,
   } = req.body;
 
   // Find the external user
@@ -169,6 +184,10 @@ const updateExternalUser = catchAsyncErrors(async (req, res) => {
     }
   }
 
+  if (status !== undefined && !EXTERNAL_USER_STATUSES.includes(status)) {
+    return res.status(400).json({ message: "Invalid external user status." });
+  }
+
   // Update the external user
   const updatedUser = await ExternalUser.findByIdAndUpdate(
     id,
@@ -179,6 +198,7 @@ const updateExternalUser = catchAsyncErrors(async (req, res) => {
       phone,
       address,
       contactPerson,
+      ...(status !== undefined ? { status } : {}),
       updatedAt: new Date(),
     },
     { new: true }

@@ -2,7 +2,12 @@ import express from 'express';
 import request from 'supertest';
 import app from '../app.js';
 import { recordSale } from '../controllers/sales.controller.js';
-import { createSalesOrder } from '../controllers/salesOrder.controller.js';
+import {
+  createSalesOrder,
+  deleteSalesOrder,
+  getAllSalesOrders,
+  updateSalesOrder,
+} from '../controllers/salesOrder.controller.js';
 
 const buildSalesRetirementApp = () => {
   const salesRetirementApp = express();
@@ -15,6 +20,9 @@ const buildSalesOrderRetirementApp = () => {
   const salesOrderRetirementApp = express();
   salesOrderRetirementApp.use(express.json());
   salesOrderRetirementApp.post('/api/v1/sales-order', createSalesOrder);
+  salesOrderRetirementApp.get('/api/v1/sales-order', getAllSalesOrders);
+  salesOrderRetirementApp.put('/api/v1/sales-order/:id', updateSalesOrder);
+  salesOrderRetirementApp.delete('/api/v1/sales-order/:id', deleteSalesOrder);
   return salesOrderRetirementApp;
 };
 
@@ -52,9 +60,13 @@ describe('retired legacy workflow endpoints', () => {
     });
   });
 
-  it('returns 410 for direct sales-order creation', async () => {
-    const res = await request(buildSalesOrderRetirementApp())
-      .post('/api/v1/sales-order')
+  it.each([
+    ['get', '/api/v1/sales-order'],
+    ['post', '/api/v1/sales-order'],
+    ['put', '/api/v1/sales-order/507f1f77bcf86cd799439011'],
+    ['delete', '/api/v1/sales-order/507f1f77bcf86cd799439011'],
+  ])('returns 410 for retired legacy sales-order %s %s', async (method, path) => {
+    const res = await request(buildSalesOrderRetirementApp())[method](path)
       .send({
         customerId: '507f1f77bcf86cd799439011',
         productId: '507f1f77bcf86cd799439012',
@@ -65,7 +77,7 @@ describe('retired legacy workflow endpoints', () => {
 
     expect(res.statusCode).toBe(410);
     expect(res.body).toMatchObject({
-      message: expect.stringMatching(/direct sales-order creation is retired/i),
+      message: expect.stringMatching(/sales-order workflow is retired|direct sales-order creation is retired/i),
       replacementRoutes: expect.arrayContaining(['/api/v1/order/create']),
     });
   });

@@ -15,7 +15,7 @@ import { createProductValidation, updateProductValidation } from "../validators/
 import handleValidationErrors from "../middlewares/validationErrors.middleware.js";
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", isAuthenticated, isAuthorized("admin", "staff", "viewer"), (req, res) => {
   res.send("Welcome to the Product API");
 });
 
@@ -30,13 +30,13 @@ router.post(
 router.get(
   "/all",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   getAllProducts
 );
 router.get(
   "/:id",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   getProductById
 );
 router.delete(

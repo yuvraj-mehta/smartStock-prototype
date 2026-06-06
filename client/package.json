@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "lint:quiet": "eslint . --quiet",
-    "smoke": "npm run lint:quiet && npm run build",
+    "build:smoke": "VITE_API_BASE_URL=http://localhost:3500/api/v1 vite build",
+    "smoke": "npm run lint:quiet && npm run build:smoke",
     "test": "npm run smoke",
     "preview": "vite preview"
   },

@@ -6,7 +6,7 @@ import handleValidationErrors from "../middlewares/validationErrors.middleware.j
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", isAuthenticated, isAuthorized("admin", "staff", "viewer"), (req, res) => {
   res.send("Welcome to the Inventory API");
 });
 
@@ -22,14 +22,14 @@ router.post(
 router.get(
   "/all",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   viewInventory
 );
 
 router.get(
   "/product/:productId",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   getInventoryByProduct
 )
 
@@ -44,14 +44,14 @@ router.post(
 router.get(
   "/real-time",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   getRealTimeInventoryStatus
 );
 
 router.get(
   "/batch/track/:batchNumber",
   isAuthenticated,
-  isAuthorized("admin", "staff"),
+  isAuthorized("admin", "staff", "viewer"),
   trackBatchByNumber
 );
 

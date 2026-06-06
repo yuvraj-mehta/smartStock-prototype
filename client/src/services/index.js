@@ -15,3 +15,6 @@ export * from './httpClient';
 
 // Error handling service
 export * from './errorHandler';
+
+// Finance service
+export * from './financeService';

@@ -1,8 +1,10 @@
 import { catchAsyncErrors } from "../middlewares/index.js";
-import { User } from "../models/index.js"
+import { ExternalUser, User } from "../models/index.js"
 import bcrypt from "bcryptjs";
 import { generateToken } from "../utils/index.js";
 import jwt from "jsonwebtoken";
+
+const WAREHOUSE_ASSIGNMENT_REQUIRED_MESSAGE = "User must be assigned to a warehouse";
 
 
 
@@ -20,10 +22,9 @@ const login = catchAsyncErrors(async (req, res) => {
     return res.status(404).json({ message: 'User not found or inactive.' });
   }
 
-  // CHANGE: Check if admin has assigned location
-  if (user.role === 'admin' && !user.assignedWarehouseId) {
+  if (!user.assignedWarehouseId) {
     return res.status(403).json({
-      message: "Admin must be assigned to a warehouse"
+      message: WAREHOUSE_ASSIGNMENT_REQUIRED_MESSAGE
     });
   }
 
@@ -51,6 +52,50 @@ const login = catchAsyncErrors(async (req, res) => {
       avatar: user.avatar,
       assignedWarehouseId: user.assignedWarehouseId,
       lastLogin: user.lastLogin,
+    },
+  });
+})
+
+const loginTransporter = catchAsyncErrors(async (req, res) => {
+  const { email, password } = req.body;
+
+  const transporter = await ExternalUser.findOne({
+    email,
+    role: "transporter",
+    status: "active",
+  }).select("+password");
+
+  if (!transporter) {
+    return res.status(404).json({ message: 'Transporter not found or inactive.' });
+  }
+
+  if (!transporter.warehouseId) {
+    return res.status(403).json({ message: "Transporter must be assigned to a warehouse" });
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, transporter.password);
+  if (!isPasswordValid) {
+    return res.status(401).json({ message: 'Invalid email or password.' });
+  }
+
+  const token = generateToken({
+    _id: transporter._id,
+    email: transporter.email,
+    role: transporter.role,
+    assignedWarehouseId: transporter.warehouseId,
+  });
+
+  res.status(200).json({
+    message: "Transporter login successful",
+    token,
+    user: {
+      id: transporter._id,
+      fullName: transporter.fullName,
+      email: transporter.email,
+      role: transporter.role,
+      companyName: transporter.companyName,
+      assignedWarehouseId: transporter.warehouseId,
+      status: transporter.status,
     },
   });
 })
@@ -209,8 +254,6 @@ const updateProfile = catchAsyncErrors(async (req, res) => {
   });
 });
 
-export { login, logout, getMyDetails, changePassword, updateProfile };
-
-
+export { login, loginTransporter, logout, getMyDetails, changePassword, updateProfile };
 
 

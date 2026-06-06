@@ -1,277 +1,434 @@
-import React, { useEffect, useState } from 'react';
-// import Navbar from "../components/Navbar";
-// import Footer from "../components/Footer"; // Uncomment if you have a Footer component
-import { AlertTriangle, MapPin, TrendingUp, Package, Plus, ArrowUpRight, Activity } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  Boxes,
+  ClipboardList,
+  MapPin,
+  Package,
+  Plus,
+  RotateCcw,
+  TrendingUp,
+  Truck,
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 
+import { ROUTES } from '../constants';
 import { dashboardAPI } from '../services/api';
 
+const formatCurrency = (value) => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0,
+}).format(Number(value) || 0);
+
+const formatNumber = (value) => new Intl.NumberFormat('en-IN').format(Number(value) || 0);
+
+const formatDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Today' : date.toLocaleDateString();
+};
+
+const getApiErrorMessage = (error, fallback) => (
+  error?.response?.data?.message || error?.message || fallback
+);
+
+const getTabRoute = (route, tab) => `${route}?tab=${tab}`;
+
+function StatCard({ title, value, icon: Icon, tone = 'slate', detail }) {
+  const tones = {
+    slate: 'border-slate-200 text-slate-700 bg-slate-50',
+    blue: 'border-blue-200 text-blue-700 bg-blue-50',
+    amber: 'border-amber-200 text-amber-700 bg-amber-50',
+    red: 'border-red-200 text-red-700 bg-red-50',
+    emerald: 'border-emerald-200 text-emerald-700 bg-emerald-50',
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+        </div>
+        <div className={`rounded-md border p-2 ${tones[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      {detail && <p className="mt-3 text-xs text-slate-500">{detail}</p>}
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, title, detail }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+      <Icon className="mx-auto h-7 w-7 text-slate-400" />
+      <p className="mt-3 text-sm font-semibold text-slate-800">{title}</p>
+      <p className="mt-1 text-sm text-slate-500">{detail}</p>
+    </div>
+  );
+}
 
 const DashboardPage = () => {
-  const location = useLocation();
   const [products, setProducts] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [totalValue, setTotalValue] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [dashboardErrors, setDashboardErrors] = useState([]);
 
   useEffect(() => {
     async function fetchDashboardData() {
       setLoading(true);
+      setDashboardErrors([]);
+      const failures = [];
+      const [inventoryResult, aiDashboardResult] = await Promise.allSettled([
+        dashboardAPI.getInventory(),
+        dashboardAPI.getAIDashboard(),
+      ]);
+
       try {
-        // Fetch inventory
-        const inventoryRes = await dashboardAPI.getInventory();
-        const inventory = inventoryRes.data;
-        setProducts(inventory.products.map(p => p.product));
+        if (inventoryResult.status !== 'fulfilled') {
+          throw inventoryResult.reason;
+        }
+
+        const inventory = inventoryResult.value.data || {};
+        const inventoryProducts = Array.isArray(inventory.products) ? inventory.products : [];
+        setProducts(inventoryProducts.map(p => p.product || {}));
         setInventoryData(
-          inventory.products.flatMap(p =>
-            p.batches.map(b => ({
-              product: p.product,
+          inventoryProducts.flatMap((p) => {
+            const product = p.product || {};
+
+            return (Array.isArray(p.batches) ? p.batches : []).map(b => ({
+              product,
               location: b.warehouse,
-              quantity: b.quantity,
-              reorder_point: p.product.reorder_point || 10, // fallback
-              totalValue: b.quantity * (p.product.price || 0),
-            })),
-          ),
+              quantity: Number(b.quantity) || 0,
+              reorder_point: Number(product.reorder_point) || 10,
+              totalValue: (Number(b.quantity) || 0) * (Number(product.price) || 0),
+            }));
+          }),
         );
         setTotalValue(inventory.totalInventoryValue || 0);
+      } catch (err) {
+        console.warn('Failed to fetch dashboard inventory:', err);
+        failures.push({
+          source: 'Inventory API',
+          message: getApiErrorMessage(err, 'Inventory totals and batch tables could not be loaded.'),
+        });
+        setProducts([]);
+        setInventoryData([]);
+        setTotalValue(0);
+      }
 
-        // Fetch AI alerts/insights
-        const aiRes = await dashboardAPI.getAIInsights();
-        const aiData = aiRes.data?.data || {};
+      try {
+        if (aiDashboardResult.status !== 'fulfilled') {
+          throw aiDashboardResult.reason;
+        }
+
+        const aiData = aiDashboardResult.value.data?.data || {};
+        const alertItems = Array.isArray(aiData.criticalAlerts)
+          ? aiData.criticalAlerts
+          : Array.isArray(aiData.insights?.criticalItems)
+            ? aiData.insights.criticalItems
+            : [];
         setAlerts(
-          (aiData.criticalItems || []).map((item, idx) => ({
-            id: idx + 1,
+          alertItems.map((item, idx) => ({
+            id: item.id || idx + 1,
             message: item.recommendation || item.title || 'Critical alert',
             severity: item.severity || 'high',
-            created_at: item.generatedAt || new Date(),
+            created_at: item.generatedAt || item.createdAt || new Date(),
           })),
         );
       } catch (err) {
-        // fallback: empty data
-        setProducts([]);
-        setInventoryData([]);
+        console.warn('Failed to fetch AI dashboard alerts:', err);
+        failures.push({
+          source: 'AI dashboard API',
+          message: getApiErrorMessage(err, 'AI alert signals could not be loaded.'),
+        });
         setAlerts([]);
-        setTotalValue(0);
       }
+
+      setDashboardErrors(failures);
       setLoading(false);
     }
+
     fetchDashboardData();
   }, []);
 
-  // Calculate stats
-  const totalProducts = products.length;
-  const totalLocations = [...new Set(inventoryData.map(item => item.location?.warehouseName || ''))].length;
-  const lowStockCount = inventoryData.filter(item => item.quantity <= item.reorder_point).length;
-  const criticalAlerts = alerts.filter(alert => alert.severity === 'critical' || alert.severity === 'high').length;
-  const topProducts = inventoryData
-    .map(item => ({ ...item, totalValue: item.quantity * (item.product.price || 0) }))
-    .sort((a, b) => b.totalValue - a.totalValue)
-    .slice(0, 5);
+  const metrics = useMemo(() => {
+    const warehouseNames = inventoryData
+      .map(item => item.location?.warehouseName)
+      .filter(Boolean);
+    const outOfStockCount = inventoryData.filter(item => item.quantity === 0).length;
+    const lowStockCount = inventoryData.filter(
+      item => item.quantity > 0 && item.quantity <= item.reorder_point,
+    ).length;
+    const healthyStockCount = inventoryData.filter(item => item.quantity > item.reorder_point).length;
+    const criticalAlerts = alerts.filter(
+      alert => ['critical', 'high'].includes(String(alert.severity).toLowerCase()),
+    ).length;
+
+    return {
+      totalProducts: products.length,
+      totalLocations: new Set(warehouseNames).size,
+      lowStockCount,
+      outOfStockCount,
+      healthyStockCount,
+      criticalAlerts,
+      totalUnits: inventoryData.reduce((sum, item) => sum + item.quantity, 0),
+    };
+  }, [alerts, inventoryData, products]);
+
+  const topProducts = useMemo(() => (
+    inventoryData
+      .map(item => ({ ...item, totalValue: item.quantity * (Number(item.product.price) || 0) }))
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, 6)
+  ), [inventoryData]);
+
+  const stockSegments = [
+    { label: 'Healthy', value: metrics.healthyStockCount, color: 'bg-emerald-500' },
+    { label: 'Low', value: metrics.lowStockCount, color: 'bg-amber-500' },
+    { label: 'Out', value: metrics.outOfStockCount, color: 'bg-red-500' },
+  ];
+  const inventoryRows = Math.max(inventoryData.length, 1);
   const recentAlerts = alerts.slice(0, 5);
 
-  // ...existing code...
-
-  // Simple StatsCard component for dashboard metrics
-  function StatsCard({ title, value, icon, trend, trendValue, variant, animate }) {
-    const trendColor =
-      variant === 'danger'
-        ? 'text-red-500'
-        : variant === 'warning'
-          ? 'text-yellow-500'
-          : trend === 'up'
-            ? 'text-green-500'
-            : 'text-gray-500';
-    return (
-      <div className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8 flex flex-col items-start transition-all duration-300 ${animate ? 'hover:scale-105 hover:shadow-xl' : ''}`}>
-        <div className="flex items-center mb-3">
-          <span className="mr-3 text-blue-600">{icon}</span>
-          <span className={`text-sm font-semibold ${trendColor}`}>{trend === 'up' ? '▲' : '▼'} {trendValue}</span>
-        </div>
-        <div className="text-3xl font-extrabold text-gray-900 mb-1 drop-shadow-sm">{value}</div>
-        <div className="text-base text-gray-500 font-medium">{title}</div>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
-        {/* <Navbar /> */}
-        <main className="flex-1 p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-10">
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="mb-6 rounded-lg border border-slate-200 bg-white px-5 py-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Operations command center</p>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Warehouse dashboard</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                Monitor stock value, location coverage, alert pressure, and the highest-value inventory batches from one working view.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to={getTabRoute(ROUTES.INVENTORY, 'overview')}
+                className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <Package className="h-4 w-4" />
+                Inventory
+              </Link>
+              <Link
+                to={getTabRoute(ROUTES.ORDERS, 'manage')}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                <ClipboardList className="h-4 w-4" />
+                Orders
+              </Link>
+              <Link
+                to={ROUTES.FINANCE}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Finance
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {dashboardErrors.length > 0 && (
+          <section className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
               <div>
-                <h1 className="text-4xl font-extrabold text-gray-900 mb-2 tracking-tight drop-shadow-sm">Dashboard</h1>
-                <p className="text-lg text-gray-600">Monitor your inventory performance and key metrics</p>
-              </div>
-              <div className="flex gap-3 mt-4 md:mt-0">
-                <Link to="/inventory">
-                  <button
-                    className={`px-5 py-2.5 rounded-lg shadow transition-all flex items-center font-semibold
-                      ${location.pathname === '/inventory'
-                        ? 'bg-blue-700 text-white border-2 border-blue-800 scale-105'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-600'}
-                    `}
-                  >
-                    <Package className="h-4 w-4 mr-2" />
-                    View Inventory
-                  </button>
-                </Link>
-                <Link to="/ai-assistant">
-                  <button
-                    className={`px-5 py-2.5 rounded-lg shadow-sm transition-all flex items-center font-semibold
-                      ${location.pathname === '/ai-assistant'
-                        ? 'bg-green-600 text-white border-2 border-green-700 scale-105'
-                        : 'border border-blue-600 text-blue-600 hover:bg-blue-50'}
-                    `}
-                  >
-                    <Activity className="h-4 w-4 mr-2" />
-                    AI Assistant
-                  </button>
-                </Link>
+                <p className="font-semibold">Some dashboard data could not be loaded</p>
+                <p className="mt-1 text-amber-800">
+                  Visible metrics may be incomplete until these API responses recover.
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {dashboardErrors.map((failure) => (
+                    <li key={failure.source}>
+                      <span className="font-semibold">{failure.source}:</span> {failure.message}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
+          </section>
+        )}
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
-              <StatsCard title="Total Products" value={totalProducts} icon={<Package />} trend="up" trendValue="5%" animate />
-              <StatsCard title="Locations" value={totalLocations} icon={<MapPin />} trend="up" trendValue="2%" animate />
-              <StatsCard title="Total Value" value={`₹${totalValue.toLocaleString()}`} icon={<TrendingUp />} trend="up" trendValue="12%" animate />
-              <StatsCard title="Low Stock Items" value={lowStockCount} icon={<AlertTriangle />} trend="down" trendValue="8%" variant="warning" animate />
-              <StatsCard title="Critical Alerts" value={criticalAlerts} icon={<AlertTriangle />} trend="down" trendValue="3%" variant="danger" animate />
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <StatCard title="Products" value={formatNumber(metrics.totalProducts)} icon={Package} detail={`${formatNumber(metrics.totalUnits)} units tracked`} />
+          <StatCard title="Warehouses" value={formatNumber(metrics.totalLocations)} icon={MapPin} tone="blue" detail="Scoped to assigned access" />
+          <StatCard title="Stock value" value={formatCurrency(totalValue)} icon={TrendingUp} tone="emerald" detail="From current inventory" />
+          <StatCard title="Low stock" value={formatNumber(metrics.lowStockCount)} icon={AlertTriangle} tone="amber" detail={`${formatNumber(metrics.outOfStockCount)} out of stock`} />
+          <StatCard title="Critical alerts" value={formatNumber(metrics.criticalAlerts)} icon={Activity} tone="red" detail={loading ? 'Refreshing signals' : 'Latest AI signal set'} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(360px,0.8fr)]">
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Top inventory value</h2>
+                <p className="text-sm text-slate-500">Highest-value product batches by warehouse</p>
+              </div>
+              <Link to={getTabRoute(ROUTES.INVENTORY, 'stock')} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700 hover:text-slate-950">
+                View all
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
             </div>
-
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-              {/* Top Products */}
-              <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Top Products by Value</h2>
-                  <Link to="/inventory">
-                    <button className="text-blue-600 flex items-center text-base font-semibold hover:underline">
-                      View All <ArrowUpRight className="h-4 w-4 ml-1" />
-                    </button>
-                  </Link>
+            <div className="overflow-x-auto">
+              {topProducts.length === 0 ? (
+                <div className="p-5">
+                  <EmptyState icon={Boxes} title="No inventory loaded" detail="Inventory batches will appear here after supplies are added." />
                 </div>
-                <div className="space-y-4">
-                  {topProducts.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-blue-50/60 rounded-xl hover:shadow transition-all">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-sm">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{item.product.productName || item.product.name}</p>
-                          <p className="text-sm text-gray-500">{item.location?.warehouseName || 'Unknown'} • {item.quantity} units</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">₹{item.totalValue.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">₹{item.product.price}/unit</p>
-                      </div>
-                    </div>
+              ) : (
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-5 py-3 text-left font-semibold text-slate-600">Product</th>
+                      <th className="px-5 py-3 text-left font-semibold text-slate-600">Warehouse</th>
+                      <th className="px-5 py-3 text-right font-semibold text-slate-600">Units</th>
+                      <th className="px-5 py-3 text-right font-semibold text-slate-600">Unit price</th>
+                      <th className="px-5 py-3 text-right font-semibold text-slate-600">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {topProducts.map((item, index) => (
+                      <tr key={`${item.product._id || item.product.productName || index}-${item.location?._id || index}`} className="hover:bg-slate-50">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <p className="font-semibold text-slate-950">{item.product.productName || item.product.name || 'Unnamed product'}</p>
+                              <p className="text-xs text-slate-500">Reorder at {formatNumber(item.reorder_point)} units</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">{item.location?.warehouseName || 'Unassigned'}</td>
+                        <td className="px-5 py-4 text-right font-medium text-slate-800">{formatNumber(item.quantity)}</td>
+                        <td className="px-5 py-4 text-right text-slate-600">{formatCurrency(item.product.price)}</td>
+                        <td className="px-5 py-4 text-right font-semibold text-slate-950">{formatCurrency(item.totalValue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Stock health</h2>
+                  <p className="text-sm text-slate-500">Batch-level inventory posture</p>
+                </div>
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                  {formatNumber(inventoryData.length)} rows
+                </span>
+              </div>
+              <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="flex h-full w-full">
+                  {stockSegments.map(segment => (
+                    <div
+                      key={segment.label}
+                      className={segment.color}
+                      style={{ width: `${(segment.value / inventoryRows) * 100}%` }}
+                    />
                   ))}
                 </div>
               </div>
-              {/* Quick Actions */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <span className="inline-block bg-blue-100 text-blue-600 rounded-full px-3 py-1 text-sm font-semibold mr-2">⚡</span>
-                  Quick Actions
-                </h2>
-                <div className="grid gap-4">
-                  <Link to="/inventory">
-                    <button className="w-full flex items-center gap-3 px-5 py-3 rounded-xl font-semibold bg-white/90 text-blue-700 border border-blue-200 shadow hover:bg-blue-50 transition-all group">
-                      <span className="bg-blue-100 rounded-full p-2 group-hover:bg-blue-200 transition"><Plus className="h-5 w-5" /></span>
-                      Add New Product
-                    </button>
-                  </Link>
-                  <Link to="/ai-assistant">
-                    <button className="w-full flex items-center gap-3 px-5 py-3 rounded-xl font-semibold bg-white/90 text-purple-700 border border-purple-200 shadow hover:bg-purple-50 transition-all group">
-                      <span className="bg-purple-100 rounded-full p-2 group-hover:bg-purple-200 transition"><TrendingUp className="h-5 w-5" /></span>
-                      View AI Insights
-                    </button>
-                  </Link>
-                  <Link to="/ai-assistant">
-                    <button className="w-full flex items-center gap-3 px-5 py-3 rounded-xl font-semibold bg-white/90 text-green-700 border border-green-200 shadow hover:bg-green-50 transition-all group">
-                      <span className="bg-green-100 rounded-full p-2 group-hover:bg-green-200 transition"><Activity className="h-5 w-5" /></span>
-                      AI Forecast
-                    </button>
-                  </Link>
-                </div>
+              <div className="mt-4 space-y-3">
+                {stockSegments.map(segment => (
+                  <div key={segment.label} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${segment.color}`} />
+                      <span className="font-medium text-slate-700">{segment.label}</span>
+                    </div>
+                    <span className="text-slate-500">{formatNumber(segment.value)} batches</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Recent Alerts & Stock Levels */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Alerts */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Recent Alerts</h2>
-                  <span className="text-base font-normal text-gray-500">{alerts.length} total</span>
-                </div>
-                <div className="space-y-4">
-                  {recentAlerts.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                      <p>No alerts at this time</p>
-                    </div>
-                  ) : (
-                    recentAlerts.map((alert, idx) => (
-                      <div key={idx} className="flex items-start space-x-3 p-4 bg-blue-50/60 rounded-xl">
-                        <AlertTriangle className={`h-5 w-5 mt-0.5 ${alert.severity === 'critical' ? 'text-red-500' :
-                          alert.severity === 'high' ? 'text-orange-500' : 'text-yellow-500'
-                          }`} />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 text-base">{alert.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {alert.severity} • {new Date(alert.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Work queue</h2>
+                  <p className="text-sm text-slate-500">Fast access for daily warehouse actions</p>
                 </div>
               </div>
-              {/* Stock Level Overview */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Stock Level Overview</h2>
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <span className="text-base font-medium">Healthy Stock</span>
-                    <span className="text-base text-gray-500">
-                      {inventoryData.filter(item => item.quantity > item.reorder_point * 2).length} items
+              <div className="grid gap-2">
+                {[
+                  { to: getTabRoute(ROUTES.INVENTORY, 'add-supply'), label: 'Add supply', icon: Plus, meta: 'Receive new stock' },
+                  { to: getTabRoute(ROUTES.ORDERS, 'manage'), label: 'Review orders', icon: ClipboardList, meta: 'Pack and fulfill' },
+                  { to: ROUTES.TRANSPORT, label: 'Track transport', icon: Truck, meta: 'Outbound and return legs' },
+                  { to: ROUTES.RETURNS, label: 'Process returns', icon: RotateCcw, meta: 'Disposition workflow' },
+                ].map(({ to, label, icon: Icon, meta }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-3 text-sm transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <span className="flex items-center gap-3">
+                      <Icon className="h-4 w-4 text-slate-500" />
+                      <span>
+                        <span className="block font-semibold text-slate-800">{label}</span>
+                        <span className="block text-xs text-slate-500">{meta}</span>
+                      </span>
                     </span>
-                  </div>
-                  <div className="w-full h-2 bg-blue-100 rounded-full mb-2">
-                    <div className="h-2 bg-blue-500 rounded-full transition-all duration-700" style={{ width: '70%' }} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-base font-medium">Low Stock</span>
-                    <span className="text-base text-gray-500">{lowStockCount} items</span>
-                  </div>
-                  <div className="w-full h-2 bg-yellow-100 rounded-full mb-2">
-                    <div className="h-2 bg-yellow-400 rounded-full transition-all duration-700" style={{ width: '20%' }} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-base font-medium">Out of Stock</span>
-                    <span className="text-base text-gray-500">
-                      {inventoryData.filter(item => item.quantity === 0).length} items
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-red-100 rounded-full">
-                    <div className="h-2 bg-red-400 rounded-full transition-all duration-700" style={{ width: '10%' }} />
-                  </div>
-                </div>
+                    <ArrowUpRight className="h-4 w-4 text-slate-400" />
+                  </Link>
+                ))}
               </div>
             </div>
           </div>
-        </main>
-        {/* <Footer /> */}
+        </section>
+
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Recent alerts</h2>
+              <p className="text-sm text-slate-500">Operational signals from inventory intelligence</p>
+            </div>
+            <span className="text-sm font-medium text-slate-500">{formatNumber(alerts.length)} total</span>
+          </div>
+          <div className="p-5">
+            {recentAlerts.length === 0 ? (
+              <EmptyState icon={AlertTriangle} title="No active alerts" detail="Critical AI alerts and stock warnings will appear here." />
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {recentAlerts.map((alert) => {
+                  const severity = String(alert.severity).toLowerCase();
+                  const severityClass = severity === 'critical'
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : severity === 'high'
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-600';
+
+                  return (
+                    <div key={alert.id} className="rounded-lg border border-slate-200 p-4">
+                      <div className="flex items-start gap-3">
+                        <span className={`rounded-md border p-2 ${severityClass}`}>
+                          <AlertTriangle className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900">{alert.message}</p>
+                          <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                            {severity || 'signal'} - {formatDate(alert.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
-    </>
+    </div>
   );
 };
 

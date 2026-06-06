@@ -14,6 +14,7 @@
     "seed:admin:dev": "NODE_ENV=development ALLOW_DEV_SEED_CREDENTIALS=1 node scripts/seedAdmin.js",
     "seed:products:dev": "NODE_ENV=development ALLOW_DEV_SEED_CREDENTIALS=1 node scripts/seedProducts.js",
     "seed:dev": "npm run seed:products:dev",
+    "seed:demo-usage:dev": "NODE_ENV=development ALLOW_DEV_SEED_CREDENTIALS=1 node scripts/seedDemoUsage.js",
     "create-admin": "npm run seed:admin",
     "db:clear:dry-run": "node clearDatabase.js --dry-run",
     "db:clear": "node clearDatabase.js --execute",

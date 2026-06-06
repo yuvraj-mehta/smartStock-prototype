@@ -38,6 +38,92 @@ const requiresExplicitItemIds = (returnReason, disposition) =>
 
 const uniqueIds = (ids) => [...new Set(ids.filter(Boolean).map(normalizeId).filter(Boolean))];
 
+const allocationKey = (item) => `${normalizeId(item.productId)}:${normalizeId(item.batchId)}`;
+
+const addQuantity = (quantities, key, quantity) => {
+  if (quantity <= 0) return;
+  quantities.set(key, (quantities.get(key) || 0) + quantity);
+};
+
+const getAllocationItemIds = (item) => uniqueIds(item?.itemIds || []);
+
+const getAllocationQuantity = (item) => {
+  const itemIds = getAllocationItemIds(item);
+  return itemIds.length || Number(item?.quantity) || 0;
+};
+
+const createReturnAllocationState = () => ({
+  returnedItemIds: new Set(),
+  itemlessQuantitiesByAllocation: new Map(),
+  totalQuantitiesByAllocation: new Map(),
+});
+
+const recordReturnedItemInState = (state, returnedItem) => {
+  const key = allocationKey(returnedItem);
+  const itemIds = getAllocationItemIds(returnedItem);
+  const quantity = Number(returnedItem.quantity) || itemIds.length;
+
+  addQuantity(state.totalQuantitiesByAllocation, key, quantity);
+
+  if (itemIds.length > 0) {
+    itemIds.forEach((itemId) => state.returnedItemIds.add(itemId));
+  } else {
+    addQuantity(state.itemlessQuantitiesByAllocation, key, quantity);
+  }
+};
+
+const buildReturnAllocationState = (returnRecords = []) => {
+  const state = createReturnAllocationState();
+
+  for (const returnRecord of returnRecords) {
+    for (const returnedItem of returnRecord?.returnedItems || []) {
+      recordReturnedItemInState(state, returnedItem);
+    }
+  }
+
+  return state;
+};
+
+const getAvailablePackageItemIds = (packageItem, returnState) => {
+  const packageItemIds = getAllocationItemIds(packageItem);
+  if (packageItemIds.length === 0) return [];
+
+  const key = allocationKey(packageItem);
+  const availableAfterExplicitReturns = packageItemIds.filter(
+    (itemId) => !returnState.returnedItemIds.has(itemId)
+  );
+  const reservedItemlessQuantity = returnState.itemlessQuantitiesByAllocation.get(key) || 0;
+  const reservedItemlessItemIds = new Set(availableAfterExplicitReturns.slice(0, reservedItemlessQuantity));
+
+  return availableAfterExplicitReturns.filter((itemId) => !reservedItemlessItemIds.has(itemId));
+};
+
+const getRemainingReturnQuantity = (packageItem, returnState) => {
+  const availableItemIds = getAvailablePackageItemIds(packageItem, returnState);
+  if (availableItemIds.length > 0 || getAllocationItemIds(packageItem).length > 0) {
+    const remainingByQuantity = getAllocationQuantity(packageItem) -
+      (returnState.totalQuantitiesByAllocation.get(allocationKey(packageItem)) || 0);
+    return Math.max(0, Math.min(availableItemIds.length, remainingByQuantity));
+  }
+
+  const allocatedQuantity = Number(packageItem.quantity) || 0;
+  const returnedQuantity = returnState.totalQuantitiesByAllocation.get(allocationKey(packageItem)) || 0;
+  return Math.max(0, allocatedQuantity - returnedQuantity);
+};
+
+const returnCoversFullPackageAllocation = (packageDoc, returnState) => {
+  const allocatedItems = packageDoc.allocatedItems || [];
+  if (allocatedItems.length === 0) return false;
+
+  return allocatedItems.every((item) => {
+    const allocatedQuantity = getAllocationQuantity(item);
+    if (allocatedQuantity <= 0) return false;
+
+    const returnedQuantity = returnState.totalQuantitiesByAllocation.get(allocationKey(item)) || 0;
+    return returnedQuantity >= allocatedQuantity;
+  });
+};
+
 const getBatchWarehouseMap = async (batchIds, session) => {
   const ids = uniqueIds(batchIds);
   if (ids.length === 0) return new Map();
@@ -97,7 +183,7 @@ const ensureTransporterWarehouseAccess = async (transporterId, assignedWarehouse
   }
 };
 
-const normalizeReturnedItems = (returnedItems, packageDoc, returnReason) => {
+const normalizeReturnedItems = (returnedItems, packageDoc, returnReason, returnState) => {
   const usedItemIds = new Set();
 
   return returnedItems.map((returnItem) => {
@@ -112,11 +198,18 @@ const normalizeReturnedItems = (returnedItems, packageDoc, returnReason) => {
       throw httpError(400, `Product not found in original package: ${returnItem.productId}`);
     }
 
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > packageItem.quantity) {
-      throw httpError(400, `Return quantity exceeds original quantity for product: ${returnItem.productId}`);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw httpError(400, `Return quantity is invalid for product: ${returnItem.productId}`);
     }
 
-    const packageItemIds = (packageItem.itemIds || []).map(normalizeId);
+    const packageItemIds = getAllocationItemIds(packageItem);
+    const availablePackageItemIds = getAvailablePackageItemIds(packageItem, returnState);
+    const remainingQuantity = getRemainingReturnQuantity(packageItem, returnState);
+
+    if (quantity > remainingQuantity) {
+      throw httpError(400, `Return quantity exceeds remaining returnable quantity for product: ${returnItem.productId}`);
+    }
+
     const hasExplicitItemIds = Array.isArray(returnItem.itemIds) && returnItem.itemIds.length > 0;
 
     if (requiresExplicitItemIds(returnReason, disposition) && !hasExplicitItemIds) {
@@ -128,16 +221,27 @@ const normalizeReturnedItems = (returnedItems, packageDoc, returnReason) => {
     }
 
     const requestedItemIds = hasExplicitItemIds
-      ? returnItem.itemIds.map(normalizeId)
-      : packageItemIds.slice(0, quantity);
+      ? returnItem.itemIds.map(normalizeId).filter(Boolean)
+      : packageItemIds.length > 0
+        ? availablePackageItemIds.slice(0, quantity)
+        : [];
 
     if (requestedItemIds.length !== quantity) {
       throw httpError(400, `Return item IDs do not match quantity for product: ${returnItem.productId}`);
     }
 
+    if (new Set(requestedItemIds).size !== requestedItemIds.length) {
+      throw httpError(400, "Duplicate returned item IDs are not allowed.");
+    }
+
     const hasUnknownItem = requestedItemIds.some((itemId) => !packageItemIds.includes(itemId));
     if (hasUnknownItem) {
       throw httpError(400, `Returned item does not belong to original package: ${returnItem.productId}`);
+    }
+
+    const hasAlreadyReturnedItem = requestedItemIds.some((itemId) => !availablePackageItemIds.includes(itemId));
+    if (hasAlreadyReturnedItem) {
+      throw httpError(409, "Returned item has already been returned.");
     }
 
     const hasDuplicateItem = requestedItemIds.some((itemId) => usedItemIds.has(itemId));
@@ -147,13 +251,17 @@ const normalizeReturnedItems = (returnedItems, packageDoc, returnReason) => {
 
     requestedItemIds.forEach((itemId) => usedItemIds.add(itemId));
 
-    return {
+    const normalizedItem = {
       productId: returnItem.productId,
       batchId: returnItem.batchId,
       quantity,
       disposition,
       itemIds: requestedItemIds
     };
+
+    recordReturnedItemInState(returnState, normalizedItem);
+
+    return normalizedItem;
   });
 };
 
@@ -177,11 +285,8 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
   try {
     session.startTransaction();
 
-    // Check if a return already exists for this package
-    const existingReturn = await Return.findOne({ packageId }).session(session);
-    if (existingReturn) {
-      throw httpError(409, "A return already exists for this package.");
-    }
+    const existingReturns = await Return.find({ packageId }).session(session);
+    const returnState = buildReturnAllocationState(existingReturns);
 
     const packageDoc = await Package.findById(packageId).populate('orderId').session(session);
     if (!packageDoc) {
@@ -207,7 +312,8 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
       throw httpError(400, "Return window has expired (10 days)");
     }
 
-    const normalizedReturnedItems = normalizeReturnedItems(returnedItems, packageDoc, returnReason);
+    const normalizedReturnedItems = normalizeReturnedItems(returnedItems, packageDoc, returnReason, returnState);
+    const isFullPackageReturn = returnCoversFullPackageAllocation(packageDoc, returnState);
 
     [returnRecord] = await Return.create([{
       packageId: packageDoc._id,
@@ -219,10 +325,12 @@ export const initiateReturn = catchAsyncErrors(async (req, res) => {
       notes
     }], { session });
 
-    packageDoc.packageStatus = 'returned';
-    packageDoc.orderId.orderStatus = 'returned';
-    await packageDoc.save({ session });
-    await packageDoc.orderId.save({ session });
+    if (isFullPackageReturn) {
+      packageDoc.packageStatus = 'returned';
+      packageDoc.orderId.orderStatus = 'returned';
+      await packageDoc.save({ session });
+      await packageDoc.orderId.save({ session });
+    }
 
     await session.commitTransaction();
   } catch (error) {
@@ -374,6 +482,12 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
       throw httpError(400, "Return transport not found");
     }
 
+    const otherReturns = await Return.find({
+      packageId: returnRecord.packageId._id,
+      _id: { $ne: returnRecord._id || returnId },
+    }).session(session);
+    const returnState = buildReturnAllocationState(otherReturns);
+
     // Update transport status
     const transport = returnRecord.transportId;
     transport.status = 'delivered';
@@ -396,8 +510,11 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
 
       const disposition = normalizeDisposition(returnedItem.disposition, returnRecord.returnReason);
       returnedItem.disposition = disposition;
-      const packageItemIds = (originalItem.itemIds || []).map(normalizeId);
+      const packageItemIds = getAllocationItemIds(originalItem);
+      const availablePackageItemIds = getAvailablePackageItemIds(originalItem, returnState);
+      const remainingQuantity = getRemainingReturnQuantity(originalItem, returnState);
       const hasExplicitItemIds = Array.isArray(returnedItem.itemIds) && returnedItem.itemIds.length > 0;
+      const quantity = Number(returnedItem.quantity) || 0;
 
       if (requiresExplicitItemIds(returnRecord.returnReason, disposition) && !hasExplicitItemIds) {
         const itemIdReason = nonRestockDispositions.has(disposition)
@@ -408,22 +525,46 @@ export const processReturn = catchAsyncErrors(async (req, res) => {
           `Returned item IDs are required for ${formatDisposition(itemIdReason)} returns for product: ${returnedItem.productId}`
         );
       }
-      if (hasExplicitItemIds && returnedItem.itemIds.length !== returnedItem.quantity) {
+
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > remainingQuantity) {
+        throw httpError(400, `Return quantity exceeds remaining returnable quantity for product: ${returnedItem.productId}`);
+      }
+
+      if (hasExplicitItemIds && returnedItem.itemIds.length !== quantity) {
         throw httpError(400, `Return item IDs do not match quantity for product: ${returnedItem.productId}`);
       }
 
       const itemsToUpdate = hasExplicitItemIds
-        ? returnedItem.itemIds.slice(0, returnedItem.quantity).map(normalizeId)
-        : packageItemIds.slice(0, returnedItem.quantity);
+        ? returnedItem.itemIds.slice(0, quantity).map(normalizeId).filter(Boolean)
+        : packageItemIds.length > 0
+          ? availablePackageItemIds.slice(0, quantity)
+          : [];
 
-      if (itemsToUpdate.length < returnedItem.quantity) {
+      if (itemsToUpdate.length < quantity) {
         throw httpError(400, `Return item IDs do not match quantity for product: ${returnedItem.productId}`);
+      }
+
+      if (new Set(itemsToUpdate).size !== itemsToUpdate.length) {
+        throw httpError(400, "Duplicate returned item IDs are not allowed.");
       }
 
       const hasUnknownItem = itemsToUpdate.some((itemId) => !packageItemIds.includes(itemId));
       if (hasUnknownItem) {
         throw httpError(400, `Returned item does not belong to original package: ${returnedItem.productId}`);
       }
+
+      const hasAlreadyReturnedItem = itemsToUpdate.some((itemId) => !availablePackageItemIds.includes(itemId));
+      if (hasAlreadyReturnedItem) {
+        throw httpError(409, "Returned item has already been returned.");
+      }
+
+      returnedItem.itemIds = itemsToUpdate;
+      recordReturnedItemInState(returnState, {
+        productId: returnedItem.productId,
+        batchId: returnedItem.batchId,
+        quantity,
+        itemIds: itemsToUpdate,
+      });
 
       const isRestockDisposition = disposition === 'restock';
       const itemStatus = isRestockDisposition ? 'in_stock' : 'damaged';

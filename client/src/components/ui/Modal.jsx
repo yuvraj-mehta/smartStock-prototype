@@ -14,7 +14,7 @@
  * @param {string} [props.className=''] - Additional CSS classes
  * @returns {React.ReactElement|null} The modal component
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 import Button from './Button';
@@ -31,6 +31,8 @@ const Modal = ({
 }) => {
   const modalRef = useRef(null);
   const previousActiveElement = useRef(null);
+  const previousBodyOverflow = useRef('');
+  const titleId = useId();
 
   const sizeClasses = {
     small: 'max-w-sm',
@@ -47,28 +49,24 @@ const Modal = ({
 
   useEffect(() => {
     if (isOpen) {
-      // Store the previously focused element
       previousActiveElement.current = document.activeElement;
+      previousBodyOverflow.current = document.body.style.overflow;
 
-      // Focus the modal
-      if (modalRef.current) {
-        modalRef.current.focus();
-      }
+      const focusableElements = getFocusableElements(modalRef.current);
+      const focusTarget = focusableElements[0] || modalRef.current;
+      focusTarget?.focus();
 
-      // Prevent body scroll
       document.body.style.overflow = 'hidden';
     } else {
-      // Restore body scroll
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = previousBodyOverflow.current;
 
-      // Restore focus to previously active element
-      if (previousActiveElement.current) {
+      if (previousActiveElement.current instanceof HTMLElement) {
         previousActiveElement.current.focus();
       }
     }
 
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = previousBodyOverflow.current;
     };
   }, [isOpen]);
 
@@ -96,12 +94,9 @@ const Modal = ({
 
   const handleKeyDown = (e) => {
     if (e.key === 'Tab') {
-      // Handle tab navigation within modal
-      const focusableElements = modalRef.current?.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
+      const focusableElements = getFocusableElements(modalRef.current);
 
-      if (focusableElements && focusableElements.length > 0) {
+      if (focusableElements.length > 0) {
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
 
@@ -112,6 +107,9 @@ const Modal = ({
           e.preventDefault();
           firstElement.focus();
         }
+      } else {
+        e.preventDefault();
+        modalRef.current?.focus();
       }
     }
   };
@@ -120,17 +118,18 @@ const Modal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4"
       onClick={handleOverlayClick}
       aria-modal="true"
       role="dialog"
-      aria-labelledby={title ? 'modal-title' : undefined}
+      aria-labelledby={title ? titleId : undefined}
+      aria-label={title ? undefined : 'Dialog'}
     >
       <div
         ref={modalRef}
         className={`
           relative w-full ${sizeClasses[size]} max-h-[90vh] 
-          bg-white rounded-lg shadow-xl overflow-hidden
+          overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl
           ${className}
         `}
         onClick={(e) => e.stopPropagation()}
@@ -139,15 +138,15 @@ const Modal = ({
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 id="modal-title" className="text-xl font-semibold text-gray-900">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <h2 id={titleId} className="text-base font-semibold text-slate-950">
               {title}
             </h2>
             <Button
               variant="ghost"
               size="small"
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full"
+              className="h-8 w-8 p-0"
               aria-label="Close modal"
             >
               <X className="w-4 h-4" />
@@ -156,13 +155,26 @@ const Modal = ({
         )}
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="max-h-[70vh] overflow-y-auto p-5">
           {children}
         </div>
       </div>
     </div>
   );
 };
+
+const getFocusableElements = (container) => (
+  Array.from(container?.querySelectorAll(
+    [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', '),
+  ) || [])
+);
 
 Modal.propTypes = {
   isOpen: PropTypes.bool.isRequired,

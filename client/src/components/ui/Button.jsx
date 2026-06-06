@@ -32,22 +32,22 @@ const Button = ({
   iconPosition = 'left',
   ...props
 }) => {
-  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+  const baseClasses = 'inline-flex items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap text-center transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
   const variantClasses = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500',
-    secondary: 'bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-500',
-    outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50 focus:ring-blue-500',
-    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
-    danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
-    success: 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500',
-    warning: 'bg-yellow-600 hover:bg-yellow-700 text-white focus:ring-yellow-500',
+    primary: 'bg-blue-600 text-white shadow-sm hover:bg-blue-700',
+    secondary: 'bg-slate-700 text-white shadow-sm hover:bg-slate-800',
+    outline: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950',
+    ghost: 'text-slate-700 hover:bg-slate-100 hover:text-slate-950',
+    danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700 focus:ring-red-500',
+    success: 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus:ring-emerald-500',
+    warning: 'bg-amber-100 text-amber-950 shadow-sm ring-1 ring-amber-300 hover:bg-amber-200 focus:ring-amber-500',
   };
 
   const sizeClasses = {
-    small: 'px-3 py-1.5 text-sm',
-    medium: 'px-4 py-2 text-sm',
-    large: 'px-6 py-3 text-base',
+    small: 'min-h-8 px-3 py-1.5 text-sm',
+    medium: 'min-h-10 px-4 py-2 text-sm',
+    large: 'min-h-11 px-5 py-2.5 text-base',
   };
 
   const isDisabled = disabled || loading;
@@ -80,18 +80,17 @@ const Button = ({
         <LoadingSpinner
           size="small"
           color="white"
-          className="mr-2"
         />
       )}
 
       {!loading && icon && iconPosition === 'left' && (
-        <span className="mr-2">{icon}</span>
+        <span className="shrink-0">{icon}</span>
       )}
 
       {children}
 
       {!loading && icon && iconPosition === 'right' && (
-        <span className="ml-2">{icon}</span>
+        <span className="shrink-0">{icon}</span>
       )}
     </button>
   );

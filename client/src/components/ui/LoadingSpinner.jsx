@@ -27,6 +27,8 @@ const LoadingSpinner = ({
   const colorClasses = {
     blue: 'border-blue-600',
     gray: 'border-gray-600',
+    slate: 'border-slate-600',
+    white: 'border-white',
     green: 'border-green-600',
     red: 'border-red-600',
     yellow: 'border-yellow-600',
@@ -60,7 +62,7 @@ const LoadingSpinner = ({
 
 LoadingSpinner.propTypes = {
   size: PropTypes.oneOf(['small', 'medium', 'large']),
-  color: PropTypes.oneOf(['blue', 'gray', 'green', 'red', 'yellow']),
+  color: PropTypes.oneOf(['blue', 'gray', 'slate', 'white', 'green', 'red', 'yellow']),
   className: PropTypes.string,
   text: PropTypes.string,
 };

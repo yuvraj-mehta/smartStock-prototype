@@ -10,6 +10,11 @@ import {
 } from '@heroicons/react/24/outline';
 import { inventoryAPI } from '../../services/api';
 
+const DEFAULT_THRESHOLD_SETTINGS = {
+  lowStockThreshold: 10,
+  criticalStockThreshold: 5,
+};
+
 const getApiErrorMessage = (error, fallback) => (
   error.response?.data?.message || error.message || fallback
 );
@@ -19,26 +24,42 @@ const getQuantity = (value) => {
   return Number.isFinite(quantity) ? quantity : 0;
 };
 
-const buildStockAlerts = (inventoryItems) => {
+const normalizeStockPolicy = (settings = DEFAULT_THRESHOLD_SETTINGS) => {
+  const lowThreshold = Number(settings.lowStockThreshold);
+  const criticalThreshold = Number(settings.criticalStockThreshold);
+
+  return {
+    lowStockThreshold: Number.isFinite(lowThreshold) && lowThreshold >= 0
+      ? lowThreshold
+      : DEFAULT_THRESHOLD_SETTINGS.lowStockThreshold,
+    criticalStockThreshold: Number.isFinite(criticalThreshold) && criticalThreshold >= 0
+      ? criticalThreshold
+      : DEFAULT_THRESHOLD_SETTINGS.criticalStockThreshold,
+  };
+};
+
+const buildStockAlerts = (inventoryItems, thresholdSettings) => {
   const generatedAlerts = [];
   const now = new Date();
+  const stockPolicy = normalizeStockPolicy(thresholdSettings);
 
   inventoryItems.forEach(productItem => {
     const product = productItem.product || {};
     const totalQuantity = getQuantity(productItem.totalQuantity);
+    const isCriticalStock = totalQuantity <= stockPolicy.criticalStockThreshold;
 
     // Low stock alert
-    if (totalQuantity <= 10) {
+    if (totalQuantity <= stockPolicy.lowStockThreshold) {
       generatedAlerts.push({
         id: `low-${product._id}`,
-        type: totalQuantity <= 5 ? 'critical' : 'low',
+        type: isCriticalStock ? 'critical' : 'low',
         title: `Low Stock Alert: ${product.productName || 'Unknown Product'}`,
-        message: `Only ${totalQuantity} units remaining`,
+        message: `Only ${totalQuantity} units remaining. Local threshold: ${isCriticalStock ? stockPolicy.criticalStockThreshold : stockPolicy.lowStockThreshold} units.`,
         timestamp: now,
         productId: product._id,
-        severity: totalQuantity <= 5 ? 'critical' : 'warning',
-        icon: totalQuantity <= 5 ? ExclamationTriangleIcon : ArrowTrendingDownIcon,
-        action: 'Reorder immediately',
+        severity: isCriticalStock ? 'critical' : 'warning',
+        icon: isCriticalStock ? ExclamationTriangleIcon : ArrowTrendingDownIcon,
+        action: isCriticalStock ? 'Reorder immediately' : 'Review replenishment plan',
       });
     }
 
@@ -99,7 +120,7 @@ const buildStockAlerts = (inventoryItems) => {
   ));
 };
 
-const StockAlerts = () => {
+const StockAlerts = ({ thresholdSettings = DEFAULT_THRESHOLD_SETTINGS }) => {
   const [inventoryItems, setInventoryItems] = useState([]);
   const [dismissedAlertIds, setDismissedAlertIds] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
@@ -126,7 +147,14 @@ const StockAlerts = () => {
     fetchStockAlerts();
   }, [fetchStockAlerts]);
 
-  const allAlerts = useMemo(() => buildStockAlerts(inventoryItems), [inventoryItems]);
+  const stockPolicy = useMemo(
+    () => normalizeStockPolicy(thresholdSettings),
+    [thresholdSettings],
+  );
+  const allAlerts = useMemo(
+    () => buildStockAlerts(inventoryItems, stockPolicy),
+    [inventoryItems, stockPolicy],
+  );
   const alerts = useMemo(() => (
     allAlerts.filter(alert => !dismissedAlertIds.has(alert.id))
   ), [allAlerts, dismissedAlertIds]);
@@ -175,28 +203,37 @@ const StockAlerts = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <BellIcon className="w-8 h-8 text-red-600" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="rounded-md bg-rose-50 p-2 text-rose-600">
+            <BellIcon className="h-6 w-6" />
+          </span>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Stock Alerts</h1>
-            <p className="text-gray-600">Monitor critical inventory levels and expiry dates</p>
+            <h1 className="text-2xl font-bold text-slate-950">Stock Alerts</h1>
+            <p className="text-sm text-slate-600">Monitor critical inventory levels and expiry dates.</p>
           </div>
         </div>
 
         <button
           onClick={fetchStockAlerts}
           disabled={loading}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+          className="flex w-fit items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
         >
           <BellIcon className="w-4 h-4" />
           <span>Refresh Alerts</span>
         </button>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+      <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+        <div className="font-semibold text-blue-900">Local alert policy is active</div>
+        <p className="mt-1">
+          Stock alerts use the AI Assistant threshold settings stored in this browser:
+          {' '}critical at {stockPolicy.criticalStockThreshold} units and low stock at {stockPolicy.lowStockThreshold} units.
+          Expiry and overstock rules still use the built-in demo rules.
+        </p>
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
         {[
           { key: 'all', label: 'All Alerts', count: alertCounts.all },
           { key: 'critical', label: 'Critical', count: alertCounts.critical },
@@ -206,14 +243,14 @@ const StockAlerts = () => {
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className={`flex-1 flex items-center justify-center space-x-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${filter === tab.key
-              ? 'bg-white text-blue-600 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
+            className={`flex min-w-fit flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${filter === tab.key
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
               }`}
           >
             <span>{tab.label}</span>
             {tab.count > 0 && (
-              <span className={`px-2 py-0.5 rounded-full text-xs ${filter === tab.key ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-600'
+              <span className={`rounded-full px-2 py-0.5 text-xs ${filter === tab.key ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'
                 }`}>
                 {tab.count}
               </span>
@@ -222,32 +259,29 @@ const StockAlerts = () => {
         ))}
       </div>
 
-      {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
           <div className="flex items-center">
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-2" />
-            <p className="text-red-800">{error}</p>
+            <ExclamationTriangleIcon className="mr-2 h-5 w-5 text-rose-600" />
+            <p className="text-rose-800">{error}</p>
           </div>
         </div>
       )}
 
-      {/* Loading State */}
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Loading alerts...</span>
+        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-12 shadow-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-slate-600">Loading alerts...</span>
         </div>
       )}
 
-      {/* Alerts List */}
       {!loading && (
         <div className="space-y-4">
           {filteredAlerts.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="rounded-lg border border-slate-200 bg-white py-12 text-center shadow-sm">
               <CheckCircleIcon className="w-16 h-16 text-green-600 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Alerts</h3>
-              <p className="text-gray-600">
+              <h3 className="mb-2 text-lg font-semibold text-slate-950">No Active Alerts</h3>
+              <p className="text-slate-600">
                 {filter === 'all'
                   ? 'Great! All your inventory levels are within normal ranges.'
                   : `No ${filter} alerts at this time.`
@@ -260,16 +294,16 @@ const StockAlerts = () => {
               return (
                 <div
                   key={alert.id}
-                  className={`border rounded-lg p-4 ${getSeverityColor(alert.severity)}`}
+                  className={`rounded-lg border p-4 shadow-sm ${getSeverityColor(alert.severity)}`}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start gap-3">
                       <IconComponent className={`w-6 h-6 mt-0.5 ${getSeverityIcon(alert.severity)}`} />
                       <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">{alert.title}</h3>
-                        <p className="text-gray-600 mt-1">{alert.message}</p>
-                        <div className="flex items-center space-x-4 mt-2">
-                          <span className="text-sm text-gray-500">
+                        <h3 className="text-lg font-semibold text-slate-950">{alert.title}</h3>
+                        <p className="mt-1 text-slate-600">{alert.message}</p>
+                        <div className="mt-2 flex items-center gap-4">
+                          <span className="text-sm text-slate-500">
                             {alert.timestamp.toLocaleString()}
                           </span>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${alert.severity === 'critical' ? 'bg-red-100 text-red-800' :
@@ -281,7 +315,7 @@ const StockAlerts = () => {
                         </div>
                         {alert.action && (
                           <div className="mt-3">
-                            <span className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700">
+                            <span className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700">
                               Recommended: {alert.action}
                             </span>
                           </div>
@@ -290,7 +324,7 @@ const StockAlerts = () => {
                     </div>
                     <button
                       onClick={() => dismissAlert(alert.id)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-slate-400 hover:text-slate-600"
                     >
                       <XMarkIcon className="w-5 h-5" />
                     </button>
@@ -302,34 +336,33 @@ const StockAlerts = () => {
         </div>
       )}
 
-      {/* Summary Statistics */}
       {!loading && alerts.length > 0 && (
-        <div className="bg-white rounded-lg shadow border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Alert Summary</h3>
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-4 text-lg font-semibold text-slate-950">Alert Summary</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
                 {alertCounts.critical}
               </div>
-              <div className="text-sm text-gray-600">Critical Alerts</div>
+              <div className="text-sm text-slate-600">Critical Alerts</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-yellow-600">
                 {alertCounts.warning}
               </div>
-              <div className="text-sm text-gray-600">Warning Alerts</div>
+              <div className="text-sm text-slate-600">Warning Alerts</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {alertCounts.low}
               </div>
-              <div className="text-sm text-gray-600">Low Stock Items</div>
+              <div className="text-sm text-slate-600">Low Stock Items</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
                 {alertCounts.expired}
               </div>
-              <div className="text-sm text-gray-600">Expiry Issues</div>
+              <div className="text-sm text-slate-600">Expiry Issues</div>
             </div>
           </div>
         </div>

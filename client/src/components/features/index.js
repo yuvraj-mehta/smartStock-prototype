@@ -13,7 +13,3 @@ export * from './user-management';
 export * from './product-management';
 export * from './profile';
 export * from './external-user-management';
-export * from './returns-management';
-export * from './order-management';
-export * from './package-management';
-export * from './transport-management';

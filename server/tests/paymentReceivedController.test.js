@@ -30,6 +30,7 @@ const PaymentReceived = jest.fn(function PaymentReceived(attrs) {
   this.save = paymentInstance.save;
 });
 PaymentReceived.aggregate = jest.fn();
+PaymentReceived.find = jest.fn();
 PaymentReceived.findById = jest.fn();
 PaymentReceived.findByIdAndUpdate = jest.fn();
 PaymentReceived.findByIdAndDelete = jest.fn();
@@ -43,6 +44,7 @@ const SalesInvoice = {
   find: jest.fn(),
   findById: jest.fn(),
   findByIdAndUpdate: jest.fn(),
+  updateOne: jest.fn(),
 };
 
 const SalesOrder = {
@@ -51,12 +53,23 @@ const SalesOrder = {
   findByIdAndUpdate: jest.fn(),
 };
 
+const Order = {
+  findById: jest.fn(),
+  updateOne: jest.fn(),
+};
+
+const FinancialEvent = {
+  find: jest.fn(),
+};
+
 const recordCustomerPaymentEvent = jest.fn();
 const reverseUnreversedFinancialEventsForSource = jest.fn();
 
 jest.unstable_mockModule('mongoose', () => ({ default: mongooseMock }));
 jest.unstable_mockModule('../models/index.js', () => ({
   Batch,
+  FinancialEvent,
+  Order,
   PaymentReceived,
   SalesInvoice,
   SalesOrder,
@@ -96,6 +109,25 @@ const buildAggregate = (value) => ({
   session: jest.fn().mockResolvedValue(value),
 });
 
+const buildTransientTransactionError = () => {
+  const error = new Error('WriteConflict');
+  error.hasErrorLabel = jest.fn((label) => label === 'TransientTransactionError');
+  return error;
+};
+
+const retryTransientTransactionOnce = () => {
+  session.withTransaction.mockImplementationOnce(async (callback) => {
+    try {
+      return await callback();
+    } catch (error) {
+      if (error.hasErrorLabel?.('TransientTransactionError')) {
+        return callback();
+      }
+      throw error;
+    }
+  });
+};
+
 const buildDistinctQuery = (value) => ({
   distinct: jest.fn().mockResolvedValue(value),
 });
@@ -105,6 +137,7 @@ const PAYMENT_RECEIVED_ID = '507f1f77bcf86cd799439012';
 const SALES_ORDER_ID = '507f1f77bcf86cd799439013';
 const USER_ID = '507f1f77bcf86cd799439014';
 const WAREHOUSE_ID = '507f1f77bcf86cd799439015';
+const ORDER_ID = '507f1f77bcf86cd799439018';
 const PAYMENT_DATE = '2026-01-01T00:00:00.000Z';
 
 const buildInvoice = (overrides = {}) => ({
@@ -126,6 +159,16 @@ const buildPayment = (overrides = {}) => ({
   ...overrides,
 });
 
+const buildOrderPayment = (overrides = {}) => ({
+  _id: PAYMENT_RECEIVED_ID,
+  orderId: ORDER_ID,
+  amount: 30,
+  date: PAYMENT_DATE,
+  method: 'cash',
+  status: 'completed',
+  ...overrides,
+});
+
 const buildSalesOrder = (overrides = {}) => ({
   _id: SALES_ORDER_ID,
   fulfilledItems: [
@@ -135,6 +178,22 @@ const buildSalesOrder = (overrides = {}) => ({
       quantity: 1,
     },
   ],
+  ...overrides,
+});
+
+const buildOrder = (overrides = {}) => ({
+  _id: ORDER_ID,
+  orderStatus: 'sale_confirmed',
+  ...overrides,
+});
+
+const buildOrderReceivableEvent = (overrides = {}) => ({
+  _id: '507f1f77bcf86cd799439019',
+  eventType: 'sales_invoice',
+  referenceType: 'Order',
+  referenceId: ORDER_ID,
+  warehouseId: WAREHOUSE_ID,
+  amount: 100,
   ...overrides,
 });
 
@@ -174,10 +233,14 @@ describe('payment received controller', () => {
     reverseUnreversedFinancialEventsForSource.mockResolvedValue([]);
     Batch.countDocuments.mockReturnValue(buildQuery(1));
     Batch.find.mockReturnValue(buildDistinctQuery(['507f1f77bcf86cd799439016']));
+    FinancialEvent.find.mockReturnValue(buildQuery([buildOrderReceivableEvent()]));
+    Order.findById.mockReturnValue(buildQuery(buildOrder()));
+    Order.updateOne.mockResolvedValue({ matchedCount: 1 });
     SalesInvoice.find.mockReturnValue(buildDistinctQuery([SALES_INVOICE_ID]));
     SalesInvoice.findById.mockReturnValue(buildQuery(buildInvoice()));
     SalesOrder.find.mockReturnValue(buildDistinctQuery([SALES_ORDER_ID]));
     SalesOrder.findById.mockReturnValue(buildQuery(buildSalesOrder()));
+    SalesInvoice.updateOne.mockResolvedValue({ matchedCount: 1 });
   });
 
   it('rejects completed received payments that overpay a sales invoice', async () => {
@@ -263,6 +326,7 @@ describe('payment received controller', () => {
     expect(recordCustomerPaymentEvent).toHaveBeenCalledWith({
       amount: 30,
       salesInvoiceId: SALES_INVOICE_ID,
+      orderId: undefined,
       paymentReceivedId: PAYMENT_RECEIVED_ID,
       warehouseId: WAREHOUSE_ID,
       occurredAt: PAYMENT_DATE,
@@ -270,6 +334,103 @@ describe('payment received controller', () => {
       session,
     });
     expect(reverseUnreversedFinancialEventsForSource).not.toHaveBeenCalled();
+  });
+
+  it('records a customer payment financial event for completed canonical order receipts', async () => {
+    PaymentReceived.aggregate.mockReturnValue(buildAggregate([]));
+
+    const res = await invokeJsonController(paymentReceivedController.createPaymentReceived, {
+      user: { _id: USER_ID, assignedWarehouseId: WAREHOUSE_ID },
+      body: {
+        orderId: ORDER_ID,
+        amount: 30,
+        date: PAYMENT_DATE,
+        method: 'bank',
+        status: 'completed',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(Order.findById).toHaveBeenCalledWith(ORDER_ID);
+    expect(FinancialEvent.find).toHaveBeenCalledWith({
+      eventType: 'sales_invoice',
+      referenceType: 'Order',
+      referenceId: expect.any(ObjectId),
+      warehouseId: expect.any(ObjectId),
+    });
+    expect(PaymentReceived).toHaveBeenCalledWith({
+      salesInvoiceId: undefined,
+      orderId: ORDER_ID,
+      amount: 30,
+      date: PAYMENT_DATE,
+      method: 'bank',
+      status: 'completed',
+    });
+    expect(SalesInvoice.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(SalesOrder.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(recordCustomerPaymentEvent).toHaveBeenCalledWith({
+      amount: 30,
+      salesInvoiceId: undefined,
+      orderId: ORDER_ID,
+      paymentReceivedId: PAYMENT_RECEIVED_ID,
+      warehouseId: WAREHOUSE_ID,
+      occurredAt: PAYMENT_DATE,
+      actorId: USER_ID,
+      session,
+    });
+  });
+
+  it('rejects completed received payments that overpay a canonical order receivable', async () => {
+    FinancialEvent.find.mockReturnValue(buildQuery([buildOrderReceivableEvent({ amount: 100 })]));
+    PaymentReceived.aggregate.mockReturnValue(buildAggregate([{ paidAmount: 80 }]));
+
+    await expect(invokeJsonController(paymentReceivedController.createPaymentReceived, {
+      user: { assignedWarehouseId: WAREHOUSE_ID },
+      body: {
+        orderId: ORDER_ID,
+        amount: 30,
+        date: PAYMENT_DATE,
+        method: 'cash',
+        status: 'completed',
+      },
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Payment received exceeds the canonical order receivable amount.',
+    });
+
+    expect(PaymentReceived).not.toHaveBeenCalled();
+    expect(recordCustomerPaymentEvent).not.toHaveBeenCalled();
+    expect(reverseUnreversedFinancialEventsForSource).not.toHaveBeenCalled();
+  });
+
+  it('revalidates canonical order receipts after a concurrent target write', async () => {
+    retryTransientTransactionOnce();
+    Order.updateOne
+      .mockRejectedValueOnce(buildTransientTransactionError())
+      .mockResolvedValueOnce({ matchedCount: 1 });
+    FinancialEvent.find.mockReturnValue(buildQuery([buildOrderReceivableEvent({ amount: 100 })]));
+    PaymentReceived.aggregate.mockReturnValueOnce(buildAggregate([{ paidAmount: 80 }]));
+
+    await expect(invokeJsonController(paymentReceivedController.createPaymentReceived, {
+      user: { assignedWarehouseId: WAREHOUSE_ID },
+      body: {
+        orderId: ORDER_ID,
+        amount: 30,
+        date: PAYMENT_DATE,
+        method: 'cash',
+        status: 'completed',
+      },
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Payment received exceeds the canonical order receivable amount.',
+    });
+
+    expect(Order.updateOne).toHaveBeenCalledTimes(2);
+    expect(PaymentReceived.aggregate).toHaveBeenCalledTimes(1);
+    expect(Order.updateOne.mock.invocationCallOrder[1])
+      .toBeLessThan(PaymentReceived.aggregate.mock.invocationCallOrder[0]);
+    expect(PaymentReceived).not.toHaveBeenCalled();
+    expect(recordCustomerPaymentEvent).not.toHaveBeenCalled();
   });
 
   it('does not record a customer payment financial event for pending received payments', async () => {
@@ -364,12 +525,42 @@ describe('payment received controller', () => {
     expect(recordCustomerPaymentEvent).toHaveBeenCalledWith({
       amount: 80,
       salesInvoiceId: '507f1f77bcf86cd799439011',
+      orderId: undefined,
       paymentReceivedId: '507f1f77bcf86cd799439012',
       warehouseId: WAREHOUSE_ID,
       occurredAt: undefined,
       actorId: undefined,
       session,
     });
+  });
+
+  it('revalidates payment updates after a concurrent invoice write', async () => {
+    retryTransientTransactionOnce();
+    PaymentReceived.findById.mockReturnValue(buildQuery({
+      _id: PAYMENT_RECEIVED_ID,
+      salesInvoiceId: SALES_INVOICE_ID,
+      amount: 30,
+      status: 'pending',
+    }));
+    SalesInvoice.updateOne
+      .mockRejectedValueOnce(buildTransientTransactionError())
+      .mockResolvedValueOnce({ matchedCount: 1 });
+    PaymentReceived.aggregate.mockReturnValueOnce(buildAggregate([{ paidAmount: 80 }]));
+
+    await expect(invokeJsonController(paymentReceivedController.updatePaymentReceived, {
+      params: { id: PAYMENT_RECEIVED_ID },
+      body: { status: 'completed' },
+    })).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Payment received exceeds the sales invoice amount.',
+    });
+
+    expect(SalesInvoice.updateOne).toHaveBeenCalledTimes(2);
+    expect(PaymentReceived.aggregate).toHaveBeenCalledTimes(1);
+    expect(SalesInvoice.updateOne.mock.invocationCallOrder[1])
+      .toBeLessThan(PaymentReceived.aggregate.mock.invocationCallOrder[0]);
+    expect(PaymentReceived.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(recordCustomerPaymentEvent).not.toHaveBeenCalled();
   });
 
   it('reverses the customer payment event when a completed receipt is deleted', async () => {
@@ -385,6 +576,13 @@ describe('payment received controller', () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(SalesInvoice.updateOne).toHaveBeenCalledWith(
+      { _id: expect.any(ObjectId) },
+      { $set: { updatedAt: expect.any(Date) } },
+      { session, timestamps: false },
+    );
+    expect(SalesInvoice.updateOne.mock.invocationCallOrder[0])
+      .toBeLessThan(PaymentReceived.findByIdAndDelete.mock.invocationCallOrder[0]);
     expect(reverseUnreversedFinancialEventsForSource).toHaveBeenCalledWith({
       eventType: 'customer_payment',
       sourceModel: 'PaymentReceived',

@@ -142,6 +142,10 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
       throw httpError(403, "Not authorized to update this transport");
     }
 
+    if (transport.transportType === "reverse") {
+      throw httpError(400, "Reverse transports must be updated through the return lifecycle.");
+    }
+
     const previousStatus = transport.status;
     const previousIndex = TRANSPORT_STATUS_SEQUENCE.indexOf(previousStatus);
     const nextIndex = TRANSPORT_STATUS_SEQUENCE.indexOf(status);
@@ -154,9 +158,11 @@ export const updateTransportStatus = catchAsyncErrors(async (req, res) => {
     }
 
     const packageDoc = await Package.findById(transport.packageId).populate('orderId').session(session);
-    const batchWarehouseMap = packageDoc
-      ? await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session)
-      : new Map();
+    if (!packageDoc) {
+      throw httpError(404, "Package not found for this transport.");
+    }
+
+    const batchWarehouseMap = await ensurePackageWarehouseAccess(packageDoc, assignedWarehouseId, session);
 
     transport.status = status;
     if (notes) transport.notes = notes;

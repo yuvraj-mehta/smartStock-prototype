@@ -28,7 +28,9 @@ export const userAPI = {
   deleteUser: (userId) => api.delete(`/user/delete/${userId}`),
   createSupplier: (supplierData) => api.post('/user/create-supplier', supplierData),
   createTransporter: (transporterData) => api.post('/user/create-transporter', transporterData),
-  getAllExternalUsers: (role) => api.get(`/user/external/all${  role ? `?role=${role}` : ''}`),
+  getAllExternalUsers: (role) => api.get('/user/external/all', {
+    params: role ? { role } : undefined,
+  }),
   updateExternalUser: (userId, userData) => api.put(`/user/external/update/${userId}`, userData),
   deleteExternalUser: (userId) => api.delete(`/user/external/delete/${userId}`),
 };

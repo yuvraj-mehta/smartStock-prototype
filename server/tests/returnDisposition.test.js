@@ -135,11 +135,22 @@ describe('return disposition processing', () => {
 
   const Return = {
     findById: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn(),
   };
   const transitionItemsStatus = jest.fn();
   const Batch = {
+    find: jest.fn(),
     findById: jest.fn(),
   };
+  const Package = {
+    findById: jest.fn(),
+  };
+  const Transport = {
+    findOne: jest.fn(),
+  };
+  const logAudit = jest.fn();
 
   jest.unstable_mockModule('mongoose', () => ({
     default: {
@@ -154,9 +165,9 @@ describe('return disposition processing', () => {
 
   jest.unstable_mockModule('../models/index.js', () => ({
     Return,
-    Package: {},
+    Package,
     Batch,
-    Transport: {},
+    Transport,
     ExternalUser: {},
   }));
 
@@ -165,14 +176,23 @@ describe('return disposition processing', () => {
   }));
 
   jest.unstable_mockModule('../utils/auditLogger.js', () => ({
-    logAudit: jest.fn(),
+    logAudit,
   }));
 
   jest.unstable_mockModule('../middlewares/index.js', () => ({
     catchAsyncErrors: (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next),
   }));
 
+  let initiateReturn;
   let processReturn;
+
+  const PACKAGE_ID = '507f1f77bcf86cd799439011';
+  const ORDER_ID = '507f1f77bcf86cd799439016';
+  const PRODUCT_ID = '507f1f77bcf86cd799439012';
+  const BATCH_ID = '507f1f77bcf86cd799439013';
+  const ITEM_ID_1 = '507f1f77bcf86cd799439014';
+  const ITEM_ID_2 = '507f1f77bcf86cd799439017';
+  const WAREHOUSE_ID = '507f1f77bcf86cd799439015';
 
   const makeQuery = (value) => ({
     populate: jest.fn().mockReturnThis(),
@@ -180,8 +200,60 @@ describe('return disposition processing', () => {
     session: jest.fn().mockResolvedValue(value),
   });
 
-  const invokeProcessReturn = async (returnRecord) => {
+  const invokeInitiateReturn = async ({ packageDoc, returnedItems, existingReturns = [] }) => {
+    Return.find.mockReturnValue(makeQuery(existingReturns));
+    Return.create.mockImplementation(async ([returnRecord]) => [{
+      _id: 'return-1',
+      ...returnRecord,
+    }]);
+    Package.findById.mockReturnValue(makeQuery(packageDoc));
+    Batch.find.mockReturnValue(makeQuery([
+      {
+        _id: { toString: () => BATCH_ID },
+        warehouseId: WAREHOUSE_ID,
+      },
+    ]));
+    Transport.findOne.mockReturnValue(makeQuery({
+      deliveredAt: new Date(),
+    }));
+
+    const req = {
+      body: {
+        packageId: PACKAGE_ID,
+        returnReason: 'customer_request',
+        returnedItems,
+      },
+      user: {
+        _id: 'user-1',
+        assignedWarehouseId: WAREHOUSE_ID,
+      },
+    };
+    const res = {
+      statusCode: 200,
+      status: jest.fn((statusCode) => {
+        res.statusCode = statusCode;
+        return res;
+      }),
+      json: jest.fn((payload) => {
+        res.payload = payload;
+        return res;
+      }),
+    };
+
+    await new Promise((resolve, reject) => {
+      res.json.mockImplementation((payload) => {
+        res.payload = payload;
+        resolve();
+        return res;
+      });
+      initiateReturn(req, res, reject);
+    });
+    return res;
+  };
+
+  const invokeProcessReturn = async (returnRecord, otherReturns = []) => {
     Return.findById.mockReturnValue(makeQuery(returnRecord));
+    Return.find.mockReturnValue(makeQuery(otherReturns));
     transitionItemsStatus.mockResolvedValue({ modifiedCount: returnRecord.returnedItems[0].quantity });
     Batch.findById.mockReturnValue(makeQuery({ unitCost: 25 }));
 
@@ -229,6 +301,7 @@ describe('return disposition processing', () => {
     }
 
     return {
+      _id: 'return-1',
       returnStatus: 'picked_up',
       returnReason,
       warehouseId: '507f1f77bcf86cd799439015',
@@ -252,13 +325,213 @@ describe('return disposition processing', () => {
     };
   };
 
+  const buildDeliveredPackage = () => ({
+    _id: PACKAGE_ID,
+    packageStatus: 'delivered',
+    allocatedItems: [
+      {
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 2,
+        itemIds: [ITEM_ID_1, ITEM_ID_2],
+      },
+    ],
+    orderId: {
+      _id: ORDER_ID,
+      orderNumber: 'ORD-1',
+      orderStatus: 'delivered',
+      save: jest.fn().mockResolvedValue({}),
+    },
+    save: jest.fn().mockResolvedValue({}),
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     Object.values(session).forEach((mock) => mock.mockClear());
   });
 
   beforeAll(async () => {
-    ({ processReturn } = await import('../controllers/return.controller.js'));
+    ({ initiateReturn, processReturn } = await import('../controllers/return.controller.js'));
+  });
+
+  it('keeps package and order delivered when a return covers only part of the delivered allocation', async () => {
+    const packageDoc = buildDeliveredPackage();
+
+    const res = await invokeInitiateReturn({
+      packageDoc,
+      returnedItems: [{
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 1,
+        itemIds: [ITEM_ID_1],
+      }],
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(packageDoc.packageStatus).toBe('delivered');
+    expect(packageDoc.orderId.orderStatus).toBe('delivered');
+    expect(packageDoc.save).not.toHaveBeenCalled();
+    expect(packageDoc.orderId.save).not.toHaveBeenCalled();
+    expect(Return.create).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          packageId: PACKAGE_ID,
+          orderId: ORDER_ID,
+          returnedItems: [
+            expect.objectContaining({
+              productId: PRODUCT_ID,
+              batchId: BATCH_ID,
+              quantity: 1,
+              itemIds: [ITEM_ID_1],
+            }),
+          ],
+        }),
+      ],
+      { session },
+    );
+    expect(session.commitTransaction).toHaveBeenCalled();
+  });
+
+  it('adds inferred item IDs to restock partial returns when package item traceability exists', async () => {
+    const packageDoc = buildDeliveredPackage();
+
+    const res = await invokeInitiateReturn({
+      packageDoc,
+      returnedItems: [{
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 1,
+      }],
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(Return.create).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          returnedItems: [
+            expect.objectContaining({
+              quantity: 1,
+              itemIds: [ITEM_ID_1],
+            }),
+          ],
+        }),
+      ],
+      { session },
+    );
+  });
+
+  it('allows repeated partial returns for different remaining items and marks full coverage returned', async () => {
+    const packageDoc = buildDeliveredPackage();
+
+    const res = await invokeInitiateReturn({
+      packageDoc,
+      existingReturns: [{
+        returnedItems: [{
+          productId: PRODUCT_ID,
+          batchId: BATCH_ID,
+          quantity: 1,
+          itemIds: [ITEM_ID_1],
+        }],
+      }],
+      returnedItems: [{
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 1,
+      }],
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(Return.create).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          returnedItems: [
+            expect.objectContaining({
+              quantity: 1,
+              itemIds: [ITEM_ID_2],
+            }),
+          ],
+        }),
+      ],
+      { session },
+    );
+    expect(packageDoc.packageStatus).toBe('returned');
+    expect(packageDoc.orderId.orderStatus).toBe('returned');
+    expect(packageDoc.save).toHaveBeenCalledWith({ session });
+    expect(packageDoc.orderId.save).toHaveBeenCalledWith({ session });
+  });
+
+  it('rejects a repeated partial return for an item that was already returned', async () => {
+    const packageDoc = buildDeliveredPackage();
+
+    const res = await invokeInitiateReturn({
+      packageDoc,
+      existingReturns: [{
+        returnedItems: [{
+          productId: PRODUCT_ID,
+          batchId: BATCH_ID,
+          quantity: 1,
+          itemIds: [ITEM_ID_1],
+        }],
+      }],
+      returnedItems: [{
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 1,
+        itemIds: [ITEM_ID_1],
+      }],
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.payload.message).toBe('Returned item has already been returned.');
+    expect(Return.create).not.toHaveBeenCalled();
+    expect(session.abortTransaction).toHaveBeenCalled();
+  });
+
+  it('rejects repeated partial returns that exceed the remaining package quantity', async () => {
+    const packageDoc = buildDeliveredPackage();
+
+    const res = await invokeInitiateReturn({
+      packageDoc,
+      existingReturns: [{
+        returnedItems: [{
+          productId: PRODUCT_ID,
+          batchId: BATCH_ID,
+          quantity: 1,
+          itemIds: [ITEM_ID_1],
+        }],
+      }],
+      returnedItems: [{
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 2,
+      }],
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.payload.message).toBe(`Return quantity exceeds remaining returnable quantity for product: ${PRODUCT_ID}`);
+    expect(Return.create).not.toHaveBeenCalled();
+    expect(session.abortTransaction).toHaveBeenCalled();
+  });
+
+  it('marks package and order returned when the return covers the full delivered allocation', async () => {
+    const packageDoc = buildDeliveredPackage();
+
+    const res = await invokeInitiateReturn({
+      packageDoc,
+      returnedItems: [{
+        productId: PRODUCT_ID,
+        batchId: BATCH_ID,
+        quantity: 2,
+        itemIds: [ITEM_ID_1, ITEM_ID_2],
+      }],
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(packageDoc.packageStatus).toBe('returned');
+    expect(packageDoc.orderId.orderStatus).toBe('returned');
+    expect(packageDoc.save).toHaveBeenCalledWith({ session });
+    expect(packageDoc.orderId.save).toHaveBeenCalledWith({ session });
+    expect(session.commitTransaction).toHaveBeenCalled();
   });
 
   it('restocks returned items with restock disposition', async () => {
@@ -270,6 +543,30 @@ describe('return disposition processing', () => {
       toStatus: 'in_stock',
       movementType: 'return',
       historyAction: 'returned',
+      session,
+    }));
+  });
+
+  it('processes a legacy restock return without item IDs against remaining unreturned items', async () => {
+    const returnRecord = buildReturnRecord({ disposition: 'restock' });
+    returnRecord.returnedItems[0].itemIds = [];
+    returnRecord.packageId.allocatedItems[0].quantity = 2;
+    returnRecord.packageId.allocatedItems[0].itemIds = [ITEM_ID_1, ITEM_ID_2];
+
+    const res = await invokeProcessReturn(returnRecord, [{
+      returnedItems: [{
+        productId: '507f1f77bcf86cd799439012',
+        batchId: '507f1f77bcf86cd799439013',
+        quantity: 1,
+        itemIds: [ITEM_ID_1],
+      }],
+    }]);
+
+    expect(res.statusCode).toBe(200);
+    expect(returnRecord.returnedItems[0].itemIds).toEqual([ITEM_ID_2]);
+    expect(transitionItemsStatus).toHaveBeenCalledWith(expect.objectContaining({
+      itemIds: [ITEM_ID_2],
+      toStatus: 'in_stock',
       session,
     }));
   });

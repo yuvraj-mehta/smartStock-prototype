@@ -1,5 +1,6 @@
 import itemRouter from '../routes/item.route.js';
 import packageRouter from '../routes/package.route.js';
+import salesRouter from '../routes/sales.route.js';
 import transportRouter from '../routes/transport.route.js';
 
 const routePathsForMethod = (router, method) => router.stack
@@ -31,5 +32,11 @@ describe('route ordering contracts', () => {
     const paths = routePathsForMethod(transportRouter, 'get');
 
     expectBefore(paths, '/package/:packageId', '/:transportId');
+  });
+
+  it('keeps sales package lookup before the broad sales id route', () => {
+    const paths = routePathsForMethod(salesRouter, 'get');
+
+    expectBefore(paths, '/package/:packageId', '/:id');
   });
 });

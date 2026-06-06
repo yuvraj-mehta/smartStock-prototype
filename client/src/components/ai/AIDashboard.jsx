@@ -70,24 +70,24 @@ const AIDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <span className="ml-3 text-gray-600">Loading AI insights...</span>
+      <div className="flex min-h-96 items-center justify-center rounded-lg border border-slate-200 bg-white">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-slate-600">Loading AI insights...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-md p-4">
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
         <div className="flex">
-          <XCircleIcon className="h-5 w-5 text-red-400" />
+          <XCircleIcon className="h-5 w-5 text-rose-500" />
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-red-800">Error Loading AI Dashboard</h3>
-            <p className="mt-2 text-sm text-red-700">{error}</p>
+            <h3 className="text-sm font-semibold text-rose-800">Error Loading AI Dashboard</h3>
+            <p className="mt-2 text-sm text-rose-700">{error}</p>
             <button
               onClick={fetchDashboardData}
-              className="mt-3 bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700"
+              className="mt-3 rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
             >
               Retry
             </button>
@@ -99,83 +99,81 @@ const AIDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-3">
-          <CpuChipIcon className="w-8 h-8 text-blue-600" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="rounded-md bg-blue-50 p-2 text-blue-600">
+            <CpuChipIcon className="h-6 w-6" />
+          </span>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">AI Inventory Intelligence</h1>
-            <p className="text-gray-600">ChatGPT-powered insights and recommendations</p>
+            <h1 className="text-2xl font-bold text-slate-950">Inventory Intelligence</h1>
+            <p className="text-sm text-slate-600">Prioritized signals from forecast, alert, and cost-saving data.</p>
           </div>
         </div>
         <button
           onClick={refreshDashboard}
           disabled={refreshing}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+          className="flex w-fit items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
         >
-          <ArrowPathIcon className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <ArrowPathIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow border">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center">
             <ChartBarIcon className="w-8 h-8 text-blue-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Recommendations</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData?.summary?.totalRecommendations || 0}</p>
+              <p className="text-sm font-medium text-slate-500">Total Recommendations</p>
+              <p className="text-2xl font-bold text-slate-950">{dashboardData?.summary?.totalRecommendations || 0}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow border">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center">
             <ExclamationTriangleIcon className="w-8 h-8 text-red-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Critical Items</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData?.summary?.criticalItems || 0}</p>
+              <p className="text-sm font-medium text-slate-500">Critical Items</p>
+              <p className="text-2xl font-bold text-slate-950">{dashboardData?.summary?.criticalItems || 0}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow border">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center">
             <ArrowTrendingUpIcon className="w-8 h-8 text-green-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Active Forecasts</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData?.summary?.activeForecasts || 0}</p>
+              <p className="text-sm font-medium text-slate-500">Active Forecasts</p>
+              <p className="text-2xl font-bold text-slate-950">{dashboardData?.summary?.activeForecasts || 0}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow border">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center">
             <CheckCircleIcon className="w-8 h-8 text-yellow-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Cost Savings</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData?.summary?.costSavingOpportunities || 0}</p>
+              <p className="text-sm font-medium text-slate-500">Cost Savings</p>
+              <p className="text-2xl font-bold text-slate-950">{dashboardData?.summary?.costSavingOpportunities || 0}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* AI Insights Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Forecasts */}
-        <div className="bg-white rounded-lg shadow border">
-          <div className="px-6 py-4 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">Recent AI Forecasts</h3>
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-slate-950">Recent Forecasts</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               {dashboardData?.recentForecasts?.length > 0 ? (
                 dashboardData.recentForecasts.map((forecast) => (
-                  <div key={forecast.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md">
+                  <div key={forecast.id} className="flex items-center justify-between rounded-md border border-slate-100 bg-slate-50 p-3">
                     <div>
-                      <p className="font-medium text-gray-900">{forecast.productName}</p>
-                      <p className="text-sm text-gray-600">Forecast: {forecast.forecastQuantity} units</p>
+                      <p className="font-medium text-slate-950">{forecast.productName}</p>
+                      <p className="text-sm text-slate-600">Forecast: {forecast.forecastQuantity} units</p>
                     </div>
                     <div className="text-right">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${forecast.confidence > 80 ? 'bg-green-100 text-green-800' :
@@ -184,36 +182,35 @@ const AIDashboard = () => {
                         }`}>
                         {forecast.confidence}% confidence
                       </span>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="mt-1 text-xs text-slate-500">
                         {new Date(forecast.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-gray-500 text-center py-4">No recent forecasts available</p>
+                <p className="py-4 text-center text-slate-500">No recent forecasts available</p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Critical Alerts */}
-        <div className="bg-white rounded-lg shadow border">
-          <div className="px-6 py-4 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">Critical Alerts</h3>
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-slate-950">Critical Alerts</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               {dashboardData?.criticalAlerts?.length > 0 ? (
                 dashboardData.criticalAlerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-md">
+                  <div key={alert.id} className="flex items-start gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
                     <div className={`p-1 rounded-full ${getSeverityColor(alert.severity)}`}>
                       {getCategoryIcon(alert.category)}
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{alert.title}</p>
-                      <p className="text-sm text-gray-600 capitalize">{alert.category}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-medium text-slate-950">{alert.title}</p>
+                      <p className="text-sm text-slate-600 capitalize">{alert.category}</p>
+                      <p className="text-xs text-slate-500">
                         {new Date(alert.createdAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -223,25 +220,24 @@ const AIDashboard = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-gray-500 text-center py-4">No critical alerts</p>
+                <p className="py-4 text-center text-slate-500">No critical alerts</p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* AI Recommendations */}
       {dashboardData?.insights?.recommendations && (
-        <div className="bg-white rounded-lg shadow border">
-          <div className="px-6 py-4 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">AI Recommendations</h3>
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-slate-950">Recommendations</h3>
           </div>
           <div className="p-6">
             <div className="space-y-3">
               {dashboardData.insights.recommendations.map((recommendation, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 rounded-md">
+                <div key={index} className="flex items-start gap-3 rounded-md border border-blue-100 bg-blue-50 p-3">
                   <CheckCircleIcon className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <p className="text-gray-700">{recommendation}</p>
+                  <p className="text-slate-700">{recommendation}</p>
                 </div>
               ))}
             </div>
@@ -249,18 +245,17 @@ const AIDashboard = () => {
         </div>
       )}
 
-      {/* Cost Saving Opportunities */}
       {dashboardData?.insights?.costSavingOpportunities && dashboardData.insights.costSavingOpportunities.length > 0 && (
-        <div className="bg-white rounded-lg shadow border">
-          <div className="px-6 py-4 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">Cost Saving Opportunities</h3>
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-slate-950">Cost Saving Opportunities</h3>
           </div>
           <div className="p-6">
             <div className="space-y-3">
               {dashboardData.insights.costSavingOpportunities.map((opportunity, index) => (
-                <div key={index} className="flex items-start space-x-3 p-3 bg-green-50 rounded-md">
+                <div key={index} className="flex items-start gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-3">
                   <ArrowTrendingUpIcon className="w-5 h-5 text-green-600 mt-0.5" />
-                  <p className="text-gray-700">{opportunity}</p>
+                  <p className="text-slate-700">{opportunity}</p>
                 </div>
               ))}
             </div>
@@ -268,8 +263,7 @@ const AIDashboard = () => {
         </div>
       )}
 
-      {/* Last Updated */}
-      <div className="text-center text-sm text-gray-500">
+      <div className="text-center text-sm text-slate-500">
         Last updated: {dashboardData?.generatedAt ? new Date(dashboardData.generatedAt).toLocaleString() : 'Unknown'}
       </div>
     </div>

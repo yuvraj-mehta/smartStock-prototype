@@ -1,22 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../../app/slices/authSlice';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   BarChart3,
-  Package,
   Brain,
-  Users,
+  ChevronDown,
+  ClipboardList,
+  FileText,
   LogOut,
-  Truck,
-  Settings,
   Menu,
+  Package,
+  PackageSearch,
+  ReceiptText,
+  Undo2,
+  Settings,
+  Truck,
+  Users,
   X,
-  RotateCcw,
 } from 'lucide-react';
-import { ROUTES, USER_ROLES } from '../../constants';
-
-const INTERNAL_STAFF_ROLES = [USER_ROLES.ADMIN, USER_ROLES.STAFF];
+import { logout } from '../../app/slices/authSlice';
+import { ROLE_ACCESS, ROUTES, USER_ROLES } from '../../constants';
 
 const normalizeRole = (role) => (
   typeof role === 'string' ? role.trim().toLowerCase() : ''
@@ -24,111 +27,215 @@ const normalizeRole = (role) => (
 
 const hasAnyRole = (role, allowedRoles) => allowedRoles.includes(normalizeRole(role));
 
-const Navbar = () => {
+const getDisplayName = (user) => (
+  user?.fullName || user?.name || user?.email || 'Account'
+);
+
+const getInitials = (user) => {
+  const source = user?.fullName || user?.name || user?.email || 'SS';
+  return source
+    .split(/[.\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
+
+const formatRole = (role) => {
+  const normalized = normalizeRole(role);
+  const labels = {
+    [USER_ROLES.ADMIN]: 'Admin',
+    [USER_ROLES.STAFF]: 'Staff',
+    [USER_ROLES.VIEWER]: 'Viewer read-only',
+    [USER_ROLES.SUPPLIER]: 'External supplier',
+    [USER_ROLES.TRANSPORTER]: 'External transporter',
+  };
+
+  return labels[normalized] || 'User';
+};
+
+const getNavSections = (user) => {
+  const canUseStaffOperations = hasAnyRole(user?.role, ROLE_ACCESS.STAFF_WRITE);
+  const canViewCatalog = hasAnyRole(user?.role, ROLE_ACCESS.INTERNAL_READ);
+  const canUseAdminPanel = hasAnyRole(user?.role, ROLE_ACCESS.ADMIN_ONLY);
+
+  return [
+    {
+      label: 'Overview',
+      items: canUseStaffOperations
+        ? [{ path: ROUTES.DASHBOARD, icon: BarChart3, label: 'Dashboard' }]
+        : [],
+    },
+    {
+      label: 'Operations',
+      items: canUseStaffOperations
+        ? [
+          { path: ROUTES.INVENTORY, icon: Package, label: 'Inventory' },
+          { path: ROUTES.ORDERS, icon: ClipboardList, label: 'Orders' },
+          { path: ROUTES.RETURNS, icon: Undo2, label: 'Returns' },
+          { path: ROUTES.TRANSPORT, icon: Truck, label: 'Transport' },
+        ]
+        : [],
+    },
+    {
+      label: 'Records',
+      items: canViewCatalog
+        ? [
+          { path: ROUTES.PRODUCTS, icon: PackageSearch, label: 'Product Catalog' },
+          { path: ROUTES.DOCUMENTATION, icon: FileText, label: 'Documentation' },
+        ]
+        : [],
+    },
+    {
+      label: 'Money',
+      items: canUseStaffOperations
+        ? [{ path: ROUTES.FINANCE, icon: ReceiptText, label: 'Finance' }]
+        : [],
+    },
+    {
+      label: 'Insights',
+      items: canUseStaffOperations
+        ? [{ path: ROUTES.AI_ASSISTANT, icon: Brain, label: 'AI Assistant' }]
+        : [],
+    },
+    {
+      label: 'Admin',
+      items: canUseAdminPanel
+        ? [{ path: ROUTES.ADMIN, icon: Users, label: 'Admin Console' }]
+        : [],
+    },
+  ].filter(section => section.items.length > 0);
+};
+
+const isActivePath = (pathname, path) => {
+  if (path === ROUTES.TRANSPORT) {
+    return pathname.startsWith(ROUTES.TRANSPORT);
+  }
+
+  return pathname === path;
+};
+
+const NavLink = ({
+  item,
+  active,
+  onClick,
+  compactLabel = false,
+  fullWidth = false,
+}) => {
+  const Icon = item.icon;
+
+  return (
+    <Link
+      to={item.path}
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      aria-label={item.label}
+      title={item.label}
+      className={[
+        'inline-flex h-9 shrink-0 items-center rounded-md border font-medium transition-colors',
+        compactLabel ? 'gap-1.5 px-2 text-xs xl:text-sm' : 'gap-2 px-2.5 text-sm',
+        fullWidth ? 'w-full' : '',
+        active
+          ? 'border-blue-200 bg-blue-50 text-blue-700'
+          : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950',
+      ].join(' ')}
+    >
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className={compactLabel ? 'max-w-[7.5rem] truncate' : 'truncate'}>
+        {item.label}
+      </span>
+    </Link>
+  );
+};
+
+const NavigationBar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
-  const canViewTransport = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
-  const canUseAIAssistant = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
-  const canUseAdminPanel = hasAnyRole(user?.role, [USER_ROLES.ADMIN]);
-  const canUseOperations = hasAnyRole(user?.role, INTERNAL_STAFF_ROLES);
+  const navItems = getNavSections(user).flatMap((section) => section.items);
+  const mobileNavigationId = useId();
 
-  const navItems = [
-    { path: ROUTES.DASHBOARD, icon: BarChart3, label: 'Dashboard' },
-    ...(canUseOperations ? [{ path: ROUTES.ORDERS, icon: RotateCcw, label: 'Orders' }] : []),
-    ...(canUseOperations ? [{ path: ROUTES.INVENTORY, icon: Package, label: 'Inventory' }] : []),
-    ...(canUseOperations ? [{ path: ROUTES.PRODUCTS, icon: Settings, label: 'Products' }] : []),
-    ...(canUseAIAssistant ? [{ path: ROUTES.AI_ASSISTANT, icon: Brain, label: 'AI Assistant' }] : []),
-    ...(canViewTransport ? [{ path: ROUTES.TRANSPORT, icon: Truck, label: 'Transport' }] : []),
-    ...(canUseOperations ? [{ path: ROUTES.RETURNS, icon: RotateCcw, label: 'Returns' }] : []),
-    ...(canUseAdminPanel ? [{ path: ROUTES.ADMIN, icon: Users, label: 'Admin Panel' }] : []),
-  ];
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
-  const isActivePath = (path) => {
-    if (path === ROUTES.TRANSPORT) {
-      return location.pathname.startsWith(ROUTES.TRANSPORT);
-    }
+  useEffect(() => {
+    if (!isMobileMenuOpen) return undefined;
 
-    return location.pathname === path;
-  };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+      }
+    };
 
-  const toggleMenu = () => setIsMobileMenuOpen((v) => !v);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isMobileMenuOpen]);
+
   return (
-    <nav className="bg-white/90 backdrop-blur-md border-b border-gray-200/50 shadow-sm sticky top-0 z-50">
-      <div className="flex justify-between items-center h-16 px-4 sm:px-6 lg:px-8 w-full">
-        {/* Logo - stick to extreme left */}
-        <div className="flex items-center flex-shrink-0">
-          <a href="/" className="flex items-center space-x-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Package className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              SmartStock
-            </span>
-          </a>
-        </div>
-        {/* Desktop Navigation - center */}
-        <div className="hidden lg:flex items-center justify-center flex-1 max-w-4xl">
-          <div className="flex items-center gap-2 bg-gray-50/80 rounded-xl p-1 shadow-inner">
-            {navItems.map(({ path, icon: Icon, label }, idx) => {
-              const isActive = isActivePath(path);
-              return (
-                <Link
-                  key={path}
-                  to={path}
-                  className={`flex items-center space-x-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
-                    ${isActive ? 'bg-blue-600 text-white shadow-lg font-extrabold border-2 border-blue-700 scale-105' : 'text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm'}
-                    ${idx !== 0 ? 'ml-1' : ''}`}
-                  style={isActive ? { boxShadow: '0 4px 16px 0 rgba(37,99,235,0.18)' } : {}}
-                >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-white drop-shadow' : ''}`} />
-                  <span className="hidden xl:inline">{label}</span>
-                </Link>
-              );
-            })}
-            {/* More menu removed, User Management is now on the navbar */}
+    <nav className="border-b border-slate-200 bg-white" aria-label="Primary navigation">
+      <div className="flex h-14 w-full items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <Link to={ROUTES.HOME} className="flex min-w-0 shrink-0 items-center gap-3" aria-label="SmartStock home">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white shadow-sm">
+            <Package className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="truncate text-lg font-semibold tracking-normal text-slate-950">
+            SmartStock
+          </span>
+        </Link>
+
+        <div className="hidden min-w-0 flex-1 justify-start lg:flex">
+          <div className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/70 p-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.path}
+                item={item}
+                active={isActivePath(location.pathname, item.path)}
+                compactLabel
+              />
+            ))}
           </div>
         </div>
-        {/* User Info & Actions - stick to extreme right */}
-        <div className="hidden lg:block">
+
+        <div className="ml-auto hidden shrink-0 lg:block">
           <UserSection />
         </div>
-        {/* Mobile Menu Button */}
-        <div className="lg:hidden flex items-center">
-          <button
-            onClick={toggleMenu}
-            className="p-2.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-          </button>
-        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen((open) => !open)}
+          className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950 lg:hidden"
+          aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls={mobileNavigationId}
+        >
+          {isMobileMenuOpen ? (
+            <X className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          )}
+        </button>
       </div>
-      {/* Mobile Menu */}
+
       {isMobileMenuOpen && (
-        <div className="lg:hidden border-t border-gray-200/50 bg-white/95 backdrop-blur-sm">
-          <div className="px-4 py-3 space-y-2">
-            {navItems.map(({ path, icon: Icon, label }) => {
-              const isActive = isActivePath(path);
-              return (
-                <Link
-                  key={path}
-                  to={path}
+        <div id={mobileNavigationId} className="border-t border-slate-200 bg-white lg:hidden">
+          <div className="max-h-[calc(100vh-3.5rem)] overflow-y-auto px-4 py-3">
+            <div className="grid gap-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  item={item}
+                  active={isActivePath(location.pathname, item.path)}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
-                    ${isActive ? 'bg-blue-600 text-white font-extrabold border-2 border-blue-700 scale-105 shadow-lg' : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'}`}
-                  style={isActive ? { boxShadow: '0 4px 16px 0 rgba(37,99,235,0.18)' } : {}}
-                >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-white drop-shadow' : ''}`} />
-                  <span>{label}</span>
-                </Link>
-              );
-            })}
-            {/* Mobile User Section */}
-            <MobileUserSection />
+                  fullWidth
+                />
+              ))}
+            </div>
+            <MobileUserSection onNavigate={() => setIsMobileMenuOpen(false)} />
           </div>
         </div>
       )}
@@ -136,8 +243,26 @@ const Navbar = () => {
   );
 };
 
+function Avatar({ user, size = 'small' }) {
+  const avatarUrl = user?.avatar || null;
+  const sizeClass = size === 'large' ? 'h-11 w-11 text-base' : 'h-8 w-8 text-xs';
 
-// UserSection for desktop
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt=""
+        className={`${sizeClass} shrink-0 rounded-full border border-slate-200 object-cover`}
+      />
+    );
+  }
+
+  return (
+    <span className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-slate-900 font-semibold text-white`}>
+      {getInitials(user)}
+    </span>
+  );
+}
 
 function UserSection() {
   const dispatch = useDispatch();
@@ -145,34 +270,42 @@ function UserSection() {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
-  const avatarUrl = user && user.avatar ? user.avatar : null;
-  const initials = user && user.fullName
-    ? user.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : (user && (user.name || user.email) ? (user.name || user.email).slice(0, 2).toUpperCase() : '');
+  const menuId = useId();
 
-  // Close dropdown on outside click
   useEffect(() => {
-    if (!open) return;
-    function handleClick(e) {
+    if (!open) return undefined;
+
+    const handlePointerDown = (event) => {
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target) &&
+        !dropdownRef.current.contains(event.target) &&
         buttonRef.current &&
-        !buttonRef.current.contains(e.target)
+        !buttonRef.current.contains(event.target)
       ) {
         setOpen(false);
       }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [open]);
 
   if (!isAuthenticated || !user) {
-    // Show Login button when logged out
     return (
       <Link
-        to="/login"
-        className="px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all duration-150 border border-blue-600 shadow"
+        to={ROUTES.LOGIN}
+        className="inline-flex h-9 items-center justify-center rounded-md bg-slate-950 px-3 text-sm font-medium text-white transition-colors hover:bg-slate-800"
       >
         Login
       </Link>
@@ -180,130 +313,123 @@ function UserSection() {
   }
 
   return (
-    <div className="hidden lg:flex items-center flex-shrink-0 relative">
+    <div className="relative flex items-center">
       <button
-        className="flex items-center px-2 py-1.5 rounded-full hover:bg-gray-100 transition-all duration-150 focus:outline-none group border border-transparent"
-        onClick={() => setOpen((v) => !v)}
+        type="button"
+        className="flex h-10 max-w-[210px] items-center gap-2 rounded-md border border-slate-200 bg-white px-2 text-left transition-colors hover:bg-slate-50"
+        onClick={() => setOpen((value) => !value)}
         ref={buttonRef}
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-label={open ? 'Close account menu' : 'Open account menu'}
       >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300 group-hover:border-blue-500 transition-all duration-150" />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white font-bold text-base border border-gray-300 group-hover:border-yellow-500 transition-all duration-150">
-            {initials}
-          </div>
-        )}
-        <span className="ml-2 text-base font-medium text-gray-800 group-hover:text-blue-600 transition-colors duration-150">
-          {user.fullName || user.name || user.email}
+        <Avatar user={user} />
+        <span className="min-w-0">
+          <span className="block max-w-[120px] truncate text-sm font-medium leading-5 text-slate-900">
+            {getDisplayName(user)}
+          </span>
+          <span className="block text-xs leading-4 text-slate-500">
+            {formatRole(user.role)}
+          </span>
         </span>
-        <svg className={`ml-1 w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-all duration-150 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
       </button>
+
       {open && (
         <div
+          id={menuId}
           ref={dropdownRef}
-          className="user-dropdown absolute right-0 top-full mt-2 min-w-[320px] bg-white rounded-xl shadow-2xl border border-gray-200 animate-fade-in flex flex-col p-0 z-50"
+          className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
         >
-          {/* Arrow pointer */}
-          <div className="absolute -top-2 right-4 w-4 h-4 z-10">
-            <svg width="16" height="16" viewBox="0 0 16 16" className="block mx-auto">
-              <polygon points="8,0 16,16 0,16" fill="#fff" stroke="#e5e7eb" strokeWidth="1" />
-            </svg>
+          <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4">
+            <Avatar user={user} size="large" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-950">{getDisplayName(user)}</p>
+              {user.email && <p className="truncate text-xs text-slate-500">{user.email}</p>}
+            </div>
           </div>
-          <div className="flex flex-col items-center py-4 px-4 border-b border-gray-100 w-full">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="avatar" className="w-14 h-14 rounded-full object-cover border border-gray-300" />
-            ) : (
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white font-bold text-2xl border border-gray-300">
-                {initials}
-              </div>
-            )}
-            <span className="mt-2 text-lg font-semibold text-gray-900">{user.fullName || user.name || user.email}</span>
-            {user.email && <span className="text-xs text-gray-500">{user.email}</span>}
-          </div>
-          <div className="px-4 py-2">
+          <div className="grid gap-1 p-2">
             <Link
-              to="/profile"
-              className="flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-base font-medium bg-blue-500 text-white hover:bg-blue-600 transition-all duration-150 mb-2"
+              to={ROUTES.PROFILE}
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
               onClick={() => setOpen(false)}
             >
-              <Settings className="h-5 w-5" />
-              <span>Profile</span>
+              <Settings className="h-4 w-4" aria-hidden="true" />
+              Profile
             </Link>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => {
+                setOpen(false);
+                dispatch(logout());
+              }}
+              disabled={loading}
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Logout
+            </button>
           </div>
-          <button
-            className="flex items-center justify-center space-x-2 px-4 py-2 m-4 rounded-md text-base font-medium bg-yellow-400 text-white hover:bg-yellow-500 transition-all duration-150"
-            onClick={() => { setOpen(false); dispatch(logout()); }}
-            disabled={loading}
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Logout</span>
-          </button>
         </div>
       )}
     </div>
   );
 }
 
-// MobileUserSection for mobile menu
-function MobileUserSection() {
+function MobileUserSection({ onNavigate }) {
   const dispatch = useDispatch();
   const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
-  const [open, setOpen] = useState(false);
-  if (!isAuthenticated || !user) return null;
-  const avatarUrl = user.avatar || null;
-  const initials = user.fullName
-    ? user.fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-    : (user.name || user.email || '').slice(0, 2).toUpperCase();
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="mt-3 border-t border-slate-200 pt-3">
+        <Link
+          to={ROUTES.LOGIN}
+          onClick={onNavigate}
+          className="flex h-10 items-center justify-center rounded-md bg-slate-950 px-3 text-sm font-medium text-white"
+        >
+          Login
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="border-t border-gray-200 pt-4 mt-4 space-y-3">
-      <button
-        className="w-full flex items-center space-x-3 px-4 py-3 rounded-full hover:bg-gray-100 transition-all duration-150 focus:outline-none border border-transparent"
-        onClick={() => setOpen((v) => !v)}
-      >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-gray-300" />
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white font-bold text-lg border border-gray-300">
-            {initials}
-          </div>
-        )}
-        <span className="ml-2 text-base font-medium text-gray-800">{user.fullName || user.name || user.email}</span>
-        <svg className={`ml-1 w-4 h-4 text-gray-400 transition-all duration-150 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-      </button>
-      <Link
-        to="/profile"
-        className="w-full flex items-center justify-center space-x-2 px-4 py-2 mb-2 rounded-md text-base font-medium bg-blue-500 text-white hover:bg-blue-600 transition-all duration-150"
-      >
-        <Settings className="h-5 w-5" />
-        <span>Profile</span>
-      </Link>
-      <button
-        className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-md text-base font-medium bg-yellow-400 text-white hover:bg-yellow-500 transition-all duration-150"
-        onClick={() => dispatch(logout())}
-        disabled={loading}
-      >
-        <LogOut className="h-5 w-5" />
-        <span>Logout</span>
-      </button>
-      {open && (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 mt-2 flex flex-col items-center animate-fade-in">
-          <div className="flex flex-col items-center py-4 px-4 border-b border-gray-100 w-full">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="avatar" className="w-14 h-14 rounded-full object-cover border border-gray-300" />
-            ) : (
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white font-bold text-2xl border border-gray-300">
-                {initials}
-              </div>
-            )}
-            <span className="mt-2 text-lg font-semibold text-gray-900">{user.fullName || user.name || user.email}</span>
-            {user.email && <span className="text-xs text-gray-500">{user.email}</span>}
-          </div>
+    <div className="mt-3 border-t border-slate-200 pt-3">
+      <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-3">
+        <Avatar user={user} size="large" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950">{getDisplayName(user)}</p>
+          {user.email && <p className="truncate text-xs text-slate-500">{user.email}</p>}
         </div>
-      )}
+      </div>
+      <div className="mt-2 grid gap-1">
+        <Link
+          to={ROUTES.PROFILE}
+          onClick={onNavigate}
+          className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
+        >
+          <Settings className="h-4 w-4" aria-hidden="true" />
+          Profile
+        </Link>
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => {
+            onNavigate();
+            dispatch(logout());
+          }}
+          disabled={loading}
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Logout
+        </button>
+      </div>
     </div>
   );
 }
 
-export default Navbar;
+export default NavigationBar;

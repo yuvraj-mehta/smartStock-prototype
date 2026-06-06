@@ -2,6 +2,10 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 import * as transportService from '../../services/transportService';
 
+const getErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
+
 // Thunks
 export const fetchAllTransports = createAsyncThunk(
   'transport/fetchAll',
@@ -10,7 +14,7 @@ export const fetchAllTransports = createAsyncThunk(
       const data = await transportService.getAllTransports(params);
       return data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to fetch transports'));
     }
   },
 );
@@ -22,7 +26,7 @@ export const fetchTransportById = createAsyncThunk(
       const data = await transportService.getTransportById(id);
       return data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to fetch transport details'));
     }
   },
 );
@@ -34,7 +38,7 @@ export const fetchTransportsByPackageId = createAsyncThunk(
       const data = await transportService.getTransportsByPackageId(packageId);
       return data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to fetch package transports'));
     }
   },
 );
@@ -46,7 +50,7 @@ export const updateTransportStatus = createAsyncThunk(
       const data = await transportService.updateTransportStatus(id, { status, notes });
       return data;
     } catch (err) {
-      return rejectWithValue(err.response?.data || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to update transport status'));
     }
   },
 );
@@ -72,10 +76,10 @@ const transportSlice = createSlice({
       })
       .addCase(fetchAllTransports.fulfilled, (state, action) => {
         state.loading = false;
-        state.transports = action.payload.transports;
-        state.totalPages = action.payload.totalPages;
-        state.currentPage = action.payload.currentPage;
-        state.total = action.payload.total;
+        state.transports = action.payload?.transports || [];
+        state.totalPages = action.payload?.totalPages ?? 1;
+        state.currentPage = Number(action.payload?.currentPage) || 1;
+        state.total = action.payload?.total ?? state.transports.length;
       })
       .addCase(fetchAllTransports.rejected, (state, action) => {
         state.loading = false;
@@ -88,7 +92,7 @@ const transportSlice = createSlice({
       })
       .addCase(fetchTransportById.fulfilled, (state, action) => {
         state.loading = false;
-        state.transportDetails = action.payload.transport;
+        state.transportDetails = action.payload?.transport || null;
       })
       .addCase(fetchTransportById.rejected, (state, action) => {
         state.loading = false;
@@ -101,7 +105,7 @@ const transportSlice = createSlice({
       })
       .addCase(fetchTransportsByPackageId.fulfilled, (state, action) => {
         state.loading = false;
-        state.transports = action.payload.transports;
+        state.transports = action.payload?.transports || [];
       })
       .addCase(fetchTransportsByPackageId.rejected, (state, action) => {
         state.loading = false;
@@ -114,7 +118,7 @@ const transportSlice = createSlice({
       })
       .addCase(updateTransportStatus.fulfilled, (state, action) => {
         state.loading = false;
-        state.transportDetails = action.payload.transport;
+        state.transportDetails = action.payload?.transport || null;
       })
       .addCase(updateTransportStatus.rejected, (state, action) => {
         state.loading = false;

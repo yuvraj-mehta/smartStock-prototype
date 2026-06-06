@@ -12,6 +12,8 @@ import {
 
 router.get(
   '/',
+  isAuthenticated,
+  isAuthorized('admin', 'staff', 'viewer'),
   (req, res) => {
     res.status(200).json({ message: 'Welcome to the Item API' });
   }
@@ -20,26 +22,28 @@ router.get(
 router.get(
   '/all',
   isAuthenticated,
-  isAuthorized('admin', 'staff'),
+  isAuthorized('admin', 'staff', 'viewer'),
   getAllItems
 );
 
 router.get(
   "/batch/:batchId",
   isAuthenticated,
-  isAuthorized('admin', 'staff'),
+  isAuthorized('admin', 'staff', 'viewer'),
   getItemsByBatch
 );
 
 router.get(
   "/track/:serialNumber",
+  isAuthenticated,
+  isAuthorized('admin', 'staff', 'viewer'),
   trackItemBySerial
 );
 
 router.get(
   "/product/:productId/movement-history",
   isAuthenticated,
-  isAuthorized('admin', 'staff'),
+  isAuthorized('admin', 'staff', 'viewer'),
   getProductMovementHistory
 );
 
@@ -53,7 +57,7 @@ router.put(
 router.get(
   "/:id",
   isAuthenticated,
-  isAuthorized('admin', 'staff'),
+  isAuthorized('admin', 'staff', 'viewer'),
   getItemById
 );
 

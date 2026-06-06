@@ -274,8 +274,10 @@ export const getAllProductsPredictionData = catchAsyncErrors(async (req, res) =>
       });
     }
     // Inventory
-    productMap.get(pid).inventory.currentStock++;
-    productMap.get(pid).inventory.warehouseLocation = item.currentWarehouseId;
+    if (item.status === 'in_stock') {
+      productMap.get(pid).inventory.currentStock++;
+      productMap.get(pid).inventory.warehouseLocation = item.currentWarehouseId;
+    }
   });
 
   // Sales

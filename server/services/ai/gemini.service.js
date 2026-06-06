@@ -120,9 +120,16 @@ class GeminiService {
       const text = await this.generateContent(combined);
       return this.parseSeasonalResponse(text);
     } catch (error) {
-      if (this.isAIUnavailableError(error)) throw error;
+      if (this.isAIUnavailableError(error)) {
+        return this.buildSeasonalFallbackResponse(productCategory, historicalData, currentSeason, error.message);
+      }
       console.error('Gemini API Error (predictSeasonalDemand):', error);
-      throw this.createAIProviderError('Failed to predict seasonal demand');
+      return this.buildSeasonalFallbackResponse(
+        productCategory,
+        historicalData,
+        currentSeason,
+        'AI provider unavailable. Returned analytics fallback.'
+      );
     }
   }
 
@@ -497,6 +504,51 @@ Please provide your analysis in the following JSON format:
       console.error('Failed to parse seasonal response:', error);
       return { analysis: 'Failed to parse AI response' };
     }
+  }
+
+  buildSeasonalFallbackResponse(productCategory, historicalData = [], currentSeason, reason) {
+    const safeData = Array.isArray(historicalData) ? historicalData : [];
+    const averageVolume = safeData.length
+      ? safeData.reduce((sum, item) => sum + (Number(item.volume) || 0), 0) / safeData.length
+      : 0;
+
+    const monthlyBreakdown = safeData.map((item) => {
+      const volume = Number(item.volume) || 0;
+      const demandMultiplier = averageVolume > 0 ? Number((volume / averageVolume).toFixed(2)) : 1;
+
+      return {
+        period: item.period,
+        demandMultiplier,
+        expectedVolume: Math.round(volume),
+        revenueProjection: Number(item.revenue) || 0,
+        events: item.events || 'Regular',
+      };
+    });
+
+    const sortedByDemand = monthlyBreakdown
+      .slice()
+      .sort((a, b) => b.demandMultiplier - a.demandMultiplier);
+    const peakPeriods = sortedByDemand.slice(0, 3).map((item) => item.period).filter(Boolean);
+    const lowPeriods = sortedByDemand.slice(-3).map((item) => item.period).filter(Boolean);
+
+    return {
+      source: 'analytics_fallback',
+      reason,
+      productCategory: productCategory || 'all',
+      currentSeason,
+      monthlyBreakdown,
+      peakPeriods,
+      lowDemandPeriods: lowPeriods,
+      inventoryBuildupTimeline: peakPeriods.map((period) => `Increase replenishment planning before ${period}.`),
+      marketRiskFactors: [
+        'Provider-backed AI prediction was unavailable.',
+        'Fallback uses historical sales volume and revenue only.',
+      ],
+      recommendations: [
+        'Review peak-period stock coverage against current inventory.',
+        'Keep reorder thresholds conservative until provider-backed forecasting is available.',
+      ],
+    };
   }
 
   parseJSONAnalysisResponse(response) {

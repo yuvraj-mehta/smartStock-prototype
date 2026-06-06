@@ -14,6 +14,7 @@ jest.unstable_mockModule('../services/inventory/index.js', () => ({
 }));
 jest.unstable_mockModule('../middlewares/index.js', () => ({
   catchAsyncErrors: (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next),
+  requireAssignedWarehouseId: (req) => (req.user?.assignedWarehouseId?._id || req.user?.assignedWarehouseId)?.toString(),
 }));
 
 const invokeJsonController = (controller, req = {}) =>
@@ -55,7 +56,7 @@ describe('item controller architecture contracts', () => {
     jest.clearAllMocks();
   });
 
-  it('returns only customer-safe fields from public serial tracking', async () => {
+  it('returns only safe fields from warehouse-scoped serial tracking', async () => {
     const item = {
       serialNumber: 'SER-1',
       status: 'delivered',
@@ -80,8 +81,13 @@ describe('item controller architecture contracts', () => {
 
     const res = await invokeJsonController(itemController.trackItemBySerial, {
       params: { serialNumber: 'SER-1' },
+      user: { assignedWarehouseId: 'warehouse-1' },
     });
 
+    expect(Item.findOne).toHaveBeenCalledWith({
+      serialNumber: 'SER-1',
+      currentWarehouseId: 'warehouse-1',
+    });
     expect(res.statusCode).toBe(200);
     expect(res.payload.item).toEqual({
       serialNumber: 'SER-1',
@@ -100,6 +106,22 @@ describe('item controller architecture contracts', () => {
     expect(res.payload.item).not.toHaveProperty('statusHistory');
     expect(res.payload.item.product).not.toHaveProperty('price');
     expect(Item.findOne.mock.results[0].value.select).toHaveBeenCalledWith('serialNumber status updatedAt');
+  });
+
+  it('does not find serial numbers outside the authenticated warehouse', async () => {
+    Item.findOne.mockReturnValue(buildTrackQuery(null));
+
+    const res = await invokeJsonController(itemController.trackItemBySerial, {
+      params: { serialNumber: 'SER-1' },
+      user: { assignedWarehouseId: 'warehouse-2' },
+    });
+
+    expect(Item.findOne).toHaveBeenCalledWith({
+      serialNumber: 'SER-1',
+      currentWarehouseId: 'warehouse-2',
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.payload.message).toMatch(/item not found/i);
   });
 
   it('uses the inventory transition service for protected status updates inside warehouse scope', async () => {

@@ -48,7 +48,8 @@ const productSchema = new mongoose.Schema({
   volume: {
     type: Number,
     default: function () {
-      return this.dimension.length * this.dimension.breadth * this.dimension.height;
+      const { length = 0, breadth = 0, height = 0 } = this?.dimension || {};
+      return length * breadth * height;
     }
   },
   thresholdLimit: {
@@ -59,7 +60,7 @@ const productSchema = new mongoose.Schema({
   restockRecommended: {
     type: Boolean,
     default: function () {
-      return this.quantity <= this.thresholdLimit;
+      return (this?.quantity || 0) <= (this?.thresholdLimit || 0);
     }
   },
   shelfLifeDays: {

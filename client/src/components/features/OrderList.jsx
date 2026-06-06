@@ -1,19 +1,99 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ClipboardList,
+  CreditCard,
+  PackageCheck,
+  RotateCcw,
+  Search,
+  Send,
+  Truck,
+} from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ROUTES } from '../../constants';
 import { getAllOrders, processOrder } from '../../services/orderService';
 import { getPackagesByOrderId, updatePackageStatus } from '../../services/packageService';
 import { assignTransport } from '../../services/transportService';
 import { userAPI } from '../../services/api';
 
+const statusClasses = {
+  pending: 'bg-amber-50 text-amber-700 ring-amber-200',
+  processing: 'bg-blue-50 text-blue-700 ring-blue-200',
+  packaged: 'bg-violet-50 text-violet-700 ring-violet-200',
+  dispatched: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
+  delivered: 'bg-green-50 text-green-700 ring-green-200',
+  returned: 'bg-red-50 text-red-700 ring-red-200',
+  sale_confirmed: 'bg-gray-100 text-gray-700 ring-gray-200',
+};
+
+const packageStatusClasses = {
+  ready_for_dispatch: 'bg-violet-50 text-violet-700 ring-violet-200',
+  dispatched: 'bg-green-50 text-green-700 ring-green-200',
+  in_transit: 'bg-amber-50 text-amber-700 ring-amber-200',
+  delivered: 'bg-blue-50 text-blue-700 ring-blue-200',
+  returned: 'bg-red-50 text-red-700 ring-red-200',
+};
+
+const tableHeadingClass = 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500';
+const tableCellClass = 'px-4 py-3 align-top text-sm text-gray-700';
+const fieldClass = 'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50';
+const lifecycleStatuses = ['pending', 'processing', 'packaged', 'dispatched', 'delivered', 'sale_confirmed', 'returned'];
+
+const formatStatus = (status) => (
+  status ? status.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase()) : '-'
+);
+
+const formatCurrency = (amount) => (
+  typeof amount === 'number'
+    ? amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })
+    : '-'
+);
+
+const formatDate = (date) => (
+  date ? new Date(date).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-'
+);
+
+const getStatusChip = (status, classes = statusClasses) => (
+  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${classes[status] || 'bg-gray-100 text-gray-700 ring-gray-200'}`}>
+    {formatStatus(status)}
+  </span>
+);
+
+const getRouteWithQuery = (route, params) => {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
+
+  return query.toString() ? `${route}?${query.toString()}` : route;
+};
+
+const getFinanceOrderHref = orderId => (
+  `${getRouteWithQuery(ROUTES.FINANCE, { targetType: 'order', targetId: orderId })}#record-payment`
+);
+
+const getReturnInitiateHref = ({ orderId, packageId }) => (
+  getRouteWithQuery(ROUTES.RETURNS, { action: 'initiate', orderId, packageId })
+);
+
+const getTransportPackageHref = packageId => (
+  getRouteWithQuery(ROUTES.TRANSPORT, { packageId })
+);
+
 export default function OrderList({ products }) {
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState([]);
   const [orderPackages, setOrderPackages] = useState({}); // { [orderId]: packageDoc }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [processingId, setProcessingId] = useState(null);
   const [packingId, setPackingId] = useState(null);
   const [packingNotes, setPackingNotes] = useState('');
   const [showPacking, setShowPacking] = useState(null); // orderId for which packing UI is shown
   const [packError, setPackError] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [orderSearch, setOrderSearch] = useState('');
 
 
   // Delivery logic (assign transport feature restored)
@@ -22,6 +102,73 @@ export default function OrderList({ products }) {
   const [assignTransportError, setAssignTransportError] = useState('');
   const [assigningTransport, setAssigningTransport] = useState(false);
   const [externalUsers, setExternalUsers] = useState([]);
+  const productById = useMemo(() => {
+    const map = new Map();
+    (products || []).forEach(product => {
+      if (product?._id) {
+        map.set(product._id, product);
+      }
+    });
+    return map;
+  }, [products]);
+
+  const statusFilterOptions = useMemo(() => (
+    ['all', ...new Set([
+      ...lifecycleStatuses,
+      ...orders.map(order => order.orderStatus).filter(Boolean),
+    ])]
+  ), [orders]);
+
+  const orderSummary = useMemo(() => {
+    const counts = orders.reduce((summary, order) => {
+      const status = order.orderStatus || 'unknown';
+      return { ...summary, [status]: (summary[status] || 0) + 1 };
+    }, {});
+    const readyPackages = Object.values(orderPackages).filter(pkg => pkg?.packageStatus === 'ready_for_dispatch').length;
+
+    return {
+      total: orders.length,
+      active: ['pending', 'processing', 'packaged', 'dispatched'].reduce((sum, status) => sum + (counts[status] || 0), 0),
+      delivered: counts.delivered || 0,
+      returned: counts.returned || 0,
+      readyPackages,
+      counts,
+    };
+  }, [orderPackages, orders]);
+
+  const filteredOrders = useMemo(() => {
+    const query = orderSearch.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      const statusMatches = statusFilter === 'all' || order.orderStatus === statusFilter;
+      if (!statusMatches) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return [
+        order._id,
+        order.orderNumber,
+        order.platformOrderId,
+        order.orderStatus,
+        order.createdBy?.fullName,
+        order.notes,
+      ].filter(Boolean).some(value => String(value).toLowerCase().includes(query));
+    });
+  }, [orderSearch, orders, statusFilter]);
+
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    if (!orderId) {
+      return;
+    }
+
+    setOrderSearch(orderId);
+    setStatusFilter('all');
+  }, [searchParams]);
 
   useEffect(() => {
     // Fetch only transporters for delivery assignment
@@ -59,8 +206,9 @@ export default function OrderList({ products }) {
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
+    setActionError('');
     try {
-      const data = await getAllOrders();
+      const data = await getAllOrders({ fetchAll: true, limit: 100 });
       const ordersArr = Array.isArray(data) ? data : (Array.isArray(data.orders) ? data.orders : []);
       if (!Array.isArray(ordersArr)) {
         setError('Unexpected response from server.');
@@ -93,7 +241,7 @@ export default function OrderList({ products }) {
     const fetchPackages = async () => {
       if (!orders.length) return;
       const pkgs = {};
-      for (const order of orders) {
+      await Promise.all(orders.map(async (order) => {
         try {
           const pkgRes = await getPackagesByOrderId(order._id);
           const packageDoc = Array.isArray(pkgRes.packages) ? pkgRes.packages[0] : (Array.isArray(pkgRes) ? pkgRes[0] : null);
@@ -101,7 +249,7 @@ export default function OrderList({ products }) {
             pkgs[order._id] = packageDoc;
           }
         } catch { }
-      }
+      }));
       setOrderPackages(pkgs);
     };
     fetchPackages();
@@ -111,11 +259,12 @@ export default function OrderList({ products }) {
 
   const handleProcess = async (orderId) => {
     setProcessingId(orderId);
+    setActionError('');
     try {
       await processOrder(orderId);
       await fetchOrders();
-    } catch {
-      alert('Failed to process order');
+    } catch (err) {
+      setActionError(err?.response?.data?.message || 'Failed to process order.');
     } finally {
       setProcessingId(null);
     }
@@ -154,135 +303,238 @@ export default function OrderList({ products }) {
 
   // Mark in transit/delivered logic removed
 
-  if (loading) return <div className="flex items-center justify-center min-h-[20vh]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mr-3"></div><span className="text-lg text-purple-700 font-semibold">Loading orders...</span></div>;
-  if (error) return <div className="text-red-600 font-medium text-center py-4">{error}</div>;
-  if (!Array.isArray(orders) || orders.length === 0) return <div className="text-gray-500 text-center py-8">No orders to display.</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-3 text-sm font-medium text-gray-600">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          Loading orders...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+        <div>
+          <div className="font-semibold">Orders could not be loaded</div>
+          <div className="mt-1">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!Array.isArray(orders) || orders.length === 0) {
+    return (
+      <div className="flex min-h-[260px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 text-center">
+        <ClipboardList className="h-10 w-10 text-gray-400" />
+        <h3 className="mt-3 text-sm font-semibold text-gray-900">No orders yet</h3>
+        <p className="mt-1 max-w-sm text-sm text-gray-500">
+          Created orders will appear here for processing, packing, and dispatch assignment.
+        </p>
+        <a
+          href={ROUTES.ORDERS}
+          className="mt-4 inline-flex items-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800"
+        >
+          <ClipboardList className="h-4 w-4" />
+          Create order
+        </a>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full h-full overflow-x-auto">
-      <table className="w-full bg-white rounded-lg shadow border border-gray-200">
-        <thead className="bg-gradient-to-r from-blue-100 to-purple-100">
+    <div className="space-y-4">
+      {actionError && (
+        <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <div className="font-semibold">Order action failed</div>
+            <div className="mt-1">{actionError}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            { label: 'Total orders', value: orderSummary.total },
+            { label: 'Active lifecycle', value: orderSummary.active },
+            { label: 'Delivered', value: orderSummary.delivered },
+            { label: 'Returned', value: orderSummary.returned },
+            { label: 'Ready packages', value: orderSummary.readyPackages },
+          ].map(metric => (
+            <div key={metric.label} className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{metric.label}</div>
+              <div className="mt-1 text-xl font-semibold text-gray-950">{metric.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <label className="relative block">
+            <span className="sr-only">Search orders</span>
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              className={`${fieldClass} pl-9`}
+              value={orderSearch}
+              onChange={event => setOrderSearch(event.target.value)}
+              placeholder="Search order number, platform ID, creator, status, or notes"
+            />
+          </label>
+          <select
+            className={fieldClass}
+            value={statusFilter}
+            onChange={event => setStatusFilter(event.target.value)}
+            aria-label="Filter orders by status"
+          >
+            {statusFilterOptions.map(status => (
+              <option key={status} value={status}>
+                {status === 'all'
+                  ? `All statuses (${orderSummary.total})`
+                  : `${formatStatus(status)} (${orderSummary.counts[status] || 0})`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sr-only" aria-live="polite">
+          Showing {filteredOrders.length} of {orders.length} orders.
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Order #</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Platform ID</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Status</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Items</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Order Value</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Created By</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Created At</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Notes</th>
-            <th className="px-4 py-2 text-left font-bold text-blue-700">Actions</th>
+            <th className={tableHeadingClass}>Order</th>
+            <th className={tableHeadingClass}>Status</th>
+            <th className={tableHeadingClass}>Items</th>
+            <th className={`${tableHeadingClass} text-right`}>Value</th>
+            <th className={tableHeadingClass}>Created</th>
+            <th className={tableHeadingClass}>Notes</th>
+            <th className={tableHeadingClass}>Lifecycle action</th>
           </tr>
         </thead>
-        <tbody>
-          {orders.map(order => (
-            <tr key={order._id} className="border-b hover:bg-blue-50/40 transition">
-              <td className="px-4 py-2 font-mono text-blue-900">{order.orderNumber}</td>
-              <td className="px-4 py-2">{order.platformOrderId}</td>
-              <td className="px-4 py-2 capitalize">
-                <span className={`px-2 py-1 rounded text-xs font-semibold 
-                  ${order.orderStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                  ${order.orderStatus === 'processing' ? 'bg-blue-100 text-blue-800' : ''}
-                  ${order.orderStatus === 'packaged' ? 'bg-purple-100 text-purple-800' : ''}
-                  ${order.orderStatus === 'delivered' ? 'bg-green-100 text-green-800' : ''}
-                  ${order.orderStatus === 'returned' ? 'bg-red-100 text-red-800' : ''}
-                `}>
-                  {order.orderStatus}
-                </span>
+        <tbody className="divide-y divide-gray-100 bg-white">
+          {filteredOrders.length > 0 ? filteredOrders.map(order => (
+            <tr key={order._id} className="transition hover:bg-gray-50">
+              <td className={tableCellClass}>
+                <div className="font-mono text-sm font-semibold text-gray-950">{order.orderNumber || '-'}</div>
+                <div className="mt-1 text-xs text-gray-500">{order.platformOrderId || 'No platform ID'}</div>
               </td>
-              <td className="px-4 py-2">
-                <ul className="list-disc pl-4">
-                  {order.items.map((item, idx) => {
-                    const product = products.find(p => p._id === (item.productId && item.productId._id ? item.productId._id : item.productId)) || {};
+              <td className={tableCellClass}>
+                {getStatusChip(order.orderStatus)}
+              </td>
+              <td className={`${tableCellClass} min-w-64`}>
+                <div className="space-y-1">
+                  {(Array.isArray(order.items) ? order.items : []).map((item, idx) => {
+                    const productId = item.productId && item.productId._id ? item.productId._id : item.productId;
+                    const product = productById.get(productId) || {};
                     let productLabel = '';
                     if (typeof product === 'object' && product !== null) {
                       productLabel = product.name || product.productName || product.sku || (typeof item.productId === 'string' ? item.productId : JSON.stringify(item.productId));
                     } else {
                       productLabel = typeof product === 'string' ? product : (typeof item.productId === 'string' ? item.productId : JSON.stringify(item.productId));
                     }
-                    return <li key={idx}>{productLabel} <span className="text-xs text-gray-500">x {item.quantity}</span></li>;
+                    return (
+                      <div key={idx} className="flex items-center justify-between gap-4 rounded-md bg-gray-50 px-2.5 py-1.5">
+                        <span className="truncate font-medium text-gray-800">{productLabel}</span>
+                        <span className="shrink-0 text-xs font-semibold text-gray-500">x {item.quantity}</span>
+                      </div>
+                    );
                   })}
-                </ul>
+                  {(!Array.isArray(order.items) || order.items.length === 0) && (
+                    <div className="rounded-md bg-gray-50 px-2.5 py-1.5 text-sm text-gray-500">
+                      No item rows
+                    </div>
+                  )}
+                </div>
               </td>
-              {/* Order Value from related package */}
-              <td className="px-4 py-2 text-green-700 font-semibold text-right">
-                {orderPackages[order._id] && typeof orderPackages[order._id].totalValue === 'number'
-                  ? orderPackages[order._id].totalValue.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })
-                  : '-'}
+              <td className={`${tableCellClass} text-right font-semibold text-gray-950`}>
+                {formatCurrency(orderPackages[order._id]?.totalValue)}
               </td>
-              {/* Created By */}
-              <td className="px-4 py-2 text-blue-900">
-                {order.createdBy?.fullName || '-'}
+              <td className={tableCellClass}>
+                <div className="font-medium text-gray-900">{order.createdBy?.fullName || '-'}</div>
+                <div className="mt-1 text-xs text-gray-500">{formatDate(order.createdAt)}</div>
               </td>
-              {/* Created At */}
-              <td className="px-4 py-2 text-gray-600">
-                {order.createdAt ? new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}
+              <td className={`${tableCellClass} max-w-56`}>
+                <div className="line-clamp-2 text-gray-600" title={order.notes || ''}>{order.notes || '-'}</div>
               </td>
-              <td className="px-4 py-2 text-gray-700 max-w-xs truncate">{order.notes}</td>
-              <td className="px-4 py-2">
+              <td className={`${tableCellClass} min-w-80`}>
                 {order.orderStatus === 'pending' && (
                   <button
                     onClick={() => handleProcess(order._id)}
                     disabled={processingId === order._id}
-                    className="px-3 py-1 bg-purple-600 text-white rounded shadow hover:bg-purple-700 disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {processingId === order._id ? 'Processing...' : 'Process'}
+                    <Search className="h-4 w-4" />
+                    {processingId === order._id ? 'Processing...' : 'Process order'}
                   </button>
                 )}
-                {/* Only show Pack button if status is exactly 'processing' */}
                 {order.orderStatus === 'processing' && (
                   <>
                     <button
                       onClick={() => handleShowPacking(order._id)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700 ml-2"
+                      className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={packingId === order._id}
                     >
-                      Pack
+                      <PackageCheck className="h-4 w-4" />
+                      Pack order
                     </button>
                     {showPacking === order._id && (
-                      <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                      <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                        <label className="sr-only" htmlFor={`packing-notes-${order._id}`}>Packing notes</label>
                         <textarea
-                          className="w-full px-2 py-1 border border-blue-200 rounded mb-2"
+                          id={`packing-notes-${order._id}`}
+                          className={`${fieldClass} w-full`}
                           placeholder="Packing notes or special instructions"
                           value={packingNotes}
                           onChange={e => setPackingNotes(e.target.value)}
                           rows={2}
                         />
-                        {packError && <div className="text-red-600 text-sm mb-1">{packError}</div>}
-                        <button
-                          onClick={() => handlePackOrder(order._id)}
-                          className="px-3 py-1 bg-green-600 text-white rounded shadow hover:bg-green-700 mr-2"
-                          disabled={packingId === order._id}
-                        >
-                          {packingId === order._id ? 'Packing...' : 'Confirm Pack'}
-                        </button>
-                        <button
-                          onClick={() => setShowPacking(null)}
-                          className="px-2 py-1 text-gray-500 hover:text-gray-700"
-                        >Cancel</button>
+                        {packError && <div role="alert" className="mt-2 text-sm font-medium text-red-600">{packError}</div>}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handlePackOrder(order._id)}
+                            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={packingId === order._id}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            {packingId === order._id ? 'Packing...' : 'Confirm pack'}
+                          </button>
+                          <button
+                            onClick={() => setShowPacking(null)}
+                            className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-white hover:text-gray-900"
+                          >Cancel</button>
+                        </div>
                       </div>
                     )}
                   </>
                 )}
-                {/* Show assign transport UI for ready_for_dispatch packages, badge for others */}
                 {order.orderStatus === 'packaged' && (() => {
                   const pkg = orderPackages[order._id];
                   if (!pkg) {
-                    return <span className="inline-block px-3 py-1 bg-gray-200 text-gray-700 rounded shadow text-xs font-semibold ml-2">No Package</span>;
+                    return getStatusChip('No Package', { 'No Package': 'bg-gray-100 text-gray-700 ring-gray-200' });
                   }
                   if (pkg.packageStatus === 'ready_for_dispatch') {
                     return <>
-                      <span className="inline-block px-3 py-1 bg-purple-200 text-purple-800 rounded shadow text-xs font-semibold ml-2">Packaged</span>
+                      {getStatusChip(pkg.packageStatus, packageStatusClasses)}
                       <button
                         onClick={() => handleShowAssignTransport(pkg._id)}
-                        className="px-3 py-1 bg-green-600 text-white rounded shadow hover:bg-green-700 ml-2"
+                        className="ml-2 inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
                       >
-                        Assign Transport
+                        <Truck className="h-4 w-4" />
+                        Assign transport
                       </button>
                       {showAssignTransport === pkg._id && (
-                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                        <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3">
+                          <label className="sr-only" htmlFor={`assign-transporter-${pkg._id}`}>Select transporter</label>
                           <select
-                            className="w-full px-2 py-1 border border-green-200 rounded mb-2"
+                            id={`assign-transporter-${pkg._id}`}
+                            className={`${fieldClass} w-full`}
                             value={assignTransporterId}
                             onChange={e => setAssignTransporterId(e.target.value)}
                           >
@@ -291,42 +543,89 @@ export default function OrderList({ products }) {
                               <option key={user._id || user.id} value={user._id || user.id}>{user.fullName || user.name} {user.phoneNumber ? `(${user.phoneNumber})` : ''}</option>
                             ))}
                           </select>
-                          {assignTransportError && <div className="text-red-600 text-sm mb-1">{assignTransportError}</div>}
-                          <button
-                            onClick={() => handleAssignTransport(showAssignTransport)}
-                            className="px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700 mr-2"
-                            disabled={assigningTransport || !assignTransporterId}
-                          >
-                            {assigningTransport ? 'Assigning...' : 'Confirm Assign'}
-                          </button>
-                          <button
-                            onClick={() => setShowAssignTransport(null)}
-                            className="px-2 py-1 text-gray-500 hover:text-gray-700"
-                          >Cancel</button>
+                          {assignTransportError && <div role="alert" className="mt-2 text-sm font-medium text-red-600">{assignTransportError}</div>}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              onClick={() => handleAssignTransport(showAssignTransport)}
+                              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={assigningTransport || !assignTransporterId}
+                            >
+                              <Send className="h-4 w-4" />
+                              {assigningTransport ? 'Assigning...' : 'Confirm assign'}
+                            </button>
+                            <button
+                              onClick={() => setShowAssignTransport(null)}
+                              className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-white hover:text-gray-900"
+                            >Cancel</button>
+                          </div>
                         </div>
                       )}
                     </>;
                   }
-                  if (pkg.packageStatus === 'dispatched') {
-                    return <span className="inline-block px-3 py-1 bg-green-200 text-green-800 rounded shadow text-xs font-semibold ml-2">Dispatched</span>;
-                  }
-                  if (pkg.packageStatus === 'in_transit') {
-                    return <span className="inline-block px-3 py-1 bg-yellow-200 text-yellow-800 rounded shadow text-xs font-semibold ml-2">In Transit</span>;
-                  }
-                  if (pkg.packageStatus === 'delivered') {
-                    return <span className="inline-block px-3 py-1 bg-blue-200 text-blue-800 rounded shadow text-xs font-semibold ml-2">Delivered</span>;
-                  }
-                  if (pkg.packageStatus === 'returned') {
-                    return <span className="inline-block px-3 py-1 bg-red-200 text-red-800 rounded shadow text-xs font-semibold ml-2">Returned</span>;
-                  }
-                  // fallback for other statuses
-                  return <span className="inline-block px-3 py-1 bg-gray-200 text-gray-700 rounded shadow text-xs font-semibold ml-2">{pkg.packageStatus}</span>;
+                  return getStatusChip(pkg.packageStatus, packageStatusClasses);
                 })()}
+                {['dispatched', 'delivered', 'sale_confirmed', 'returned'].includes(order.orderStatus) && orderPackages[order._id]?._id && (
+                  <Link
+                    to={getTransportPackageHref(orderPackages[order._id]._id)}
+                    className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <Truck className="h-4 w-4" />
+                    Track delivery
+                  </Link>
+                )}
+                {['delivered', 'sale_confirmed'].includes(order.orderStatus) && (
+                  <Link
+                    to={getFinanceOrderHref(order._id)}
+                    className="ml-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Record payment
+                  </Link>
+                )}
+                {['delivered', 'sale_confirmed'].includes(order.orderStatus) && orderPackages[order._id]?._id && (
+                  <Link
+                    to={getReturnInitiateHref({ orderId: order._id, packageId: orderPackages[order._id]._id })}
+                    className="ml-2 inline-flex items-center gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Initiate return
+                  </Link>
+                )}
+                {order.orderStatus === 'returned' && (
+                  <Link
+                    to={ROUTES.RETURNS}
+                    className="ml-2 inline-flex items-center gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    View returns
+                  </Link>
+                )}
               </td>
             </tr>
-          ))}
+          )) : (
+            <tr>
+              <td className="px-4 py-10 text-center text-sm text-gray-500" colSpan="7">
+                <div className="flex flex-col items-center gap-3">
+                  <span>No orders match the current filters.</span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                    onClick={() => {
+                      setOrderSearch('');
+                      setStatusFilter('all');
+                    }}
+                  >
+                    <Search className="h-4 w-4" />
+                    Clear filters
+                  </button>
+                </div>
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
+      </div>
+      </div>
     </div>
   );
 }

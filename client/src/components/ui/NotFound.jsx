@@ -1,33 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
-import { Home, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Home } from 'lucide-react';
 
-/**
- * NotFound Component
- *
- * Displays a 404 error page when users navigate to non-existent routes.
- * Includes navigation options and logs the error for debugging purposes.
- *
- * @returns {React.ReactElement} The 404 error page
- */
 const NotFound = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Log 404 errors for monitoring and debugging
-    console.error(
-      `404 Error: User attempted to access non-existent route: ${location.pathname}`,
-      {
-        timestamp: new Date().toISOString(),
-        userAgent: navigator.userAgent,
-        referrer: document.referrer,
-      },
-    );
-  }, [location.pathname]);
-
   const handleGoBack = () => {
-    // Go back to previous page if available, otherwise go to home
     if (window.history.length > 1) {
       navigate(-1);
     } else {
@@ -36,52 +14,42 @@ const NotFound = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
-      <main className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 max-w-md w-full text-center border border-white/20">
-          {/* 404 Illustration */}
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-4xl font-bold text-blue-600">404</span>
-              </div>
-              <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-20 h-4 bg-blue-200 rounded-full opacity-30"></div>
-            </div>
-          </div>
-
-          {/* Error Message */}
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Page Not Found
-          </h1>
-          <p className="text-lg text-gray-600 mb-4">
-            Oops! The page you're looking for doesn't exist.
-          </p>
-          <p className="text-sm text-gray-500 mb-8">
-            The page might have been removed, renamed, or is temporarily unavailable.
-          </p>
-
-          {/* Navigation Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={handleGoBack}
-              className="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300"
-              aria-label="Go back to previous page"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Go Back
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              className="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="Go to home page"
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Go Home
-            </button>
-          </div>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
+      <section className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-sm font-semibold text-slate-700">
+          404
         </div>
-      </main>
-    </div>
+
+        <h1 className="mt-5 text-2xl font-semibold text-slate-950">
+          Page not found
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          No SmartStock route matches
+          {' '}
+          <span className="font-medium text-slate-800">{location.pathname}</span>
+          .
+        </p>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Go back
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+          >
+            <Home className="h-4 w-4" aria-hidden="true" />
+            Go home
+          </button>
+        </div>
+      </section>
+    </main>
   );
 };
 

@@ -9,6 +9,7 @@ export {
 
 export {
   isAuthenticated,
+  isTransportStatusAuthenticated,
   isAuthorized,
   canViewUserDetails
 } from "./auth.middleware.js";

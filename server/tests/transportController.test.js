@@ -170,11 +170,69 @@ describe('transport controller delivery ownership contracts', () => {
     expect(session.abortTransaction).not.toHaveBeenCalled();
   });
 
-  it('does not let reverse transport delivery process package receipt or item disposition', async () => {
-    const transport = buildTransport({ transportType: 'reverse' });
+  it('lets the assigned transporter update their own transport status', async () => {
+    const transport = buildTransport({
+      status: 'dispatched',
+      transporterId: 'transporter-1',
+    });
     const packageDoc = buildPackage();
     Transport.findById.mockReturnValue(buildSessionQuery(transport));
     Package.findById.mockReturnValue(buildPackageQuery(packageDoc));
+
+    const res = await invokeJsonController(transportController.updateTransportStatus, {
+      params: { transportId: 'transport-1' },
+      body: { status: 'in_transit', notes: 'Loaded for delivery' },
+      user: {
+        _id: 'transporter-1',
+        role: 'transporter',
+        assignedWarehouseId: 'warehouse-1',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(transport.status).toBe('in_transit');
+    expect(transport.statusHistory).toEqual([
+      expect.objectContaining({
+        status: 'in_transit',
+        notes: 'Loaded for delivery',
+        updatedBy: 'transporter-1',
+      }),
+    ]);
+    expect(packageDoc.packageStatus).toBe('in_transit');
+    expect(packageDoc.orderId.orderStatus).toBe('dispatched');
+    expect(transport.save).toHaveBeenCalledWith({ session });
+    expect(session.commitTransaction).toHaveBeenCalled();
+    expect(session.abortTransaction).not.toHaveBeenCalled();
+  });
+
+  it('blocks transporters from updating transports assigned to someone else', async () => {
+    const transport = buildTransport({
+      status: 'dispatched',
+      transporterId: 'transporter-2',
+    });
+    Transport.findById.mockReturnValue(buildSessionQuery(transport));
+
+    const res = await invokeJsonController(transportController.updateTransportStatus, {
+      params: { transportId: 'transport-1' },
+      body: { status: 'in_transit', notes: 'Attempted pickup' },
+      user: {
+        _id: 'transporter-1',
+        role: 'transporter',
+        assignedWarehouseId: 'warehouse-1',
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.payload.message).toBe('Not authorized to update this transport');
+    expect(Package.findById).not.toHaveBeenCalled();
+    expect(transport.save).not.toHaveBeenCalled();
+    expect(session.abortTransaction).toHaveBeenCalled();
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects reverse transport status updates because returns own that lifecycle', async () => {
+    const transport = buildTransport({ transportType: 'reverse' });
+    Transport.findById.mockReturnValue(buildSessionQuery(transport));
 
     const res = await invokeJsonController(transportController.updateTransportStatus, {
       params: { transportId: 'transport-1' },
@@ -186,14 +244,14 @@ describe('transport controller delivery ownership contracts', () => {
       },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(transport.status).toBe('delivered');
-    expect(packageDoc.packageStatus).toBe('dispatched');
-    expect(packageDoc.orderId.orderStatus).toBe('dispatched');
+    expect(res.statusCode).toBe(400);
+    expect(res.payload.message).toBe('Reverse transports must be updated through the return lifecycle.');
+    expect(transport.status).toBe('in_transit');
+    expect(Package.findById).not.toHaveBeenCalled();
+    expect(transport.save).not.toHaveBeenCalled();
     expect(transitionItemsStatus).not.toHaveBeenCalled();
-    expect(packageDoc.save).not.toHaveBeenCalled();
-    expect(packageDoc.orderId.save).not.toHaveBeenCalled();
-    expect(session.commitTransaction).toHaveBeenCalled();
+    expect(session.abortTransaction).toHaveBeenCalled();
+    expect(session.commitTransaction).not.toHaveBeenCalled();
   });
 
   it('rejects direct delivered jumps before package delivery side effects can run', async () => {
@@ -213,6 +271,29 @@ describe('transport controller delivery ownership contracts', () => {
     expect(res.statusCode).toBe(400);
     expect(res.payload.message).toBe('Invalid transport status transition from dispatched to delivered.');
     expect(Package.findById).not.toHaveBeenCalled();
+    expect(transitionItemsStatus).not.toHaveBeenCalled();
+    expect(session.abortTransaction).toHaveBeenCalled();
+    expect(session.commitTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects status updates when the transport package is missing', async () => {
+    const transport = buildTransport({ status: 'dispatched' });
+    Transport.findById.mockReturnValue(buildSessionQuery(transport));
+    Package.findById.mockReturnValue(buildPackageQuery(null));
+
+    const res = await invokeJsonController(transportController.updateTransportStatus, {
+      params: { transportId: 'transport-1' },
+      body: { status: 'in_transit' },
+      user: {
+        _id: 'staff-1',
+        role: 'staff',
+        assignedWarehouseId: 'warehouse-1',
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.payload.message).toBe('Package not found for this transport.');
+    expect(transport.save).not.toHaveBeenCalled();
     expect(transitionItemsStatus).not.toHaveBeenCalled();
     expect(session.abortTransaction).toHaveBeenCalled();
     expect(session.commitTransaction).not.toHaveBeenCalled();

@@ -11,7 +11,15 @@ const InventoryMovement = {
   exists: jest.fn(),
   find: jest.fn(),
 };
+const FinancialEvent = {
+  find: jest.fn(),
+};
+const FINANCE_ACCOUNT_TYPES = Object.freeze(['asset', 'liability', 'equity', 'revenue', 'expense']);
 const Item = {
+  find: jest.fn(),
+};
+const JournalEntry = {
+  aggregate: jest.fn(),
   find: jest.fn(),
 };
 const Order = {
@@ -58,9 +66,12 @@ const SalesOrder = {
 
 jest.unstable_mockModule('../models/index.js', () => ({
   Batch,
+  FINANCE_ACCOUNT_TYPES,
+  FinancialEvent,
   Inventory,
   InventoryMovement,
   Item,
+  JournalEntry,
   Order,
   Package,
   Payment,
@@ -235,18 +246,13 @@ describe('warehouse scope controller enforcement', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('filters legacy sales-order reads by batches in the authenticated warehouse', async () => {
-    Batch.find.mockReturnValue(buildDistinctQuery(['507f1f77bcf86cd799439041']));
-    SalesOrder.find.mockReturnValue(buildQuery([]));
+  it('retires legacy sales-order reads before warehouse/model lookups', async () => {
+    const res = await invokeJsonController(salesOrderController.getAllSalesOrders);
 
-    await invokeJsonController(salesOrderController.getAllSalesOrders);
-
-    expect(Batch.find).toHaveBeenCalledWith({
-      warehouseId: '507f1f77bcf86cd799439012',
-    });
-    expect(SalesOrder.find).toHaveBeenCalledWith({
-      'fulfilledItems.batchId': { $in: ['507f1f77bcf86cd799439041'] },
-    });
+    expect(res.statusCode).toBe(410);
+    expect(res.payload.message).toMatch(/legacy sales-order workflow is retired/i);
+    expect(Batch.find).not.toHaveBeenCalled();
+    expect(SalesOrder.find).not.toHaveBeenCalled();
   });
 
   it('filters all-product prediction data and linked history to the authenticated warehouse', async () => {
@@ -262,6 +268,18 @@ describe('warehouse scope controller enforcement', () => {
             price: 12,
           },
           currentWarehouseId: '507f1f77bcf86cd799439012',
+          status: 'in_stock',
+        },
+        {
+          productId: {
+            _id: { toString: () => productId },
+            productName: 'Widget',
+            sku: 'W-1',
+            productCategory: 'Tools',
+            price: 12,
+          },
+          currentWarehouseId: '507f1f77bcf86cd799439012',
+          status: 'delivered',
         },
       ]))
       .mockResolvedValueOnce([]);
@@ -276,6 +294,7 @@ describe('warehouse scope controller enforcement', () => {
     expect(SalesHistory.find.mock.calls[0][0].warehouseId.toString()).toBe('507f1f77bcf86cd799439012');
     expect(Return.find.mock.calls[0][0].warehouseId.toString()).toBe('507f1f77bcf86cd799439012');
     expect(res.payload.products).toHaveLength(1);
+    expect(res.payload.products[0].inventory.currentStock).toBe(1);
   });
 
   it('scopes outstanding payable reports directly by purchase-order warehouse', async () => {

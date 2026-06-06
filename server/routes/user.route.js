@@ -18,7 +18,7 @@ import handleValidationErrors from "../middlewares/validationErrors.middleware.j
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", isAuthenticated, isAuthorized("admin"), (req, res) => {
   res.send("Welcome to the User API");
 });
 router.get("/me",

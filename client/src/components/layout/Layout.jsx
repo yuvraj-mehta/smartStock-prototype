@@ -23,24 +23,21 @@ const Layout = ({
   className = '',
 }) => {
   return (
-    <div className={`min-h-screen flex flex-col bg-gray-50 ${className}`}>
-      {/* Navigation Bar */}
+    <div className={`min-h-screen flex flex-col bg-slate-50 text-slate-950 ${className}`}>
       {showNavigation && (
         <header className="sticky top-0 z-40">
           <NavigationBar />
         </header>
       )}
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col">
         {children || <Outlet />}
       </main>
 
-      {/* Footer */}
       {showFooter && (
-        <footer className="mt-auto">
+        <div className="mt-auto">
           <Footer />
-        </footer>
+        </div>
       )}
     </div>
   );

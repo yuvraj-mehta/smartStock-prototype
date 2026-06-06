@@ -1,13 +1,17 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as returnService from '../../services/returnService';
 
+const getErrorMessage = (error, fallback) => (
+  error.response?.data?.message || error.message || fallback
+);
+
 export const fetchAllReturns = createAsyncThunk(
   'returns/fetchAll',
   async (params, { rejectWithValue }) => {
     try {
       return await returnService.getAllReturns(params);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to fetch returns'));
     }
   },
 );
@@ -18,7 +22,7 @@ export const initiateReturn = createAsyncThunk(
     try {
       return await returnService.initiateReturn(data);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to initiate return'));
     }
   },
 );
@@ -29,7 +33,7 @@ export const scheduleReturnPickup = createAsyncThunk(
     try {
       return await returnService.scheduleReturnPickup(returnId, data);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to schedule return pickup'));
     }
   },
 );
@@ -40,7 +44,7 @@ export const markReturnPickedUp = createAsyncThunk(
     try {
       return await returnService.markReturnPickedUp(returnId, data);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to mark return picked up'));
     }
   },
 );
@@ -51,7 +55,7 @@ export const processReturn = createAsyncThunk(
     try {
       return await returnService.processReturn(returnId, data);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || err.message);
+      return rejectWithValue(getErrorMessage(err, 'Failed to process return'));
     }
   },
 );
@@ -69,7 +73,9 @@ const returnSlice = createSlice({
       .addCase(fetchAllReturns.pending, state => { state.loading = true; state.error = null; })
       .addCase(fetchAllReturns.fulfilled, (state, action) => {
         state.loading = false;
-        state.returns = action.payload.returns || [];
+        state.returns = Array.isArray(action.payload)
+          ? action.payload
+          : action.payload?.returns || [];
       })
       .addCase(fetchAllReturns.rejected, (state, action) => {
         state.loading = false;
@@ -78,7 +84,9 @@ const returnSlice = createSlice({
       .addCase(initiateReturn.pending, state => { state.loading = true; state.error = null; })
       .addCase(initiateReturn.fulfilled, (state, action) => {
         state.loading = false;
-        state.returns.unshift(action.payload.return);
+        if (action.payload?.return) {
+          state.returns.unshift(action.payload.return);
+        }
       })
       .addCase(initiateReturn.rejected, (state, action) => {
         state.loading = false;

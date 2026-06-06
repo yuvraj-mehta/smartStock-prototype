@@ -1,5 +1,6 @@
 export {
   login,
+  loginTransporter,
   logout,
   getMyDetails,
   changePassword,

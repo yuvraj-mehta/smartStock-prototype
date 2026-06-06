@@ -99,40 +99,38 @@ const DemandForecast = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-3">
-        <ChartBarIcon className="w-8 h-8 text-blue-600" />
+      <div className="flex items-center gap-3">
+        <span className="rounded-md bg-blue-50 p-2 text-blue-600">
+          <ChartBarIcon className="h-6 w-6" />
+        </span>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">AI Demand Forecasting</h1>
-          <p className="text-gray-600">Generate intelligent demand predictions using ChatGPT</p>
+          <h1 className="text-2xl font-bold text-slate-950">Demand Forecasting</h1>
+          <p className="text-sm text-slate-600">Forecast product demand from recent order and inventory signals.</p>
         </div>
       </div>
 
-      {/* Error Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
           <div className="flex items-center">
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-2" />
-            <p className="text-red-800">{error}</p>
+            <ExclamationTriangleIcon className="mr-2 h-5 w-5 text-rose-600" />
+            <p className="text-rose-800">{error}</p>
           </div>
         </div>
       )}
 
-      {/* Forecast Configuration */}
-      <div className="bg-white rounded-lg shadow border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Forecast Configuration</h2>
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-slate-950">Forecast Configuration</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Product Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Select Product {loading && '(Loading...)'}
             </label>
             <select
               value={selectedProduct}
               onChange={(e) => setSelectedProduct(e.target.value)}
               disabled={loading}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
             >
               <option value="">
                 {loading ? 'Loading products...' : products.length === 0 ? 'No products available' : 'Choose a product...'}
@@ -144,19 +142,18 @@ const DemandForecast = () => {
               ))}
             </select>
             {products.length === 0 && !loading && (
-              <p className="text-sm text-red-600 mt-1">No products found. Check your permissions.</p>
+              <p className="mt-1 text-sm text-rose-600">No products found. Check your permissions.</p>
             )}
           </div>
 
-          {/* Period Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Forecast Period
             </label>
             <select
               value={forecastParams.periodType}
               onChange={(e) => setForecastParams({ ...forecastParams, periodType: e.target.value })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
             >
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
@@ -164,15 +161,14 @@ const DemandForecast = () => {
             </select>
           </div>
 
-          {/* Historical Data Period */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
               Historical Data (Days)
             </label>
             <select
               value={forecastParams.daysBack}
-              onChange={(e) => setForecastParams({ ...forecastParams, daysBack: parseInt(e.target.value) })}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setForecastParams({ ...forecastParams, daysBack: parseInt(e.target.value, 10) })}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
             >
               <option value={30}>30 Days</option>
               <option value={60}>60 Days</option>
@@ -183,12 +179,11 @@ const DemandForecast = () => {
           </div>
         </div>
 
-        {/* Generate Button */}
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-end">
           <button
             onClick={generateForecast}
             disabled={!selectedProduct || forecasting}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {forecasting ? (
               <>
@@ -205,29 +200,17 @@ const DemandForecast = () => {
         </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex items-center">
-            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
-            <span className="ml-2 text-red-700">{error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Forecast Results */}
       {forecastData && (
         <div className="space-y-6">
-          {/* Forecast Summary */}
-          <div className="bg-white rounded-lg shadow border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Forecast Summary</h3>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-lg font-semibold text-slate-950">Forecast Summary</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-blue-50 p-4 rounded-md">
+              <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
                 <div className="flex items-center">
                   <ArrowTrendingUpIcon className="w-6 h-6 text-blue-600" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-blue-600">Forecast Quantity</p>
+                    <p className="text-sm font-medium text-blue-700">Forecast Quantity</p>
                     <p className="text-xl font-bold text-blue-900">
                       {forecastData.aiResponse?.forecast30Days?.quantity || 0} units
                     </p>
@@ -235,11 +218,11 @@ const DemandForecast = () => {
                 </div>
               </div>
 
-              <div className="bg-green-50 p-4 rounded-md">
+              <div className="rounded-md border border-emerald-100 bg-emerald-50 p-4">
                 <div className="flex items-center">
                   <CheckCircleIcon className="w-6 h-6 text-green-600" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-green-600">Confidence Level</p>
+                    <p className="text-sm font-medium text-emerald-700">Confidence Level</p>
                     <div className="flex items-center space-x-2">
                       <span className="text-xl font-bold text-green-900">
                         {forecastData.aiResponse?.forecast30Days?.confidence || 0}%
@@ -253,11 +236,11 @@ const DemandForecast = () => {
                 </div>
               </div>
 
-              <div className="bg-yellow-50 p-4 rounded-md">
+              <div className="rounded-md border border-amber-100 bg-amber-50 p-4">
                 <div className="flex items-center">
                   <CalendarIcon className="w-6 h-6 text-yellow-600" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-yellow-600">Reorder Point</p>
+                    <p className="text-sm font-medium text-amber-700">Reorder Point</p>
                     <p className="text-xl font-bold text-yellow-900">
                       {forecastData.forecast?.recommendations?.reorderPoint || 0} units
                     </p>
@@ -265,12 +248,12 @@ const DemandForecast = () => {
                 </div>
               </div>
 
-              <div className="bg-purple-50 p-4 rounded-md">
+              <div className="rounded-md border border-cyan-100 bg-cyan-50 p-4">
                 <div className="flex items-center">
-                  <ChartBarIcon className="w-6 h-6 text-purple-600" />
+                  <ChartBarIcon className="w-6 h-6 text-cyan-600" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-purple-600">Safety Stock</p>
-                    <p className="text-xl font-bold text-purple-900">
+                    <p className="text-sm font-medium text-cyan-700">Safety Stock</p>
+                    <p className="text-xl font-bold text-cyan-900">
                       {forecastData.forecast?.recommendations?.safetyStock || 0} units
                     </p>
                   </div>
@@ -279,27 +262,25 @@ const DemandForecast = () => {
             </div>
           </div>
 
-          {/* Key Factors */}
           {forecastData.aiResponse?.keyFactors && forecastData.aiResponse.keyFactors.length > 0 && (
-            <div className="bg-white rounded-lg shadow border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Influencing Factors</h3>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-lg font-semibold text-slate-950">Key Influencing Factors</h3>
               <div className="space-y-3">
                 {forecastData.aiResponse.keyFactors.map((factor, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-md">
+                  <div key={index} className="flex items-start gap-3 rounded-md border border-slate-100 bg-slate-50 p-3">
                     <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                    <p className="text-gray-700">{factor}</p>
+                    <p className="text-slate-700">{factor}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Risk Assessment */}
-          <div className="bg-white rounded-lg shadow border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Risk Assessment</h3>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-lg font-semibold text-slate-950">Risk Assessment</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 border rounded-md">
+              <div className="rounded-md border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-600">Stockout Risk</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(forecastData.forecast?.riskAssessment?.stockoutRisk)}`}>
@@ -308,7 +289,7 @@ const DemandForecast = () => {
                 </div>
               </div>
 
-              <div className="p-4 border rounded-md">
+              <div className="rounded-md border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-600">Overstock Risk</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(forecastData.forecast?.riskAssessment?.overStockRisk)}`}>
@@ -317,7 +298,7 @@ const DemandForecast = () => {
                 </div>
               </div>
 
-              <div className="p-4 border rounded-md">
+              <div className="rounded-md border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-600">Market Risk</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(forecastData.forecast?.riskAssessment?.marketRisk)}`}>
@@ -328,24 +309,22 @@ const DemandForecast = () => {
             </div>
           </div>
 
-          {/* Recommendations */}
           {forecastData.aiResponse?.recommendations && forecastData.aiResponse.recommendations.length > 0 && (
-            <div className="bg-white rounded-lg shadow border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Recommendations</h3>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-lg font-semibold text-slate-950">Recommendations</h3>
               <div className="space-y-3">
                 {forecastData.aiResponse.recommendations.map((recommendation, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 rounded-md">
+                  <div key={index} className="flex items-start gap-3 rounded-md border border-blue-100 bg-blue-50 p-3">
                     <CheckCircleIcon className="w-5 h-5 text-blue-600 mt-0.5" />
-                    <p className="text-gray-700">{recommendation}</p>
+                    <p className="text-slate-700">{recommendation}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Forecast Metadata */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-sm text-gray-600 space-y-1">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-1 text-sm text-slate-600">
               <p><span className="font-medium">Generated:</span> {new Date(forecastData.forecast?.createdAt).toLocaleString()}</p>
               <p><span className="font-medium">Model:</span> {forecastData.forecast?.aiPrediction?.predictionModel || 'GPT-3.5-Turbo'}</p>
               <p><span className="font-medium">Forecast ID:</span> {forecastData.forecast?._id}</p>

@@ -1,4 +1,4 @@
-import { Batch, Inventory, IncomingSupply, InventoryMovement, Item, Product } from "../models/index.js";
+import { Batch, ExternalUser, Inventory, IncomingSupply, InventoryMovement, Item, Product } from "../models/index.js";
 import { logAudit } from "../utils/auditLogger.js";
 import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
@@ -41,6 +41,27 @@ const getScopedWarehouseFilter = (req, requestedWarehouseId) => {
   return assignedWarehouseId || requestedWarehouseId || null;
 };
 
+const assertDirectSupplySupplierAccess = async (supplierId, warehouseId) => {
+  if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+    throw httpError(400, "Supplier ID must be a valid Mongo ID.");
+  }
+
+  const supplier = await ExternalUser.findById(supplierId);
+  if (!supplier) {
+    throw httpError(404, "Supplier not found.");
+  }
+
+  if (supplier.role !== "supplier") {
+    throw httpError(400, "External user must have supplier role.");
+  }
+
+  if (normalizeId(supplier.warehouseId) !== warehouseId.toString()) {
+    throw httpError(403, "Supplier is not assigned to this warehouse.");
+  }
+
+  return supplier;
+};
+
 // Add inventory supply
 export const addInventorySupply = catchAsyncErrors(async (req, res) => {
   const {
@@ -63,6 +84,14 @@ export const addInventorySupply = catchAsyncErrors(async (req, res) => {
   const warehouseId = getAssignedWarehouseId(req);
   if (!warehouseId || !mongoose.Types.ObjectId.isValid(warehouseId)) {
     return res.status(400).json({ message: "User is not assigned to any valid warehouse." });
+  }
+
+  if (!purchaseOrderId) {
+    try {
+      await assertDirectSupplySupplierAccess(supplierId, warehouseId);
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({ message: error.message });
+    }
   }
 
   const session = await mongoose.startSession();

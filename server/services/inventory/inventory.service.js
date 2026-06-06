@@ -2,6 +2,7 @@ import { Batch } from "../../models/batch.model.js";
 import { Inventory } from "../../models/inventory.model.js";
 import { InventoryMovement } from "../../models/inventoryMovement.model.js";
 import { Item, ITEM_HISTORY_ACTIONS, ITEM_STATUSES } from "../../models/item.model.js";
+import { recordInventoryDamageForItemsEvent } from "../finance/index.js";
 
 export const STOCK_COUNT_STATUS = "in_stock";
 
@@ -317,6 +318,35 @@ const buildMovementFromItem = (item, movementDetails) => ({
   metadata: movementDetails.metadata,
 });
 
+const recordDamageLedgerEvent = async ({
+  items,
+  toStatus,
+  actorId,
+  warehouseId,
+  toWarehouseId,
+  referenceType,
+  referenceId,
+  movementType,
+  notes,
+  session,
+}) => {
+  if (toStatus !== "damaged" || !session || !Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+
+  return recordInventoryDamageForItemsEvent({
+    itemIds: items.map((item) => item._id),
+    items,
+    referenceType,
+    referenceId,
+    warehouseId: toWarehouseId || warehouseId || items[0]?.currentWarehouseId,
+    actorId,
+    movementType,
+    notes,
+    session,
+  });
+};
+
 const syncAffectedWarehouses = async (batchId, warehouseIds, options = {}) => {
   const syncResults = [];
   const uniqueWarehouseIds = [...new Set(warehouseIds.map(normalizeId).filter(Boolean))];
@@ -400,8 +430,20 @@ export const transitionItemStatus = async (itemOrId, toStatus, options = {}) => 
   const inventorySyncs = syncInventory
     ? await syncAffectedWarehouses(item.batchId, [fromWarehouseId, resolvedToWarehouseId], { session })
     : [];
+  const damageLedgerEvent = await recordDamageLedgerEvent({
+    items: [item],
+    toStatus,
+    actorId,
+    warehouseId,
+    toWarehouseId: resolvedToWarehouseId,
+    referenceType,
+    referenceId,
+    movementType,
+    notes: historyEntry.notes,
+    session,
+  });
 
-  return { item, movement, inventorySyncs, fromStatus, toStatus };
+  return { item, movement, inventorySyncs, damageLedgerEvent, fromStatus, toStatus };
 };
 
 export const transitionItemsStatus = async ({
@@ -511,7 +553,20 @@ export const transitionItemsStatus = async ({
     }
   }
 
-  return { modifiedCount, items: actionableItems, movements, inventorySyncs };
+  const damageLedgerEvent = await recordDamageLedgerEvent({
+    items: actionableItems,
+    toStatus,
+    actorId,
+    warehouseId,
+    toWarehouseId,
+    referenceType,
+    referenceId,
+    movementType,
+    notes: historyEntry.notes,
+    session,
+  });
+
+  return { modifiedCount, items: actionableItems, movements, inventorySyncs, damageLedgerEvent };
 };
 
 export default {

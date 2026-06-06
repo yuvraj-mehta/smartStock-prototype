@@ -1,6 +1,7 @@
 import { catchAsyncErrors } from "./index.js";
 import jwt from "jsonwebtoken";
 import { conf } from "../config/config.js";
+import { ExternalUser } from "../models/externalUsers.model.js";
 import { User } from "../models/user.model.js";
 import {
   ROLES,
@@ -11,13 +12,51 @@ import {
   normalizeRole,
 } from "../services/policy/index.js";
 
-const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
+const EXTERNAL_TRANSPORTER_ROLE = "transporter";
+const TRANSPORT_STATUS_INTERNAL_ROLES = [ROLES.ADMIN, ROLES.STAFF];
+
+const getBearerToken = (req) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.split(' ')[1];
+};
+
+const getDecodedUserId = (decoded) => decoded?.id || decoded?._id || decoded?.userId || decoded?.sub;
+
+const findInternalUserById = (id) => User.findById(id)
+  .populate('assignedWarehouseId', 'address warehouseName');
+
+const attachInternalAuthContext = (req, user) => {
+  const role = normalizeRole(user.role);
+  if (!isInternalUserRole(role)) {
+    return { statusCode: 403, message: 'Forbidden: Unsupported internal user role.' };
+  }
+
+  if (!user.assignedWarehouseId) {
+    return { statusCode: 403, message: 'User must be assigned to a warehouse.' };
+  }
+
+  req.user = user;
+  req.user.role = role;
+  req.authPolicy = {
+    role,
+    scopes: getRoleScopes(role),
+  };
+
+  // Expose user's warehouse assignment for downstream use
+  req.assignedWarehouseId = req.user.assignedWarehouseId;
+
+  return null;
+};
+
+const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
+  const token = getBearerToken(req);
+  if (!token) {
     return res.status(401).json({ message: 'No token provided, authorization denied.' });
   }
 
-  const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, conf.jwtSecret);
     if (!decoded) {
@@ -25,32 +64,80 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
     }
 
     // Populate user with warehouse location
-    req.user = await User.findById(decoded.id)
-      .populate('assignedWarehouseId', 'address warehouseName');
+    const user = await findInternalUserById(getDecodedUserId(decoded));
 
-    if (!req.user) {
+    if (!user) {
       return res.status(401).json({ message: 'User not found, authorization denied.' });
     }
 
-    const role = normalizeRole(req.user.role);
-    if (!isInternalUserRole(role)) {
-      return res.status(403).json({ message: 'Forbidden: Unsupported internal user role.' });
+    const authError = attachInternalAuthContext(req, user);
+    if (authError) {
+      return res.status(authError.statusCode).json({ message: authError.message });
     }
-
-    if (!req.user.assignedWarehouseId) {
-      return res.status(403).json({ message: 'User must be assigned to a warehouse.' });
-    }
-
-    req.user.role = role;
-    req.authPolicy = {
-      role,
-      scopes: getRoleScopes(role),
-    };
-
-    // Expose user's warehouse assignment for downstream use
-    req.assignedWarehouseId = req.user.assignedWarehouseId;
 
     next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
+  }
+});
+
+const isTransportStatusAuthenticated = catchAsyncErrors(async (req, res, next) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    return res.status(401).json({ message: 'No token provided, authorization denied.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, conf.jwtSecret);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
+    }
+
+    const decodedUserId = getDecodedUserId(decoded);
+    const internalUser = decodedUserId ? await findInternalUserById(decodedUserId) : null;
+    if (internalUser) {
+      const authError = attachInternalAuthContext(req, internalUser);
+      if (authError) {
+        return res.status(authError.statusCode).json({ message: authError.message });
+      }
+
+      if (!TRANSPORT_STATUS_INTERNAL_ROLES.includes(normalizeRole(req.user.role))) {
+        return res
+          .status(403)
+          .json({ message: 'Forbidden: You are not authorized to access this resource.' });
+      }
+
+      return next();
+    }
+
+    const externalUser = decodedUserId ? await ExternalUser.findById(decodedUserId) : null;
+    const externalRole = normalizeRole(externalUser?.role);
+    if (!externalUser || externalRole !== EXTERNAL_TRANSPORTER_ROLE) {
+      return res.status(403).json({ message: 'Forbidden: You are not authorized to access this resource.' });
+    }
+    if (externalUser.status !== 'active') {
+      return res.status(403).json({ message: 'Transporter is inactive or suspended.' });
+    }
+    if (!externalUser.warehouseId) {
+      return res.status(403).json({ message: 'Transporter must be assigned to a warehouse.' });
+    }
+
+    const requestUser = typeof externalUser.toObject === 'function'
+      ? externalUser.toObject()
+      : { ...externalUser };
+    req.user = {
+      ...requestUser,
+      _id: externalUser._id,
+      role: externalRole,
+      assignedWarehouseId: externalUser.warehouseId,
+    };
+    req.assignedWarehouseId = externalUser.warehouseId;
+    req.authPolicy = {
+      role: externalRole,
+      scopes: [],
+    };
+
+    return next();
   } catch (err) {
     return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
   }
@@ -97,6 +184,7 @@ const canViewUserDetails = (req, res, next) => {
 
 export {
   isAuthenticated,
+  isTransportStatusAuthenticated,
   isAuthorized,
   canViewUserDetails
 };

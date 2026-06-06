@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   login,
+  loginTransporter,
   logout,
   changePassword,
   updateProfile
@@ -14,11 +15,12 @@ import handleValidationErrors from "../middlewares/validationErrors.middleware.j
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", isAuthenticated, (req, res) => {
   res.send("Welcome to the Auth API");
 });
 
 router.post("/login", loginValidation, handleValidationErrors, login);
+router.post("/transporter-login", loginValidation, handleValidationErrors, loginTransporter);
 router.get("/logout",
   isAuthenticated,
   logout

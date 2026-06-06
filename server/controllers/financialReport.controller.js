@@ -1,16 +1,16 @@
 import {
   InventoryMovement,
   Item,
-  Package,
+  FinancialEvent,
   Payment,
   PaymentReceived,
   PurchaseOrder,
   Invoice,
-  Return,
   SalesInvoice,
   SalesOrder,
 } from '../models/index.js';
 import { catchAsyncErrors, getAssignedWarehouseObjectId } from '../middlewares/index.js';
+import { getProfitAndLossFromJournal } from '../services/finance/index.js';
 
 const getWarehouseScope = (req) => {
   if (!req.user) {
@@ -41,7 +41,21 @@ const sumCompletedPayments = async (Model, relationField, relationId) => {
   return summary?.totalPaid || 0;
 };
 
+const addAmountById = (amountsById, id, amount) => {
+  const key = normalizeId(id);
+  if (!key) return false;
+
+  const current = amountsById.get(key) || { id, amount: 0 };
+  amountsById.set(key, {
+    id: current.id || id,
+    amount: current.amount + (Number(amount) || 0),
+  });
+  return true;
+};
+
 const getScopedPurchaseOrderFilter = (warehouseId) => ({ warehouseId });
+
+const normalizeId = (id) => (id?._id || id)?.toString();
 
 const hasScopedSalesOrderInventory = async (order, warehouseId) => {
   if (!order?._id) {
@@ -107,6 +121,27 @@ export const getOutstandingReceivables = catchAsyncErrors(async (req, res) => {
     totalReceivables += Math.max((invoice.amount || 0) - paidAmount, 0);
   }
 
+  const confirmedOrderEventFilter = {
+    eventType: 'sales_invoice',
+    referenceType: 'Order',
+  };
+  if (isScoped) {
+    confirmedOrderEventFilter.warehouseId = warehouseId;
+  }
+
+  const confirmedOrderEvents = await FinancialEvent.find(confirmedOrderEventFilter);
+  const orderReceivablesById = new Map();
+  for (const event of confirmedOrderEvents) {
+    if (!addAmountById(orderReceivablesById, event.referenceId, event.amount)) {
+      totalReceivables += Number(event.amount) || 0;
+    }
+  }
+
+  for (const { id: orderId, amount: orderReceivable } of orderReceivablesById.values()) {
+    const paidAmount = await sumCompletedPayments(PaymentReceived, 'orderId', orderId);
+    totalReceivables += Math.max(orderReceivable - paidAmount, 0);
+  }
+
   res.json({ totalReceivables });
 });
 
@@ -140,103 +175,17 @@ export const getCOGSAndProfit = catchAsyncErrors(async (req, res) => {
     return res.json({ totalCOGS: 0, totalRevenue: 0, profit: 0 });
   }
 
-  const match = { status: 'fulfilled' };
-  if (startDate || endDate) {
-    match.createdAt = {};
-    if (startDate) match.createdAt.$gte = new Date(startDate);
-    if (endDate) match.createdAt.$lte = new Date(endDate);
-  }
+  const profitAndLoss = await getProfitAndLossFromJournal({
+    startDate,
+    endDate,
+    warehouseId: isScoped ? warehouseId : undefined,
+  });
 
-  const salesOrders = await SalesOrder.find(match);
-  let totalCOGS = 0;
-  let totalRevenue = 0;
-
-  for (const order of salesOrders) {
-    const quantity = Number(order.quantity) || 0;
-    if (!order.productId || quantity <= 0) continue;
-
-    const movementFilter = {
-      referenceType: 'SalesOrder',
-      referenceId: order._id,
-      movementType: 'dispatch',
-    };
-
-    if (isScoped) {
-      movementFilter.warehouseId = warehouseId;
-    }
-
-    const movements = await InventoryMovement.find(movementFilter).select('itemId').limit(quantity);
-    if (movements.length === 0) continue;
-
-    const itemIds = movements.map((movement) => movement.itemId).filter(Boolean);
-    const items = await Item.find({ _id: { $in: itemIds } }).populate('batchId', 'unitCost');
-    let cogs = 0;
-    for (const item of items) {
-      cogs += typeof item.purchasePrice === 'number'
-        ? item.purchasePrice
-        : item.batchId?.unitCost || 0;
-    }
-
-    totalCOGS += cogs;
-    totalRevenue += (Number(order.totalPrice) || 0) * (movements.length / quantity);
-  }
-
-  const deliveryMovementFilter = {
-    referenceType: 'Package',
-    movementType: 'delivery',
-  };
-  if (startDate || endDate) {
-    deliveryMovementFilter.createdAt = {};
-    if (startDate) deliveryMovementFilter.createdAt.$gte = new Date(startDate);
-    if (endDate) deliveryMovementFilter.createdAt.$lte = new Date(endDate);
-  }
-  if (isScoped) {
-    deliveryMovementFilter.warehouseId = warehouseId;
-  }
-
-  const deliveryMovements = await InventoryMovement.find(deliveryMovementFilter).select('itemId referenceId');
-  const packageMovementMap = new Map();
-  for (const movement of deliveryMovements) {
-    if (!movement.referenceId || !movement.itemId) continue;
-    const packageId = movement.referenceId.toString();
-    if (!packageMovementMap.has(packageId)) packageMovementMap.set(packageId, []);
-    packageMovementMap.get(packageId).push(movement.itemId);
-  }
-
-  if (packageMovementMap.size > 0) {
-    const packageIds = [...packageMovementMap.keys()];
-    const returnedPackageIds = await Return.find({ packageId: { $in: packageIds } }).distinct('packageId');
-    const returnedPackageIdSet = new Set(returnedPackageIds.map((id) => id.toString()));
-    const salePackageIds = packageIds.filter((id) => !returnedPackageIdSet.has(id.toString()));
-
-    const packages = await Package.find({
-      _id: { $in: salePackageIds },
-      packageStatus: 'delivered',
-    }).select('allocatedItems totalValue');
-
-    for (const packageDoc of packages) {
-      const movementItemIds = packageMovementMap.get(packageDoc._id.toString()) || [];
-      const items = await Item.find({ _id: { $in: movementItemIds } }).populate('batchId', 'unitCost');
-      const packageItemCount = (packageDoc.allocatedItems || []).reduce((sum, alloc) => (
-        sum + (Array.isArray(alloc.itemIds) && alloc.itemIds.length > 0 ? alloc.itemIds.length : Number(alloc.quantity) || 0)
-      ), 0);
-
-      let cogs = 0;
-      for (const item of items) {
-        cogs += typeof item.purchasePrice === 'number'
-          ? item.purchasePrice
-          : item.batchId?.unitCost || 0;
-      }
-
-      totalCOGS += cogs;
-      if (packageItemCount > 0) {
-        totalRevenue += (Number(packageDoc.totalValue) || 0) * (movementItemIds.length / packageItemCount);
-      }
-    }
-  }
-
-  const profit = totalRevenue - totalCOGS;
-  res.json({ totalCOGS, totalRevenue, profit });
+  res.json({
+    totalCOGS: profitAndLoss.cogs,
+    totalRevenue: profitAndLoss.revenue,
+    profit: profitAndLoss.grossProfit,
+  });
 });
 
 // Get inventory value by warehouse and product

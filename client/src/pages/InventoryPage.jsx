@@ -1,25 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import {
-  FaBoxOpen,
-  FaPlus,
-  FaSearch,
-  FaFilter,
-  FaExclamationTriangle,
-  FaExclamationCircle,
-  FaBarcode,
-  FaEye,
-  FaCheckCircle,
-  FaTimesCircle,
-  FaSpinner,
-  FaArrowDown,
-  FaArrowUp,
-  FaChartBar,
-  FaSyncAlt,
-  FaTachometerAlt,
-  FaWarehouse,
-  FaClipboardList,
-} from 'react-icons/fa';
+  AlertCircle,
+  AlertTriangle,
+  Barcode,
+  BarChart3,
+  Boxes,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Eye,
+  Filter,
+  Gauge,
+  LoaderCircle,
+  PackageOpen,
+  Plus,
+  RefreshCw,
+  Search,
+  Warehouse,
+  X,
+  XCircle,
+} from 'lucide-react';
 import {
   fetchInventory,
   addInventorySupply,
@@ -33,6 +36,7 @@ import {
 // Do not use deprecated product/inventory quantity fields.
 import { getAllProducts } from '../app/slices/productSlice';
 import { fetchSuppliers } from '../app/slices/supplierSlice';
+import { USER_ROLES } from '../constants';
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -66,10 +70,203 @@ const getDefaultDamagedForm = () => ({
   reason: '',
 });
 
+const formatCurrency = (value, currency = 'INR') => (
+  Number(value || 0).toLocaleString('en-IN', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  })
+);
+
+const formatNumber = (value) => Number(value || 0).toLocaleString('en-IN');
+
+const formatDate = (value) => {
+  if (!value) {
+    return 'N/A';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString('en-IN');
+};
+
+const formatCategory = (category) => (
+  category ? category.charAt(0).toUpperCase() + category.slice(1) : 'Uncategorized'
+);
+
+const panelClass = 'rounded-lg border border-slate-200 bg-white shadow-sm';
+const fieldClass = 'w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500';
+const labelClass = 'mb-2 block text-sm font-medium text-slate-700';
+const secondaryButtonClass = 'inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60';
+const primaryButtonClass = 'inline-flex items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+
+const toneClasses = {
+  slate: 'border-slate-200 bg-slate-50 text-slate-700',
+  blue: 'border-blue-200 bg-blue-50 text-blue-700',
+  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  amber: 'border-amber-200 bg-amber-50 text-amber-700',
+  red: 'border-red-200 bg-red-50 text-red-700',
+};
+
+const noticeConfig = {
+  success: {
+    Icon: CheckCircle2,
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    iconClassName: 'text-emerald-600',
+  },
+  error: {
+    Icon: XCircle,
+    className: 'border-red-200 bg-red-50 text-red-800',
+    iconClassName: 'text-red-600',
+  },
+  warning: {
+    Icon: AlertTriangle,
+    className: 'border-amber-200 bg-amber-50 text-amber-800',
+    iconClassName: 'text-amber-600',
+  },
+  info: {
+    Icon: AlertCircle,
+    className: 'border-blue-200 bg-blue-50 text-blue-800',
+    iconClassName: 'text-blue-600',
+  },
+};
+
+const inventoryTabs = [
+  { id: 'overview', label: 'Overview', icon: Gauge },
+  { id: 'stock', label: 'Stock Management', icon: PackageOpen },
+  { id: 'add-supply', label: 'Add Supply', icon: Plus },
+  { id: 'mark-damaged', label: 'Mark Damaged', icon: AlertTriangle },
+  { id: 'tracking', label: 'Batch Tracking', icon: Barcode },
+];
+
+const DEFAULT_INVENTORY_TAB = 'overview';
+const INVENTORY_TAB_IDS = new Set(inventoryTabs.map(({ id }) => id));
+const getInventoryTabId = (tabId) => `inventory-tab-${tabId}`;
+const getInventoryPanelId = (tabId) => `inventory-panel-${tabId}`;
+
+const normalizeRole = (role) => (
+  typeof role === 'string' ? role.trim().toLowerCase() : ''
+);
+
+const getStatusMeta = (quantity) => {
+  const count = Number(quantity) || 0;
+
+  if (count === 0) {
+    return {
+      label: 'Out of Stock',
+      Icon: XCircle,
+      className: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+    };
+  }
+
+  if (count < 10) {
+    return {
+      label: 'Low Stock',
+      Icon: AlertTriangle,
+      className: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    };
+  }
+
+  return {
+    label: 'In Stock',
+    Icon: CheckCircle2,
+    className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  };
+};
+
+function Notice({ type = 'info', title, children, onDismiss }) {
+  const config = noticeConfig[type] || noticeConfig.info;
+  const Icon = config.Icon;
+
+  return (
+    <div className={`rounded-md border px-4 py-3 text-sm ${config.className}`} role={type === 'error' ? 'alert' : 'status'}>
+      <div className="flex items-start gap-3">
+        <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${config.iconClassName}`} />
+        <div className="min-w-0 flex-1">
+          {title && <p className="font-semibold">{title}</p>}
+          <div className={title ? 'mt-1 text-sm leading-6' : 'text-sm leading-6'}>{children}</div>
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            className="rounded-md p-1 opacity-70 transition hover:bg-white/60 hover:opacity-100"
+            onClick={onDismiss}
+            aria-label="Dismiss message"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ icon: Icon, title, detail, tone = 'blue' }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border p-2 ${toneClasses[tone] || toneClasses.blue}`}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+        {detail && <p className="mt-1 text-sm text-slate-500">{detail}</p>}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ title, value, icon: Icon, tone = 'blue', detail }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+          <p className="mt-2 break-words text-2xl font-semibold text-slate-950">{value}</p>
+        </div>
+        <span className={`rounded-md border p-2 ${toneClasses[tone] || toneClasses.blue}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      {detail && <p className="mt-3 text-xs text-slate-500">{detail}</p>}
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, title, detail, action }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+      <Icon className="mx-auto h-8 w-8 text-slate-400" />
+      <p className="mt-3 text-sm font-semibold text-slate-800">{title}</p>
+      {detail && <p className="mx-auto mt-1 max-w-xl text-sm text-slate-500">{detail}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+function StatusBadge({ quantity }) {
+  const status = getStatusMeta(quantity);
+  const Icon = status.Icon;
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {status.label}
+    </span>
+  );
+}
+
+function DetailTile({ label, value, tone = 'slate', mono = false }) {
+  return (
+    <div className={`rounded-md border px-3 py-2 ${toneClasses[tone] || toneClasses.slate}`}>
+      <p className="text-xs font-medium uppercase tracking-wide opacity-80">{label}</p>
+      <p className={`mt-1 break-words text-sm font-semibold ${mono ? 'font-mono' : ''}`}>{value || 'N/A'}</p>
+    </div>
+  );
+}
+
 const InventoryPage = () => {
   const dispatch = useDispatch();
   const {
-    products,
+    products = [],
     loading,
     error,
     message,
@@ -80,28 +277,30 @@ const InventoryPage = () => {
     totalSoldValue,
   } = useSelector(state => state.inventory);
   const { user } = useSelector(state => state.auth);
-  const { products: allProducts } = useSelector(state => state.products);
-  const { suppliers, loading: suppliersLoading } = useSelector(state => state.suppliers);
+  const canRefreshInventory = [USER_ROLES.ADMIN, USER_ROLES.STAFF].includes(normalizeRole(user?.role));
+  const { products: allProducts = [] } = useSelector(state => state.products);
+  const { suppliers: supplierRows = [], loading: suppliersLoading } = useSelector(state => state.suppliers);
 
-  // Tab management
-  const [activeTab, setActiveTab] = useState('overview');
+  const inventoryProducts = Array.isArray(products) ? products : [];
+  const productOptions = Array.isArray(allProducts) ? allProducts : [];
+  const supplierOptions = Array.isArray(supplierRows) ? supplierRows : [];
 
-  // Local state for UI
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab = INVENTORY_TAB_IDS.has(tabParam) ? tabParam : DEFAULT_INVENTORY_TAB;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   const [supplyForm, setSupplyForm] = useState(getDefaultSupplyForm);
   const [damagedForm, setDamagedForm] = useState(getDefaultDamagedForm);
-  // For displaying financial loss after marking damaged
   const [financialLoss, setFinancialLoss] = useState(null);
-  // For displaying add supply details
   const [addSupplyDetails, setAddSupplyDetails] = useState(null);
+  const [localNotice, setLocalNotice] = useState(null);
   const [batchTrackingForm, setBatchTrackingForm] = useState({
     batchNumber: '',
   });
 
-  // Load data on component mount
   useEffect(() => {
     dispatch(fetchInventory());
     dispatch(getAllProducts());
@@ -109,7 +308,14 @@ const InventoryPage = () => {
     dispatch(fetchSuppliers());
   }, [dispatch]);
 
-  // Clear messages after 5 seconds
+  useEffect(() => {
+    if (tabParam !== null && !INVENTORY_TAB_IDS.has(tabParam)) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('tab', DEFAULT_INVENTORY_TAB);
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, tabParam]);
+
   useEffect(() => {
     if (message || error) {
       const timer = setTimeout(() => {
@@ -117,40 +323,162 @@ const InventoryPage = () => {
       }, 5000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [message, error, dispatch]);
 
   const availableBatches = useMemo(() => {
-    if (!damagedForm.productId || !products) return [];
-    const selectedProduct = products.find(p => p.product._id === damagedForm.productId);
-    return selectedProduct ? selectedProduct.batches.filter(batch => batch.quantity > 0) : [];
-  }, [damagedForm.productId, products]);
+    if (!damagedForm.productId) return [];
+    const selectedProduct = inventoryProducts.find(p => p.product?._id === damagedForm.productId);
+    return selectedProduct ? (selectedProduct.batches || []).filter(batch => Number(batch.quantity) > 0) : [];
+  }, [damagedForm.productId, inventoryProducts]);
 
   const selectedDamageBatch = useMemo(() => (
     availableBatches.find(batch => batch.batchId === damagedForm.batchId)
   ), [availableBatches, damagedForm.batchId]);
 
   const selectedSupplyProduct = useMemo(() => (
-    allProducts.find(product => product._id === supplyForm.productId)
-  ), [allProducts, supplyForm.productId]);
+    productOptions.find(product => product._id === supplyForm.productId)
+  ), [productOptions, supplyForm.productId]);
 
-  // Handle form submissions
+  const inventoryCategories = useMemo(() => (
+    Array.from(
+      new Set(inventoryProducts.map(item => item.product?.productCategory).filter(Boolean)),
+    ).sort()
+  ), [inventoryProducts]);
+
+  const stockedProducts = useMemo(() => (
+    inventoryProducts.filter(item => item?.product?._id && Number(item.totalQuantity) > 0)
+  ), [inventoryProducts]);
+
+  const recentBatches = useMemo(() => (
+    inventoryProducts
+      .flatMap(item => (item.batches || []).slice(0, 2).map(batch => ({
+        batchNumber: batch.batchNumber,
+        productName: item.product?.productName || 'Unnamed product',
+        batchId: batch.batchId,
+      })))
+      .slice(0, 10)
+  ), [inventoryProducts]);
+
+  const supplyPrerequisites = useMemo(() => {
+    const missing = [];
+    if (productOptions.length === 0) {
+      missing.push('Create at least one product before adding supply.');
+    }
+    if (supplierOptions.length === 0 && !suppliersLoading) {
+      missing.push('Create or load at least one supplier before adding supply.');
+    }
+    return missing;
+  }, [productOptions.length, supplierOptions.length, suppliersLoading]);
+
+  const filteredProducts = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return inventoryProducts.filter((item) => {
+      const product = item.product || {};
+      const matchesSearch = !query ||
+        product.productName?.toLowerCase().includes(query) ||
+        product.sku?.toLowerCase().includes(query);
+      const matchesCategory = selectedCategory === 'all' || product.productCategory === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [inventoryProducts, searchTerm, selectedCategory]);
+
+  const inventoryStats = useMemo(() => ({
+    totalItems: inventoryProducts.reduce((sum, p) => sum + (Number(p.totalQuantity) || 0), 0),
+    totalProducts: inventoryProducts.length,
+    lowStockItems: inventoryProducts.filter(p => Number(p.totalQuantity) < 10).length,
+    outOfStockItems: inventoryProducts.filter(p => Number(p.totalQuantity) === 0).length,
+    damagedItems: inventoryProducts.reduce((sum, p) => (
+      sum + (p.batches || []).reduce((batchSum, batch) => (
+        batchSum + (Number(batch.damagedQuantity) || 0)
+      ), 0)
+    ), 0),
+  }), [inventoryProducts]);
+
+  const handleTabChange = (tabId) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', tabId);
+    setSearchParams(nextParams);
+    setLocalNotice(null);
+  };
+
+  const handleTabKeyDown = (event) => {
+    const currentIndex = inventoryTabs.findIndex((tab) => tab.id === activeTab);
+    let nextIndex = currentIndex;
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (currentIndex + 1) % inventoryTabs.length;
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (currentIndex - 1 + inventoryTabs.length) % inventoryTabs.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = inventoryTabs.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const nextTab = inventoryTabs[nextIndex];
+    handleTabChange(nextTab.id);
+    requestAnimationFrame(() => document.getElementById(getInventoryTabId(nextTab.id))?.focus());
+  };
+
+  const toggleRow = (productId) => {
+    setExpandedRows((currentRows) => {
+      const nextRows = new Set(currentRows);
+      if (nextRows.has(productId)) {
+        nextRows.delete(productId);
+      } else {
+        nextRows.add(productId);
+      }
+      return nextRows;
+    });
+  };
+
   const handleAddSupply = async (e) => {
     e.preventDefault();
-    // Frontend validation
+    setLocalNotice(null);
+    setAddSupplyDetails(null);
+
     const { productId, supplierId, quantity, mfgDate, expDate, unitCost } = supplyForm;
+
+    if (supplyPrerequisites.length > 0) {
+      setLocalNotice({
+        type: 'warning',
+        title: 'Supply setup needed',
+        message: supplyPrerequisites.join(' '),
+      });
+      return;
+    }
+
     if (!productId || !supplierId || !quantity || !mfgDate || !expDate || !unitCost) {
-      alert('All required fields must be provided.');
+      setLocalNotice({
+        type: 'error',
+        title: 'Supply form incomplete',
+        message: 'Select a product and supplier, then enter quantity, manufacturing date, expiry date, and unit cost.',
+      });
       return;
     }
-    if (isNaN(Number(quantity)) || Number(quantity) <= 0) {
-      alert('Quantity must be a positive number.');
+    if (Number.isNaN(Number(quantity)) || Number(quantity) <= 0) {
+      setLocalNotice({
+        type: 'error',
+        title: 'Invalid quantity',
+        message: 'Quantity must be a positive number.',
+      });
       return;
     }
-    if (isNaN(Number(unitCost)) || Number(unitCost) <= 0) {
-      alert('Unit cost must be a positive number.');
+    if (Number.isNaN(Number(unitCost)) || Number(unitCost) <= 0) {
+      setLocalNotice({
+        type: 'error',
+        title: 'Invalid unit cost',
+        message: 'Unit cost must be a positive number.',
+      });
       return;
     }
-    // Ensure correct types for backend
+
     const payload = {
       ...supplyForm,
       quantity: Number(supplyForm.quantity),
@@ -169,18 +497,49 @@ const InventoryPage = () => {
         purchaseOrderId: result.purchaseOrderId,
         message: result.message,
       });
+      setSupplyForm(getDefaultSupplyForm());
     } else {
       setAddSupplyDetails(null);
     }
-    setSupplyForm(getDefaultSupplyForm());
   };
 
   const handleMarkDamaged = async (e) => {
     e.preventDefault();
-    // Only send what the backend expects
+    setLocalNotice(null);
+
+    if (!damagedForm.productId || !damagedForm.batchId || !damagedForm.quantity || !damagedForm.reason) {
+      setLocalNotice({
+        type: 'error',
+        title: 'Damage report incomplete',
+        message: 'Select a product and batch, then enter the quantity and reason for damage.',
+      });
+      return;
+    }
+
+    const damagedQuantity = Number(damagedForm.quantity);
+    const maxQuantity = Number(selectedDamageBatch?.quantity) || 0;
+
+    if (Number.isNaN(damagedQuantity) || damagedQuantity <= 0) {
+      setLocalNotice({
+        type: 'error',
+        title: 'Invalid damage quantity',
+        message: 'Quantity to mark as damaged must be a positive number.',
+      });
+      return;
+    }
+
+    if (maxQuantity > 0 && damagedQuantity > maxQuantity) {
+      setLocalNotice({
+        type: 'error',
+        title: 'Quantity exceeds batch stock',
+        message: `This batch has ${formatNumber(maxQuantity)} units available.`,
+      });
+      return;
+    }
+
     const payload = {
       batchId: damagedForm.batchId,
-      quantity: Number(damagedForm.quantity),
+      quantity: damagedQuantity,
       reason: damagedForm.reason,
     };
     const result = await dispatch(markDamagedInventory(payload));
@@ -194,638 +553,509 @@ const InventoryPage = () => {
 
   const handleBatchTracking = async (e) => {
     e.preventDefault();
-    await dispatch(trackBatchByNumber(batchTrackingForm.batchNumber));
+    setLocalNotice(null);
+
+    const batchNumber = batchTrackingForm.batchNumber.trim();
+    if (!batchNumber) {
+      setLocalNotice({
+        type: 'error',
+        title: 'Batch number required',
+        message: 'Enter a batch number or choose one from the recent batch list.',
+      });
+      return;
+    }
+
+    await dispatch(trackBatchByNumber(batchNumber));
   };
 
-  // Filter products based on search and filters
-  const filteredProducts = useMemo(() => products.filter(item => {
-    const matchesSearch = item.product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.product.productCategory === selectedCategory;
-    return matchesSearch && matchesCategory;
-  }), [products, searchTerm, selectedCategory]);
-
-  // Toggle row expansion
-  const toggleRow = (productId) => {
-    setExpandedRows((currentRows) => {
-      const nextRows = new Set(currentRows);
-      if (nextRows.has(productId)) {
-        nextRows.delete(productId);
-      } else {
-        nextRows.add(productId);
-      }
-      return nextRows;
-    });
-  };
-
-  // Calculate inventory stats (all derived from item status fields)
-  const inventoryStats = useMemo(() => ({
-    totalItems: products.reduce((sum, p) => sum + p.totalQuantity, 0),
-    totalProducts: products.length,
-    lowStockItems: products.filter(p => p.totalQuantity < 10).length,
-    outOfStockItems: products.filter(p => p.totalQuantity === 0).length,
-    damagedItems: products.reduce((sum, p) => {
-      return sum + (p.batches || []).reduce((batchSum, batch) => {
-        return batchSum + (batch.damagedQuantity || 0);
-      }, 0);
-    }, 0),
-  }), [products]);
-
-  // Define tabs
-  const inventoryTabs = [
-    { id: 'overview', label: 'Overview', icon: FaTachometerAlt },
-    { id: 'stock', label: 'Stock Management', icon: FaBoxOpen },
-    { id: 'add-supply', label: 'Add Supply', icon: FaPlus },
-    { id: 'mark-damaged', label: 'Mark Damaged', icon: FaExclamationTriangle },
-    { id: 'tracking', label: 'Batch Tracking', icon: FaBarcode },
-  ];
-
-  // Render Overview Tab
   const renderOverviewTab = () => (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Total Items</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {inventoryStats.totalItems.toLocaleString()}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-500 rounded-lg">
-              <FaBoxOpen className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard title="Total items" value={formatNumber(inventoryStats.totalItems)} icon={PackageOpen} detail={`${formatNumber(inventoryStats.totalProducts)} product types`} />
+        <MetricCard title="Product types" value={formatNumber(inventoryStats.totalProducts)} icon={BarChart3} tone="slate" detail="Grouped by SKU" />
+        <MetricCard title="Low stock" value={formatNumber(inventoryStats.lowStockItems)} icon={AlertTriangle} tone="amber" detail="Below operational threshold" />
+        <MetricCard title="Out of stock" value={formatNumber(inventoryStats.outOfStockItems)} icon={XCircle} tone="red" detail="Needs replenishment" />
+        <MetricCard title="Damaged items" value={formatNumber(inventoryStats.damagedItems)} icon={AlertCircle} tone="red" detail="Reported across batches" />
+      </section>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Product Types</p>
-              <p className="text-2xl font-bold text-green-600">
-                {inventoryStats.totalProducts.toLocaleString()}
-              </p>
-            </div>
-            <div className="p-3 bg-green-500 rounded-lg">
-              <FaChartBar className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MetricCard title="Inventory value" value={formatCurrency(totalInventoryValue)} icon={Warehouse} tone="emerald" detail="Current stock valuation" />
+        <MetricCard title="Goods sold value" value={formatCurrency(totalSoldValue)} icon={CheckCircle2} tone="blue" detail="Recorded sold inventory" />
+        <MetricCard title="Damaged value" value={formatCurrency(totalDamagedValue)} icon={AlertCircle} tone="amber" detail="Estimated lost value" />
+      </section>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Low Stock</p>
-              <p className="text-2xl font-bold text-amber-600">
-                {inventoryStats.lowStockItems.toLocaleString()}
-              </p>
-            </div>
-            <div className="p-3 bg-amber-500 rounded-lg">
-              <FaExclamationTriangle className="text-white text-xl" />
-            </div>
-          </div>
+      <section className={`${panelClass} p-5`}>
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <SectionHeader icon={ClipboardList} title="Quick actions" detail="Jump into the most common inventory workflows." />
         </div>
-
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Out of Stock</p>
-              <p className="text-2xl font-bold text-red-600">
-                {inventoryStats.outOfStockItems.toLocaleString()}
-              </p>
-            </div>
-            <div className="p-3 bg-red-500 rounded-lg">
-              <FaTimesCircle className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Damaged Items</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {inventoryStats.damagedItems.toLocaleString()}
-              </p>
-            </div>
-            <div className="p-3 bg-orange-500 rounded-lg">
-              <FaExclamationCircle className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-        <div className="bg-white p-6 rounded-lg border border-green-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Total Inventory Value</p>
-              <p className="text-2xl font-bold text-green-700">
-                {totalInventoryValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-              </p>
-            </div>
-            <div className="p-3 bg-green-500 rounded-lg">
-              <FaWarehouse className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Total Value of Goods Sold</p>
-              <p className="text-2xl font-bold text-blue-700">
-                {totalSoldValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-500 rounded-lg">
-              <FaCheckCircle className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">Total Value of Damaged Items</p>
-              <p className="text-2xl font-bold text-orange-700">
-                {totalDamagedValue?.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-              </p>
-            </div>
-            <div className="p-3 bg-orange-500 rounded-lg">
-              <FaExclamationCircle className="text-white text-xl" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-blue-500 rounded-lg">
-            <FaClipboardList className="text-white text-lg" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <button
-            onClick={() => setActiveTab('add-supply')}
-            className="flex items-center gap-3 p-4 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
+            type="button"
+            onClick={() => handleTabChange('add-supply')}
+            className="flex min-h-24 items-center gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-100"
           >
-            <div className="p-2 bg-blue-500 rounded-lg">
-              <FaPlus className="text-white text-lg" />
-            </div>
-            <div className="text-left">
-              <span className="text-blue-800 font-medium block">Add New Supply</span>
-              <span className="text-blue-600 text-sm">Restock inventory items</span>
-            </div>
+            <span className="rounded-md border border-blue-200 bg-white p-2 text-blue-700">
+              <Plus className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-blue-900">Add New Supply</span>
+              <span className="mt-1 block text-sm text-blue-700">Restock products into inventory</span>
+            </span>
           </button>
 
           <button
-            onClick={() => setActiveTab('mark-damaged')}
-            className="flex items-center gap-3 p-4 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors"
+            type="button"
+            onClick={() => handleTabChange('mark-damaged')}
+            className="flex min-h-24 items-center gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-left transition hover:border-red-300 hover:bg-red-100"
           >
-            <div className="p-2 bg-red-500 rounded-lg">
-              <FaExclamationTriangle className="text-white text-lg" />
-            </div>
-            <div className="text-left">
-              <span className="text-red-800 font-medium block">Mark Damaged</span>
-              <span className="text-red-600 text-sm">Report damaged items</span>
-            </div>
+            <span className="rounded-md border border-red-200 bg-white p-2 text-red-700">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-red-900">Mark Damaged</span>
+              <span className="mt-1 block text-sm text-red-700">Report loss against a batch</span>
+            </span>
           </button>
 
           <button
-            onClick={() => setActiveTab('tracking')}
-            className="flex items-center gap-3 p-4 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors"
+            type="button"
+            onClick={() => handleTabChange('tracking')}
+            className="flex min-h-24 items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-slate-100"
           >
-            <div className="p-2 bg-amber-500 rounded-lg">
-              <FaBarcode className="text-white text-lg" />
-            </div>
-            <div className="text-left">
-              <span className="text-amber-800 font-medium block">Track Batch</span>
-              <span className="text-amber-600 text-sm">Monitor batch status</span>
-            </div>
+            <span className="rounded-md border border-slate-200 bg-white p-2 text-slate-700">
+              <Barcode className="h-4 w-4" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-slate-950">Track Batch</span>
+              <span className="mt-1 block text-sm text-slate-600">Inspect item status and movement</span>
+            </span>
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Inventory Summary */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-indigo-500 rounded-lg">
-            <FaWarehouse className="text-white text-lg" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Recent Inventory Overview</h3>
+      <section className={`${panelClass} overflow-hidden`}>
+        <div className="border-b border-slate-200 px-5 py-4">
+          <SectionHeader icon={Warehouse} title="Recent inventory overview" detail="Latest products with batch-backed quantities." tone="slate" />
         </div>
-        <div className="space-y-3">
-          {products.slice(0, 5).map(item => (
-            <div key={item.product._id} className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gray-500 rounded-lg">
-                  <FaBoxOpen className="text-white text-sm" />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">{item.product.productName}</p>
-                  <p className="text-sm text-gray-600 font-mono">{item.product.sku}</p>
-                </div>
+        <div className="p-5">
+          {inventoryProducts.length === 0 ? (
+            <EmptyState
+              icon={Boxes}
+              title="No inventory batches yet"
+              detail="Create product records and add supply to start tracking stock by batch."
+              action={(
+                <button type="button" className={primaryButtonClass} onClick={() => handleTabChange('add-supply')}>
+                  <Plus className="h-4 w-4" />
+                  Add Supply
+                </button>
+              )}
+            />
+          ) : (
+            <>
+              <div className="space-y-3">
+                {inventoryProducts.slice(0, 5).map((item) => {
+                  const product = item.product || {};
+                  return (
+                    <div key={product._id} className="flex items-center justify-between gap-4 rounded-md border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">
+                          <PackageOpen className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-950" title={product.productName}>{product.productName || 'Unnamed product'}</p>
+                          <p className="mt-1 truncate font-mono text-xs text-slate-500" title={product.sku}>{product.sku || 'No SKU'}</p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-slate-950">
+                          {formatNumber(item.totalQuantity)}
+                          <span className="ml-1 font-normal text-slate-500">units</span>
+                        </p>
+                        <div className="mt-1">
+                          <StatusBadge quantity={item.totalQuantity} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">{item.totalQuantity.toLocaleString()}<span className="text-sm font-normal text-gray-600 ml-1">units</span></p>
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.totalQuantity === 0 ? 'bg-red-100 text-red-800' :
-                  item.totalQuantity < 10 ? 'bg-amber-100 text-amber-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                  {item.totalQuantity === 0 ? 'Out of Stock' :
-                    item.totalQuantity < 10 ? 'Low Stock' : 'In Stock'}
-                </span>
-              </div>
-            </div>
-          ))}
+              <button
+                type="button"
+                onClick={() => handleTabChange('stock')}
+                className="mt-4 w-full rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                View complete inventory
+              </button>
+            </>
+          )}
         </div>
-        <button
-          onClick={() => setActiveTab('stock')}
-          className="mt-4 w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 px-4 rounded-lg transition-colors font-medium"
-        >
-          View Complete Inventory →
-        </button>
-      </div>
+      </section>
     </div>
   );
 
-  // Render Stock Management Tab
   const renderStockTab = () => (
     <div className="space-y-6">
-      {/* Search and Filters */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-blue-500 rounded-lg">
-            <FaSearch className="text-white text-lg" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Search & Filter Products</h3>
+      <section className={`${panelClass} p-5`}>
+        <div className="mb-4">
+          <SectionHeader icon={Search} title="Search and filter products" detail="Find SKU-level inventory and expand rows to inspect batches." />
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-80">
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search products by name or SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <FaFilter className="text-gray-500" />
+        <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_240px_auto]">
+          <label className="relative block">
+            <span className="sr-only">Search products by name or SKU</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search products by name or SKU"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={`${fieldClass} pl-10`}
+            />
+          </label>
+          <label className="relative block">
+            <span className="sr-only">Filter by category</span>
+            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`${fieldClass} pl-10`}
             >
-              <option value="all">All Categories</option>
-              {/* Add category options based on your data */}
+              <option value="all">All categories</option>
+              {inventoryCategories.map(category => (
+                <option key={category} value={category}>
+                  {formatCategory(category)}
+                </option>
+              ))}
             </select>
-          </div>
+          </label>
           <button
+            type="button"
             onClick={() => dispatch(fetchInventory())}
-            className="flex items-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
+            className={secondaryButtonClass}
           >
-            <FaSyncAlt className="text-sm" />
+            <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Inventory Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Quantity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredProducts.map((item, index) => (
-                <React.Fragment key={item.product._id}>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500 rounded-lg">
-                          <FaBoxOpen className="text-white text-sm" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {item.product.productName}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {item.batches.length} batch{item.batches.length !== 1 ? 'es' : ''}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded">
-                        {item.product.sku}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-700 bg-blue-50 px-3 py-1 rounded border">
-                        {item.product.productCategory}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {item.totalQuantity.toLocaleString()}
-                      </span>
-                      <span className="text-sm text-gray-500 ml-1">units</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {item.totalQuantity === 0 ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          <FaTimesCircle className="mr-1" />
-                          Out of Stock
-                        </span>
-                      ) : item.totalQuantity < 10 ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                          <FaExclamationTriangle className="mr-1" />
-                          Low Stock
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          <FaCheckCircle className="mr-1" />
-                          In Stock
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => toggleRow(item.product._id)}
-                        className="flex items-center gap-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded transition-colors"
-                      >
-                        <FaEye />
-                        {expandedRows.has(item.product._id) ? 'Hide' : 'View'} Batches
-                        {expandedRows.has(item.product._id) ? <FaArrowUp /> : <FaArrowDown />}
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedRows.has(item.product._id) && (
-                    <tr>
-                      <td colSpan="6" className="px-6 py-4 bg-gray-50">
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-indigo-500 rounded-lg">
-                              <FaBarcode className="text-white text-sm" />
-                            </div>
-                            <h4 className="font-medium text-gray-900">Batch Details</h4>
-                          </div>
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {item.batches.map((batch) => (
-                              <div key={batch.batchId} className="bg-white p-4 rounded-lg border border-gray-200">
-                                <div className="flex justify-between items-start mb-3">
-                                  <div>
-                                    <h5 className="font-medium text-gray-900">{batch.batchNumber}</h5>
-                                    <p className="text-sm text-gray-600">
-                                      <span className="font-medium">Quantity:</span>
-                                      <span className="font-semibold text-blue-600 ml-1">{batch.quantity}</span>
-                                    </p>
-                                  </div>
-                                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                    ID: {batch.batchId}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div>
-                                    <p className="text-gray-600 font-medium">Supplier:</p>
-                                    <p className="font-medium text-gray-900 bg-gray-50 px-2 py-1 rounded">
-                                      {batch.supplier?.fullName || 'N/A'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-600 font-medium">Expiry Date:</p>
-                                    <p className="font-medium text-gray-900 bg-gray-50 px-2 py-1 rounded">
-                                      {new Date(batch.expDate).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );  // Render Add Supply Tab
-  const renderAddSupplyTab = () => {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-500 rounded-lg">
-              <FaPlus className="text-white text-lg" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900">Add Inventory Supply</h3>
+      <section className={`${panelClass} overflow-hidden`}>
+        {filteredProducts.length === 0 ? (
+          <div className="p-5">
+            <EmptyState
+              icon={Boxes}
+              title={inventoryProducts.length === 0 ? 'No inventory available' : 'No products match these filters'}
+              detail={inventoryProducts.length === 0
+                ? 'Add supply after products and suppliers are available to populate this stock table.'
+                : 'Adjust the search term or category filter to return inventory records.'}
+            />
           </div>
-          <form onSubmit={handleAddSupply} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
-                <select
-                  value={supplyForm.productId}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, productId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select Product</option>
-                  {allProducts.map(product => (
-                    <option key={product._id} value={product._id}>
-                      {product.productName} ({product.sku})
-                    </option>
-                  ))}
-                </select>
-              </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-white">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Product</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">SKU</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Category</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Total Quantity</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {filteredProducts.map((item, index) => {
+                  const product = item.product || {};
+                  const isExpanded = expandedRows.has(product._id);
+                  return (
+                    <React.Fragment key={product._id || product.sku || product.productName || index}>
+                      <tr className="transition hover:bg-slate-50">
+                        <td className="max-w-[300px] px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-700">
+                              <PackageOpen className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950" title={product.productName}>
+                                {product.productName || 'Unnamed product'}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {(item.batches || []).length} batch{(item.batches || []).length !== 1 ? 'es' : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="inline-flex max-w-[180px] items-center rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-medium text-slate-700">
+                            <span className="truncate">{product.sku || 'No SKU'}</span>
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="inline-flex max-w-[180px] items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                            <span className="truncate">{formatCategory(product.productCategory)}</span>
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm">
+                          <span className="font-semibold text-slate-950">{formatNumber(item.totalQuantity)}</span>
+                          <span className="ml-1 text-slate-500">units</span>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <StatusBadge quantity={item.totalQuantity} />
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleRow(product._id)}
+                            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                          >
+                            <Eye className="h-4 w-4" />
+                            {isExpanded ? 'Hide' : 'View'} Batches
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan="6" className="bg-slate-50 px-5 py-5">
+                            <div className="mb-4">
+                              <SectionHeader icon={Barcode} title="Batch details" detail={`${product.productName || 'Product'} has ${(item.batches || []).length} tracked batch${(item.batches || []).length !== 1 ? 'es' : ''}.`} tone="slate" />
+                            </div>
+                            {(item.batches || []).length === 0 ? (
+                              <EmptyState icon={Barcode} title="No batch rows for this product" detail="Add supply to create batch-level inventory." />
+                            ) : (
+                              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                {(item.batches || []).map((batch) => (
+                                  <div key={batch.batchId} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <h3 className="truncate text-sm font-semibold text-slate-950" title={batch.batchNumber}>
+                                          {batch.batchNumber || 'Unnamed batch'}
+                                        </h3>
+                                        <p className="mt-1 text-sm text-slate-500">
+                                          Quantity: <span className="font-semibold text-slate-900">{formatNumber(batch.quantity)}</span>
+                                        </p>
+                                      </div>
+                                      <span className="inline-flex max-w-[180px] items-center rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-medium text-slate-600">
+                                        <span className="truncate">ID: {batch.batchId}</span>
+                                      </span>
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                      <DetailTile label="Supplier" value={batch.supplier?.fullName || batch.supplier?.companyName || 'N/A'} />
+                                      <DetailTile label="Expiry date" value={formatDate(batch.expDate)} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
-                <select
-                  value={supplyForm.supplierId}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, supplierId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select Supplier</option>
-                  {suppliers && suppliers.length > 0 ? suppliers.map(supplier => (
-                    <option key={supplier.id || supplier._id} value={supplier.id || supplier._id}>
-                      {supplier.companyName} - {supplier.fullName}
-                    </option>
-                  )) : (
-                    <option value="" disabled>
-                      {suppliersLoading ? 'Loading suppliers...' : 'No suppliers available'}
-                    </option>
-                  )}
-                </select>
-              </div>
+  const renderAddSupplyTab = () => (
+    <div className="mx-auto max-w-3xl space-y-4">
+      {supplyPrerequisites.length > 0 && (
+        <Notice type="warning" title="Supply prerequisites">
+          <ul className="list-disc space-y-1 pl-5">
+            {supplyPrerequisites.map(item => <li key={item}>{item}</li>)}
+          </ul>
+        </Notice>
+      )}
+
+      <section className={`${panelClass} p-5`}>
+        <div className="mb-6">
+          <SectionHeader icon={Plus} title="Add inventory supply" detail="Create a batch and item records for an existing product and supplier." />
+        </div>
+        <form onSubmit={handleAddSupply} className="space-y-4" noValidate>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Product</label>
+              <select
+                value={supplyForm.productId}
+                onChange={(e) => setSupplyForm({ ...supplyForm, productId: e.target.value })}
+                className={fieldClass}
+                disabled={productOptions.length === 0}
+              >
+                <option value="">{productOptions.length === 0 ? 'No products available' : 'Select product'}</option>
+                {productOptions.map(product => (
+                  <option key={product._id} value={product._id}>
+                    {product.productName} ({product.sku})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={supplyForm.quantity}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, quantity: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter quantity"
-                  required
-                />
-              </div>
-              <div>
-                {/* Show cost price and selling price from DB above unit cost */}
-                {selectedSupplyProduct && selectedSupplyProduct.costPrice !== undefined && (
-                  <div className="mb-1 text-xs text-gray-500">
-                    <span className="font-semibold">Cost Price (from DB): </span>
-                    ₹{selectedSupplyProduct.costPrice}
-                  </div>
-                )}
-                {selectedSupplyProduct && selectedSupplyProduct.price !== undefined && (
-                  <div className="mb-1 text-xs text-gray-500">
-                    <span className="font-semibold">Selling Price (from DB): </span>
-                    ₹{selectedSupplyProduct.price}
-                  </div>
-                )}
-                <label className="block text-sm font-medium text-gray-700 mb-2">Unit Cost</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={supplyForm.unitCost}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, unitCost: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter unit cost"
-                  required
-                />
-              </div>
+            <div>
+              <label className={labelClass}>Supplier</label>
+              <select
+                value={supplyForm.supplierId}
+                onChange={(e) => setSupplyForm({ ...supplyForm, supplierId: e.target.value })}
+                className={fieldClass}
+                disabled={supplierOptions.length === 0 || suppliersLoading}
+              >
+                <option value="">
+                  {suppliersLoading ? 'Loading suppliers...' : supplierOptions.length === 0 ? 'No suppliers available' : 'Select supplier'}
+                </option>
+                {supplierOptions.map(supplier => (
+                  <option key={supplier.id || supplier._id} value={supplier.id || supplier._id}>
+                    {supplier.companyName} - {supplier.fullName}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Manufacturing Date</label>
-                <input
-                  type="date"
-                  value={supplyForm.mfgDate}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, mfgDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date</label>
-                <input
-                  type="date"
-                  value={supplyForm.expDate}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, expDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
-                <input
-                  type="text"
-                  value={supplyForm.currency}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, currency: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="INR"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Purchase Order ID (Optional)</label>
-                <input
-                  type="text"
-                  value={supplyForm.purchaseOrderId}
-                  onChange={(e) => setSupplyForm({ ...supplyForm, purchaseOrderId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter PO ID (if any)"
-                />
-              </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Quantity</label>
+              <input
+                type="number"
+                min="1"
+                value={supplyForm.quantity}
+                onChange={(e) => setSupplyForm({ ...supplyForm, quantity: e.target.value })}
+                className={fieldClass}
+                placeholder="Enter quantity"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-              <textarea
-                value={supplyForm.notes}
-                onChange={(e) => setSupplyForm({ ...supplyForm, notes: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows="3"
-                placeholder="Enter any additional notes..."
+              {(selectedSupplyProduct?.costPrice !== undefined || selectedSupplyProduct?.price !== undefined) && (
+                <div className="mb-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  {selectedSupplyProduct?.costPrice !== undefined && (
+                    <span className="mr-3">Cost: <span className="font-semibold text-slate-800">{formatCurrency(selectedSupplyProduct.costPrice)}</span></span>
+                  )}
+                  {selectedSupplyProduct?.price !== undefined && (
+                    <span>Selling: <span className="font-semibold text-slate-800">{formatCurrency(selectedSupplyProduct.price)}</span></span>
+                  )}
+                </div>
+              )}
+              <label className={labelClass}>Unit Cost</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={supplyForm.unitCost}
+                onChange={(e) => setSupplyForm({ ...supplyForm, unitCost: e.target.value })}
+                className={fieldClass}
+                placeholder="Enter unit cost"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Manufacturing Date</label>
+              <input
+                type="date"
+                value={supplyForm.mfgDate}
+                onChange={(e) => setSupplyForm({ ...supplyForm, mfgDate: e.target.value })}
+                className={fieldClass}
               />
             </div>
 
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setSupplyForm(getDefaultSupplyForm());
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Clear Form
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {loading && <FaSpinner className="animate-spin" />}
-                <FaPlus className="text-sm" />
-                Add Supply
-              </button>
+            <div>
+              <label className={labelClass}>Expiry Date</label>
+              <input
+                type="date"
+                value={supplyForm.expDate}
+                onChange={(e) => setSupplyForm({ ...supplyForm, expDate: e.target.value })}
+                className={fieldClass}
+              />
             </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-  // ...existing code...
-  const renderMarkDamagedTab = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-red-500 rounded-lg">
-            <FaExclamationTriangle className="text-white text-lg" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900">Mark Items as Damaged</h3>
-        </div>
-        <form onSubmit={handleMarkDamaged} className="space-y-4">
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Currency</label>
+              <input
+                type="text"
+                value={supplyForm.currency}
+                onChange={(e) => setSupplyForm({ ...supplyForm, currency: e.target.value })}
+                className={fieldClass}
+                placeholder="INR"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Purchase Order ID (Optional)</label>
+              <input
+                type="text"
+                value={supplyForm.purchaseOrderId}
+                onChange={(e) => setSupplyForm({ ...supplyForm, purchaseOrderId: e.target.value })}
+                className={fieldClass}
+                placeholder="Enter PO ID if any"
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
+            <label className={labelClass}>Notes (Optional)</label>
+            <textarea
+              value={supplyForm.notes}
+              onChange={(e) => setSupplyForm({ ...supplyForm, notes: e.target.value })}
+              className={fieldClass}
+              rows="3"
+              placeholder="Enter any additional notes"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setSupplyForm(getDefaultSupplyForm());
+                setLocalNotice(null);
+              }}
+              className={secondaryButtonClass}
+            >
+              Clear Form
+            </button>
+            <button
+              type="submit"
+              disabled={loading || supplyPrerequisites.length > 0}
+              className={primaryButtonClass}
+            >
+              {loading && <LoaderCircle className="h-4 w-4 animate-spin" />}
+              <Plus className="h-4 w-4" />
+              Add Supply
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+
+  const renderMarkDamagedTab = () => (
+    <div className="mx-auto max-w-3xl space-y-4">
+      {stockedProducts.length === 0 && (
+        <Notice type="warning" title="No stock available to mark damaged">
+          Add supply for a product first. Damage reports are created against an existing stocked batch.
+        </Notice>
+      )}
+
+      <section className={`${panelClass} p-5`}>
+        <div className="mb-6">
+          <SectionHeader icon={AlertTriangle} title="Mark items as damaged" detail="Reduce usable quantity and record estimated loss for a selected batch." tone="red" />
+        </div>
+        <form onSubmit={handleMarkDamaged} className="space-y-4" noValidate>
+          <div>
+            <label className={labelClass}>Product</label>
             <select
               value={damagedForm.productId}
               onChange={(e) => setDamagedForm({ ...damagedForm, productId: e.target.value, batchId: '' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              required
+              className={fieldClass}
+              disabled={stockedProducts.length === 0}
             >
-              <option value="">Select Product</option>
-              {products.filter(p => p.totalQuantity > 0).map(item => (
+              <option value="">{stockedProducts.length === 0 ? 'No stocked products available' : 'Select product'}</option>
+              {stockedProducts.map(item => (
                 <option key={item.product._id} value={item.product._id}>
-                  {item.product.productName} ({item.product.sku}) - Available: {item.totalQuantity}
+                  {item.product.productName} ({item.product.sku}) - Available: {formatNumber(item.totalQuantity)}
                 </option>
               ))}
             </select>
@@ -833,349 +1063,243 @@ const InventoryPage = () => {
 
           {damagedForm.productId && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Batch</label>
+              <label className={labelClass}>Batch</label>
               <select
                 value={damagedForm.batchId}
                 onChange={(e) => setDamagedForm({ ...damagedForm, batchId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                required
+                className={fieldClass}
               >
-                <option value="">Select Batch</option>
+                <option value="">Select batch</option>
                 {availableBatches.map(batch => (
                   <option key={batch.batchId} value={batch.batchId}>
-                    {batch.batchNumber} - Qty: {batch.quantity} - Exp: {new Date(batch.expDate).toLocaleDateString()}
+                    {batch.batchNumber} - Qty: {formatNumber(batch.quantity)} - Exp: {formatDate(batch.expDate)}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Select a batch from the available inventory
-              </p>
+              <p className="mt-1 text-xs text-slate-500">Select a batch from available inventory.</p>
             </div>
           )}
 
           {damagedForm.batchId && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Quantity to Mark as Damaged</label>
+              <label className={labelClass}>Quantity to Mark as Damaged</label>
               <input
                 type="number"
                 min="1"
                 max={selectedDamageBatch?.quantity || 1}
                 value={damagedForm.quantity}
                 onChange={(e) => setDamagedForm({ ...damagedForm, quantity: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className={fieldClass}
                 placeholder="Enter quantity"
-                required
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Maximum available: {selectedDamageBatch?.quantity || 0}
+              <p className="mt-1 text-xs text-slate-500">
+                Maximum available: {formatNumber(selectedDamageBatch?.quantity || 0)}
               </p>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Reason for Damage</label>
+            <label className={labelClass}>Reason for Damage</label>
             <textarea
               value={damagedForm.reason}
               onChange={(e) => setDamagedForm({ ...damagedForm, reason: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className={fieldClass}
               rows="3"
-              placeholder="Describe the reason for marking items as damaged..."
-              required
+              placeholder="Describe the reason for marking items as damaged"
             />
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => {
                 setDamagedForm(getDefaultDamagedForm());
                 setFinancialLoss(null);
+                setLocalNotice(null);
               }}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              className={secondaryButtonClass}
             >
               Clear Form
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              disabled={loading || stockedProducts.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-red-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading && <FaSpinner className="animate-spin" />}
-              <FaExclamationTriangle className="text-sm" />
+              {loading && <LoaderCircle className="h-4 w-4 animate-spin" />}
+              <AlertTriangle className="h-4 w-4" />
               Mark as Damaged
             </button>
           </div>
         </form>
-        {/* Show financial loss if available */}
         {typeof financialLoss === 'number' && (
-          <div className="mt-4 bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-lg">
-            <div className="flex items-center gap-2">
-              <FaExclamationCircle className="text-orange-600" />
-              <span>Estimated Financial Loss: <b>{financialLoss.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</b></span>
-            </div>
+          <div className="mt-4">
+            <Notice type="warning" title="Estimated financial loss">
+              {formatCurrency(financialLoss)}
+            </Notice>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 
-  // Render Batch Tracking Tab
   const renderTrackingTab = () => (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-amber-500 rounded-lg">
-            <FaBarcode className="text-white text-lg" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900">Track Batch Information</h3>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <section className={`${panelClass} p-5`}>
+        <div className="mb-6">
+          <SectionHeader icon={Barcode} title="Track batch information" detail="Search by exact batch number or use a recently loaded batch." tone="amber" />
         </div>
-        <form onSubmit={handleBatchTracking} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search Method</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Batch Number</label>
-                <input
-                  type="text"
-                  value={batchTrackingForm.batchNumber}
-                  onChange={(e) => setBatchTrackingForm({ batchNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="e.g., BATCH-1751219198613"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Enter the exact batch number to track
-                </p>
-              </div>
+        <form onSubmit={handleBatchTracking} className="space-y-4" noValidate>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className={labelClass}>Batch Number</label>
+              <input
+                type="text"
+                value={batchTrackingForm.batchNumber}
+                onChange={(e) => setBatchTrackingForm({ batchNumber: e.target.value })}
+                className={fieldClass}
+                placeholder="e.g. BATCH-1751219198613"
+              />
+              <p className="mt-1 text-xs text-slate-500">Enter the exact batch number to track.</p>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Quick Select from Recent</label>
-                <select
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setBatchTrackingForm({ batchNumber: e.target.value });
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                >
-                  <option value="">Select from recent batches</option>
-                  {products.slice(0, 10).flatMap(item =>
-                    item.batches.slice(0, 2).map(batch => (
-                      <option key={batch.batchId} value={batch.batchNumber}>
-                        {batch.batchNumber} - {item.product.productName}
-                      </option>
-                    )),
-                  )}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Or select from recently added batches
-                </p>
-              </div>
+            <div>
+              <label className={labelClass}>Quick Select from Recent</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setBatchTrackingForm({ batchNumber: e.target.value });
+                  }
+                }}
+                className={fieldClass}
+                disabled={recentBatches.length === 0}
+              >
+                <option value="">{recentBatches.length === 0 ? 'No recent batches loaded' : 'Select from recent batches'}</option>
+                {recentBatches.map(batch => (
+                  <option key={batch.batchId} value={batch.batchNumber}>
+                    {batch.batchNumber} - {batch.productName}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">Recent options appear after inventory batches load.</p>
             </div>
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => {
                 setBatchTrackingForm({ batchNumber: '' });
+                setLocalNotice(null);
               }}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              className={secondaryButtonClass}
             >
               Clear
             </button>
             <button
               type="submit"
-              disabled={loading || !batchTrackingForm.batchNumber}
-              className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              disabled={loading || !batchTrackingForm.batchNumber.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading && <FaSpinner className="animate-spin" />}
-              <FaBarcode className="text-sm" />
+              {loading && <LoaderCircle className="h-4 w-4 animate-spin" />}
+              <Barcode className="h-4 w-4" />
               Track Batch
             </button>
           </div>
         </form>
-      </div>
+      </section>
 
-      {/* Batch Tracking Results */}
       {batchTracking && (
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm mt-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-green-500 rounded-lg">
-              <FaCheckCircle className="text-white text-lg" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900">Batch Tracking Results</h3>
+        <section className={`${panelClass} p-5`}>
+          <div className="mb-6">
+            <SectionHeader icon={CheckCircle2} title="Batch tracking results" detail="Current batch metadata, quantities, and item status breakdown." tone="emerald" />
           </div>
 
-          {/* Basic Information Card */}
-          <div className="space-y-6">
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                <FaBoxOpen className="text-blue-500" />
-                Basic Information
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Batch Number:</span>
-                    <span className="font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded font-mono text-sm">
-                      {batchTracking.batchInfo?.batchNumber}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Product:</span>
-                    <span className="font-semibold text-gray-800">
-                      {batchTracking.batchInfo?.product?.productName}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">SKU:</span>
-                    <span className="font-semibold text-purple-800 font-mono text-sm">
-                      {batchTracking.batchInfo?.product?.sku}
-                    </span>
-                  </div>
-                </div>
+          <div className="space-y-5">
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <PackageOpen className="h-4 w-4 text-blue-600" />
+                Basic information
+              </h3>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <DetailTile label="Batch number" value={batchTracking.batchInfo?.batchNumber} tone="blue" mono />
+                <DetailTile label="Product" value={batchTracking.batchInfo?.product?.productName} />
+                <DetailTile label="SKU" value={batchTracking.batchInfo?.product?.sku} mono />
+                <DetailTile label="Original qty" value={formatNumber(batchTracking.batchInfo?.originalQuantity)} tone="emerald" />
+                <DetailTile label="Current qty" value={formatNumber(batchTracking.batchInfo?.currentQuantity)} tone="blue" />
+                <DetailTile
+                  label="Items used"
+                  value={formatNumber((batchTracking.batchInfo?.originalQuantity || 0) - (batchTracking.batchInfo?.currentQuantity || 0))}
+                  tone="amber"
+                />
+              </div>
+            </div>
 
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Original Qty:</span>
-                    <span className="font-semibold text-green-800">
-                      {batchTracking.batchInfo?.originalQuantity?.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Current Qty:</span>
-                    <span className="font-semibold text-emerald-800">
-                      {batchTracking.batchInfo?.currentQuantity?.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Items Used:</span>
-                    <span className="font-semibold text-orange-800">
-                      {((batchTracking.batchInfo?.originalQuantity || 0) - (batchTracking.batchInfo?.currentQuantity || 0)).toLocaleString()}
-                    </span>
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <Warehouse className="h-4 w-4 text-blue-600" />
+                Dates and location
+              </h3>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <DetailTile label="Received date" value={formatDate(batchTracking.batchInfo?.receivedAt)} tone="blue" />
+                <DetailTile label="Manufacturing date" value={formatDate(batchTracking.batchInfo?.mfgDate)} />
+                <DetailTile label="Expiry date" value={formatDate(batchTracking.batchInfo?.expDate)} tone="amber" />
+                <DetailTile label="Warehouse" value={batchTracking.batchInfo?.warehouse?.warehouseName} />
+                <DetailTile label="Supplier" value={batchTracking.batchInfo?.supplier?.fullName || batchTracking.batchInfo?.supplier?.companyName} />
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>
+                  <div className="mt-1">
+                    {(batchTracking.batchInfo?.currentQuantity || 0) > 0 ? (
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">Available</span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">Depleted</span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Dates and Status */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                <FaWarehouse className="text-indigo-500" />
-                Dates & Location
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Received Date:</span>
-                    <span className="font-semibold text-blue-800">
-                      {batchTracking.batchInfo?.receivedAt ? new Date(batchTracking.batchInfo.receivedAt).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Mfg Date:</span>
-                    <span className="font-semibold text-purple-800">
-                      {batchTracking.batchInfo?.mfgDate ? new Date(batchTracking.batchInfo.mfgDate).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Exp Date:</span>
-                    <span className="font-semibold text-orange-800">
-                      {batchTracking.batchInfo?.expDate ? new Date(batchTracking.batchInfo.expDate).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Warehouse:</span>
-                    <span className="font-semibold text-indigo-800">
-                      {batchTracking.batchInfo?.warehouse?.warehouseName || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-teal-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Supplier:</span>
-                    <span className="font-semibold text-teal-800">
-                      {batchTracking.batchInfo?.supplier?.fullName || batchTracking.batchInfo?.supplier?.companyName || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
-                    <span className="font-medium text-gray-700">Status:</span>
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${(batchTracking.batchInfo?.currentQuantity || 0) > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      {(batchTracking.batchInfo?.currentQuantity || 0) > 0 ? 'Available' : 'Depleted'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Item Status Breakdown */}
             {batchTracking.itemsBreakdown && (
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                  <FaChartBar className="text-purple-500" />
-                  Item Status Breakdown
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg border border-slate-200 p-4">
+                <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <BarChart3 className="h-4 w-4 text-blue-600" />
+                  Item status breakdown
+                </h3>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   {Object.entries(batchTracking.itemsBreakdown.statusCounts || {}).map(([status, count]) => (
-                    <div key={status} className="text-center p-3 bg-gray-50 rounded-lg border">
-                      <p className="text-lg font-bold text-gray-900">{count}</p>
-                      <p className="text-xs font-medium text-gray-600 capitalize">
+                    <div key={status} className="rounded-md border border-slate-200 bg-slate-50 p-3 text-center">
+                      <p className="text-lg font-semibold text-slate-950">{formatNumber(count)}</p>
+                      <p className="mt-1 text-xs font-medium capitalize text-slate-500">
                         {status.replace('_', ' ')}
                       </p>
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 text-center text-sm text-gray-600">
-                  Total Items: <span className="font-semibold">{batchTracking.itemsBreakdown.total}</span>
+                <div className="mt-3 text-center text-sm text-slate-500">
+                  Total Items: <span className="font-semibold text-slate-800">{formatNumber(batchTracking.itemsBreakdown.total)}</span>
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Real-time Status */}
       {realTimeStatus && (
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm mt-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-500 rounded-lg">
-              <FaTachometerAlt className="text-white text-lg" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900">Current Inventory Overview</h3>
+        <section className={`${panelClass} p-5`}>
+          <div className="mb-6">
+            <SectionHeader icon={Gauge} title="Current inventory overview" detail="Real-time stock health summary from the inventory service." />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center">
-              <div className="p-2 bg-green-500 rounded-lg mx-auto w-fit mb-2">
-                <FaCheckCircle className="text-white text-lg" />
-              </div>
-              <p className="text-xl font-bold text-green-700">{realTimeStatus.totalInStock}</p>
-              <p className="text-sm font-medium text-green-600">Items in Stock</p>
-            </div>
-            <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 text-center">
-              <div className="p-2 bg-amber-500 rounded-lg mx-auto w-fit mb-2">
-                <FaExclamationTriangle className="text-white text-lg" />
-              </div>
-              <p className="text-xl font-bold text-amber-700">{realTimeStatus.lowStockItems}</p>
-              <p className="text-sm font-medium text-amber-600">Low Stock Items</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg border border-red-200 text-center">
-              <div className="p-2 bg-red-500 rounded-lg mx-auto w-fit mb-2">
-                <FaTimesCircle className="text-white text-lg" />
-              </div>
-              <p className="text-xl font-bold text-red-700">{realTimeStatus.outOfStockItems}</p>
-              <p className="text-sm font-medium text-red-600">Out of Stock</p>
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <MetricCard title="Items in stock" value={formatNumber(realTimeStatus.totalInStock)} icon={CheckCircle2} tone="emerald" />
+            <MetricCard title="Low stock items" value={formatNumber(realTimeStatus.lowStockItems)} icon={AlertTriangle} tone="amber" />
+            <MetricCard title="Out of stock" value={formatNumber(realTimeStatus.outOfStockItems)} icon={XCircle} tone="red" />
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
 
-  // Render active tab content
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
@@ -1194,126 +1318,120 @@ const InventoryPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Simplified Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 bg-white/20 rounded-xl">
-                <FaBoxOpen className="text-2xl" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">
-                  Inventory Management
-                </h1>
-                <p className="text-blue-100 mt-1">
-                  Welcome, <span className="font-semibold">{user?.fullName}</span>
-                </p>
-                <p className="text-blue-200 text-sm">
-                  <FaWarehouse className="inline mr-1" />
-                  {user?.assignedWarehouseId?.warehouseName || 'Not Assigned'}
-                </p>
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className={`${panelClass} mb-6 px-5 py-5`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                <PackageOpen className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Warehouse operations</p>
+                <h1 className="mt-1 text-2xl font-semibold text-slate-950">Inventory Management</h1>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                  <span className="break-words">User: <span className="font-semibold text-slate-700">{user?.fullName || 'Unknown user'}</span></span>
+                  <span className="inline-flex min-w-0 items-center gap-1 break-words">
+                    <Warehouse className="h-4 w-4 shrink-0" />
+                    {user?.assignedWarehouseId?.warehouseName || 'Warehouse not assigned'}
+                  </span>
+                </div>
               </div>
             </div>
-            {(user?.role === 'admin' || user?.role === 'staff') && (
+            {canRefreshInventory && (
               <button
-                onClick={() => dispatch(fetchInventory())}
-                className="flex items-center gap-2 px-6 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-colors"
+                type="button"
+                onClick={() => {
+                  dispatch(fetchInventory());
+                  dispatch(fetchRealTimeInventoryStatus());
+                }}
+                className={secondaryButtonClass}
               >
-                <FaSyncAlt className="text-sm" />
-                Refresh Data
+                <RefreshCw className="h-4 w-4" />
+                Refresh
               </button>
             )}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Simplified Messages */}
-      {(message || error || addSupplyDetails) && (
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          {addSupplyDetails && (
-            <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-lg mb-4">
-              <div className="flex items-center gap-2 mb-1">
-                <FaCheckCircle className="text-blue-600" />
-                <span>{addSupplyDetails.message || 'Supply added to inventory successfully.'}</span>
-              </div>
-              <div className="text-sm mt-1">
-                <div><b>Batch ID:</b> {addSupplyDetails.batchId}</div>
-                <div><b>Items Created:</b> {addSupplyDetails.itemsCreated}</div>
-                <div><b>Total Cost:</b> {addSupplyDetails.totalCost?.toLocaleString('en-IN', { style: 'currency', currency: addSupplyDetails.currency || 'INR' })}</div>
-                {addSupplyDetails.purchaseOrderId && (
-                  <div><b>Purchase Order ID:</b> {addSupplyDetails.purchaseOrderId}</div>
-                )}
-              </div>
-              <button
-                className="mt-2 text-xs text-blue-700 underline"
-                onClick={() => setAddSupplyDetails(null)}
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-          {message && (
-            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-4">
-              <div className="flex items-center gap-2">
-                <FaCheckCircle className="text-green-600" />
-                <span>{message}</span>
-              </div>
-            </div>
-          )}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-4">
-              <div className="flex items-center gap-2">
-                <FaTimesCircle className="text-red-600" />
-                <span>{error}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Simplified Tab Navigation */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex justify-center">
-            <div className="flex bg-gray-100 rounded-lg p-1 my-4">
-              {inventoryTabs.map((tab) => {
-                const IconComponent = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-blue-600 hover:bg-white'
-                      }`}
-                  >
-                    <IconComponent className="text-sm" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Simplified Content Container */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
-            </div>
-            <p className="mt-4 text-gray-600">Loading inventory data...</p>
-          </div>
-        ) : (
-          <div className="animate-fadeIn">
-            {renderTabContent()}
+        {(localNotice || addSupplyDetails || message || error) && (
+          <div className="mb-6 space-y-3">
+            {localNotice && (
+              <Notice type={localNotice.type} title={localNotice.title} onDismiss={() => setLocalNotice(null)}>
+                {localNotice.message}
+              </Notice>
+            )}
+            {addSupplyDetails && (
+              <Notice type="success" title={addSupplyDetails.message || 'Supply added to inventory successfully.'} onDismiss={() => setAddSupplyDetails(null)}>
+                <div className="grid gap-1 sm:grid-cols-2">
+                  <span><b>Batch ID:</b> {addSupplyDetails.batchId || 'N/A'}</span>
+                  <span><b>Items Created:</b> {formatNumber(addSupplyDetails.itemsCreated)}</span>
+                  <span><b>Total Cost:</b> {formatCurrency(addSupplyDetails.totalCost, addSupplyDetails.currency || 'INR')}</span>
+                  {addSupplyDetails.purchaseOrderId && <span><b>Purchase Order ID:</b> {addSupplyDetails.purchaseOrderId}</span>}
+                </div>
+              </Notice>
+            )}
+            {message && (
+              <Notice type="success" title="Inventory updated">
+                {message}
+              </Notice>
+            )}
+            {error && (
+              <Notice type="error" title="Inventory error">
+                {error}
+              </Notice>
+            )}
           </div>
         )}
+
+        <nav className="mb-6 rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Inventory sections">
+          <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Inventory sections">
+            {inventoryTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  id={getInventoryTabId(tab.id)}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={getInventoryPanelId(tab.id)}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => handleTabChange(tab.id)}
+                  onKeyDown={handleTabKeyDown}
+                  className={`inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${isActive
+                    ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-slate-950'
+                    }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        <div
+          id={getInventoryPanelId(activeTab)}
+          role="tabpanel"
+          aria-labelledby={getInventoryTabId(activeTab)}
+          tabIndex={0}
+          className="outline-none"
+        >
+          {loading ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-slate-200 bg-white py-20 shadow-sm">
+              <LoaderCircle className="h-9 w-9 animate-spin text-blue-700" />
+              <p className="mt-4 text-sm font-medium text-slate-600">Loading inventory data...</p>
+            </div>
+          ) : (
+            <div className="animate-fadeIn">
+              {renderTabContent()}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

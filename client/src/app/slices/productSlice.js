@@ -10,6 +10,8 @@ const initialState = {
   totalProducts: 0,
 };
 
+const getProductId = (product) => product?._id || product?.id;
+
 const productSlice = createSlice({
   name: 'products',
   initialState,
@@ -78,7 +80,8 @@ const productSlice = createSlice({
       state.message = action.payload.message;
       // Update product in the existing products array
       if (action.payload.product) {
-        const index = state.products.findIndex(product => product._id === action.payload.product._id);
+        const updatedProductId = getProductId(action.payload.product);
+        const index = state.products.findIndex(product => getProductId(product) === updatedProductId);
         if (index !== -1) {
           state.products[index] = action.payload.product;
         }
@@ -100,8 +103,8 @@ const productSlice = createSlice({
       state.message = action.payload.message;
       // Remove product from the existing products array
       if (action.payload.productId) {
-        state.products = state.products.filter(product => product._id !== action.payload.productId);
-        state.totalProducts -= 1;
+        state.products = state.products.filter(product => getProductId(product) !== action.payload.productId);
+        state.totalProducts = Math.max(0, state.totalProducts - 1);
       }
     },
     deleteProductFailed(state, action) {
@@ -169,14 +172,17 @@ export const createProduct = (productData) => async (dispatch) => {
   dispatch(productSlice.actions.createProductRequest());
   try {
     const response = await productAPI.createProduct(productData);
-
-    dispatch(productSlice.actions.createProductSuccess({
+    const payload = {
       product: response.data.product,
       message: response.data.message || 'Product created successfully.',
-    }));
+    };
+
+    dispatch(productSlice.actions.createProductSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to create product';
     dispatch(productSlice.actions.createProductFailed(errorMessage));
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -184,14 +190,17 @@ export const updateProduct = (productId, productData) => async (dispatch) => {
   dispatch(productSlice.actions.updateProductRequest());
   try {
     const response = await productAPI.updateProduct(productId, productData);
-
-    dispatch(productSlice.actions.updateProductSuccess({
+    const payload = {
       product: response.data.product,
       message: response.data.message || 'Product updated successfully.',
-    }));
+    };
+
+    dispatch(productSlice.actions.updateProductSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to update product';
     dispatch(productSlice.actions.updateProductFailed(errorMessage));
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -199,14 +208,17 @@ export const deleteProduct = (productId) => async (dispatch) => {
   dispatch(productSlice.actions.deleteProductRequest());
   try {
     const response = await productAPI.deleteProduct(productId);
-
-    dispatch(productSlice.actions.deleteProductSuccess({
+    const payload = {
       productId: productId,
       message: response.data.message || 'Product deleted successfully.',
-    }));
+    };
+
+    dispatch(productSlice.actions.deleteProductSuccess(payload));
+    return { success: true, ...payload };
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to delete product';
     dispatch(productSlice.actions.deleteProductFailed(errorMessage));
+    throw new Error(errorMessage);
   }
 };
 

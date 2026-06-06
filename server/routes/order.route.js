@@ -29,7 +29,7 @@ const retiredOrderDeliveryRoute = (req, res) => {
   });
 };
 
-router.get("/", (req, res) => {
+router.get("/", isAuthenticated, isAuthorized("admin", "staff", "viewer"), (req, res) => {
   res.send("Welcome to the Order API");
 });
 

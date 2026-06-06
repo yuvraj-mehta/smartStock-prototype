@@ -29,17 +29,23 @@ const PaymentReceived = {
   deleteMany: jest.fn(),
   find: jest.fn(),
 };
-const SalesInvoice = {
-  find: jest.fn(),
-  findById: jest.fn(),
-  findByIdAndDelete: jest.fn(),
-  findByIdAndUpdate: jest.fn(),
-};
+const SalesInvoice = jest.fn(function SalesInvoiceModel(attrs) {
+  Object.assign(this, attrs);
+  this._id = SALES_INVOICE_ID;
+  this.createdAt = new Date('2026-01-15T00:00:00Z');
+  this.save = jest.fn().mockResolvedValue(this);
+});
+SalesInvoice.find = jest.fn();
+SalesInvoice.findById = jest.fn();
+SalesInvoice.findByIdAndDelete = jest.fn();
+SalesInvoice.findByIdAndUpdate = jest.fn();
 const SalesOrder = {
   find: jest.fn(),
   findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
   updateOne: jest.fn(),
 };
+const recordSalesInvoiceEvent = jest.fn();
 const reverseUnreversedFinancialEventsForSource = jest.fn();
 
 jest.unstable_mockModule('mongoose', () => ({ default: mongooseMock }));
@@ -55,6 +61,7 @@ jest.unstable_mockModule('../middlewares/index.js', () => ({
   requireAssignedWarehouseId: (req) => req.user?.assignedWarehouseId || WAREHOUSE_ID,
 }));
 jest.unstable_mockModule('../services/finance/index.js', () => ({
+  recordSalesInvoiceEvent,
   reverseUnreversedFinancialEventsForSource,
 }));
 
@@ -151,8 +158,41 @@ describe('sales invoice controller receivables guardrails', () => {
     SalesInvoice.findByIdAndUpdate.mockResolvedValue(buildInvoice());
     SalesOrder.find.mockReturnValue(buildDistinctQuery([SALES_ORDER_ID]));
     SalesOrder.findById.mockReturnValue(buildQuery(buildSalesOrder()));
+    SalesOrder.findByIdAndUpdate.mockResolvedValue(buildSalesOrder({
+      salesInvoiceId: SALES_INVOICE_ID,
+      paymentStatus: 'unpaid',
+    }));
     SalesOrder.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    recordSalesInvoiceEvent.mockResolvedValue({});
     reverseUnreversedFinancialEventsForSource.mockResolvedValue([]);
+  });
+
+  it('records a sales invoice ledger event when creating an invoice', async () => {
+    SalesInvoice.findById.mockReturnValue(buildQuery(buildInvoice({
+      _id: SALES_INVOICE_ID,
+      salesOrderId: SALES_ORDER_ID,
+      amount: 100,
+      status: 'unpaid',
+    })));
+
+    const res = await invokeJsonController(salesInvoiceController.createSalesInvoice, {
+      body: {
+        salesOrderId: SALES_ORDER_ID,
+        amount: 100,
+        dueDate: '2026-02-01T00:00:00Z',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(recordSalesInvoiceEvent).toHaveBeenCalledWith({
+      amount: 100,
+      salesInvoiceId: SALES_INVOICE_ID,
+      salesOrderId: SALES_ORDER_ID,
+      warehouseId: WAREHOUSE_ID,
+      occurredAt: expect.any(Date),
+      actorId: USER_ID,
+      session,
+    });
   });
 
   it('filters sales invoices through fulfilled batches in the authenticated warehouse', async () => {
