@@ -271,7 +271,7 @@ const FinancePage = () => {
       setPaymentOrders(getOrdersFromResponse(data));
     } catch (error) {
       setPaymentOrders([]);
-      setPaymentOrdersError(getApiErrorMessage(error, 'Order lookup failed. You can paste an order ID manually.'));
+      setPaymentOrdersError(getApiErrorMessage(error, 'Order lookup failed. You can enter an order reference manually.'));
     } finally {
       setPaymentOrdersLoading(false);
     }
@@ -365,8 +365,8 @@ const FinancePage = () => {
 
     if (!targetId) {
       setFormError(paymentForm.targetType === 'salesInvoice'
-        ? 'Enter a sales invoice ID.'
-        : 'Select an order or paste an order ID.');
+        ? 'Enter a sales invoice reference.'
+        : 'Select an order or enter an order reference.');
       return;
     }
 
@@ -594,13 +594,13 @@ const FinancePage = () => {
                         })}
                       </select>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span>Select by order number; the object ID is used internally.</span>
+                        <span>Select by order number; SmartStock stores the technical reference automatically.</span>
                         <button
                           type="button"
                           className="font-semibold text-blue-700 hover:text-blue-900"
                           onClick={toggleManualTargetId}
                         >
-                          Paste order ID instead
+                          Use manual order reference
                         </button>
                       </div>
                       {paymentOrdersError && (
@@ -610,21 +610,21 @@ const FinancePage = () => {
                   ) : (
                     <>
                       <label className={labelClass} htmlFor="payment-target-id">
-                        {paymentForm.targetType === 'salesInvoice' ? 'Sales invoice ID' : 'Order ID'}
+                        {paymentForm.targetType === 'salesInvoice' ? 'Sales invoice reference' : 'Order reference'}
                       </label>
                       <input
                         id="payment-target-id"
                         className={inputClass}
                         value={paymentForm.targetId}
                         onChange={(event) => updatePaymentForm('targetId', event.target.value)}
-                        placeholder={paymentForm.targetType === 'salesInvoice' ? 'Paste sales invoice object ID' : 'Paste order object ID'}
+                        placeholder={paymentForm.targetType === 'salesInvoice' ? 'Paste invoice record reference' : 'Paste order record reference'}
                         required
                       />
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span>
                           {paymentForm.targetType === 'salesInvoice'
-                            ? 'Sales invoice lookup is not exposed in this UI yet; paste the invoice ID from invoice records.'
-                            : 'Manual order ID entry is available for records not returned by the order lookup.'}
+                            ? 'Sales invoice lookup is not exposed in this UI yet; use the reference from invoice records.'
+                            : 'Manual entry is available for orders not returned by the lookup.'}
                         </span>
                         {paymentForm.targetType === 'order' && paymentOrders.length > 0 && (
                           <button
@@ -858,7 +858,7 @@ const FinancePage = () => {
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Payment</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">Receipt</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-700">Target</th>
                     <th className="px-4 py-3 text-right font-semibold text-slate-700">Amount</th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-700">Method</th>
@@ -880,8 +880,8 @@ const FinancePage = () => {
 
                       return (
                         <tr key={payment._id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-900" title={payment._id}>
-                            {getCompactId(payment._id)}
+                          <td className="px-4 py-3 text-xs font-semibold text-blue-900" title={`Payment record ${payment._id}`}>
+                            Receipt {getCompactId(payment._id)}
                           </td>
                           <td className="px-4 py-3">
                             <div className="font-medium text-slate-950">{target.type}</div>

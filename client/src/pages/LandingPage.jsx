@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Server,
   ShieldCheck,
+  Truck,
   UserCheck,
   Warehouse,
 } from 'lucide-react';
@@ -33,17 +34,35 @@ const entryPathRows = [
   {
     icon: UserCheck,
     title: 'Reviewer entry',
-    detail: 'Start at Landing, sign in through /login, then let auth routing open the right workspace.',
+    detail: 'Start at Landing, sign in through /login, then let auth routing open the right workspace for the assigned demo account.',
   },
   {
     icon: ShieldCheck,
-    title: 'Role path',
-    detail: 'Admin and staff reach operational pages; other signed-in roles fall back to profile in the current client shell.',
+    title: 'Credential safety',
+    detail: 'Reviewer credentials are provided out-of-band or generated locally; public pages do not embed passwords, tokens, or API keys.',
+  },
+  {
+    icon: Truck,
+    title: 'Transporter status path',
+    detail: 'Transporter accounts are admin-managed partner records for assigned delivery status updates, not public self-service accounts.',
   },
   {
     icon: Database,
     title: 'Local demo data',
-    detail: 'Use the server seed:dev script or assigned credentials; seeded data creates an admin, warehouse, products, batches, and items.',
+    detail: 'Use the server seed scripts for a realistic warehouse, products, batches, items, orders, returns, payments, and insights.',
+  },
+];
+
+const roleRows = [
+  {
+    icon: ShieldCheck,
+    title: 'Internal workspace',
+    detail: 'Admin and staff reach the operational pages; viewer and partner accounts stay scoped to narrower review or handoff paths.',
+  },
+  {
+    icon: Database,
+    title: 'Live API data',
+    detail: 'Authenticated pages read protected API data, while the public dashboard card remains a labeled preview.',
   },
 ];
 
@@ -247,9 +266,18 @@ const LandingPage = () => (
               The public page is only an orientation layer. The real review path is the authenticated workspace, where routes are gated by role and backed by the Express API.
             </p>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             {entryPathRows.map(({ icon: Icon, title, detail }) => (
               <div key={title} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <Icon className="h-5 w-5 text-slate-600" />
+                <h3 className="mt-3 text-sm font-semibold text-slate-950">{title}</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {roleRows.map(({ icon: Icon, title, detail }) => (
+              <div key={title} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <Icon className="h-5 w-5 text-slate-600" />
                 <h3 className="mt-3 text-sm font-semibold text-slate-950">{title}</h3>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{detail}</p>

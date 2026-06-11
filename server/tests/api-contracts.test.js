@@ -12,6 +12,8 @@ import { Return } from '../models/index.js';
 import { getAllReturns } from '../controllers/return.controller.js';
 import {
   expectHealthContract,
+  expectProductionHealthContract,
+  expectProductionReadinessContract,
   expectReadinessContract,
 } from './helpers/routeContracts.js';
 
@@ -73,6 +75,35 @@ describe('API contract smoke tests', () => {
       expect([200, 503]).toContain(res.statusCode);
       expectReadinessContract(res.body);
       expect(res.statusCode).toBe(res.body.readiness.ready ? 200 : 503);
+    });
+
+    it('redacts health internals in production mode', async () => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      try {
+        const res = await request(app).get('/api/v1/health');
+
+        expect(res.statusCode).toBe(200);
+        expectProductionHealthContract(res.body);
+      } finally {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+    });
+
+    it('redacts readiness internals in production mode', async () => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      try {
+        const res = await request(app).get('/api/v1/health/ready');
+
+        expect([200, 503]).toContain(res.statusCode);
+        expectProductionReadinessContract(res.body);
+        expect(res.statusCode).toBe(res.body.ready ? 200 : 503);
+      } finally {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
     });
   });
 

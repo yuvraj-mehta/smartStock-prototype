@@ -15,9 +15,7 @@ export const generateToken = (user) => {
     assignedWarehouseId,
   },
   conf.jwtSecret,
-  {
-    expiresIn: conf.jwtExpiration,
-  })
+  conf.jwtSignOptions)
 
   return token;
 }

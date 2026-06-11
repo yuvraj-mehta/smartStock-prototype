@@ -66,9 +66,9 @@ Finance endpoints read from purchase orders, invoices, payments, sales, inventor
 
 The API process can be alive before it is ready for traffic:
 
-1. `/api/v1/health` always returns the liveness payload plus readiness details.
+1. `/api/v1/health` always returns the liveness payload plus readiness state.
 2. `/api/v1/health/ready` evaluates required config and Mongoose connection state.
 3. A connected database and valid required config produce `status: "ready"` and HTTP `200`.
 4. Missing config or a disconnected database produces `status: "not_ready"` and HTTP `503`.
 
-Use `/api/v1/health/ready` for deployment readiness gates and `/api/v1/health` for uptime monitoring.
+Use `/api/v1/health/ready` for deployment readiness gates and `/api/v1/health` for uptime monitoring. Detailed readiness checks are available outside production; production responses are intentionally redacted.

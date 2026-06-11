@@ -17,7 +17,7 @@ Use this local smoke pass after backend or client integration changes. Do not re
 
 - Confirm liveness returns `200`: `curl -s http://localhost:3500/api/v1/health`.
 - Confirm readiness returns `200` only after required config is present and MongoDB is connected: `curl -i http://localhost:3500/api/v1/health/ready`.
-- If readiness returns `503`, inspect the response `readiness.checks.database` and `readiness.checks.config` fields before debugging route code.
+- If readiness returns `503` locally, inspect the response `readiness.checks.database` and `readiness.checks.config` fields before debugging route code. Production responses intentionally redact those details.
 
 ## Account And Auth
 

@@ -24,6 +24,7 @@ const getBearerToken = (req) => {
 };
 
 const getDecodedUserId = (decoded) => decoded?.id || decoded?._id || decoded?.userId || decoded?.sub;
+const verifyToken = (token) => jwt.verify(token, conf.jwtSecret, conf.jwtVerifyOptions);
 
 const findInternalUserById = (id) => User.findById(id)
   .populate('assignedWarehouseId', 'address warehouseName');
@@ -58,7 +59,7 @@ const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, conf.jwtSecret);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
     }
@@ -88,7 +89,7 @@ const isTransportStatusAuthenticated = catchAsyncErrors(async (req, res, next) =
   }
 
   try {
-    const decoded = jwt.verify(token, conf.jwtSecret);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return res.status(401).json({ message: 'Token is not valid, authorization denied.' });
     }

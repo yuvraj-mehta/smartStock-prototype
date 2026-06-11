@@ -113,7 +113,7 @@ describe('auth controller external transporter login', () => {
     });
   });
 
-  it('rejects inactive or missing transporter accounts', async () => {
+  it('returns a generic failure and runs a dummy bcrypt compare for missing transporter accounts', async () => {
     ExternalUser.findOne.mockReturnValue(buildFindOneQuery(null));
 
     const res = await invokeJsonController(authController.loginTransporter, {
@@ -123,8 +123,33 @@ describe('auth controller external transporter login', () => {
       },
     });
 
-    expect(res.statusCode).toBe(404);
-    expect(res.payload.message).toMatch(/not found or inactive/i);
+    expect(res.statusCode).toBe(401);
+    expect(res.payload.message).toBe('Invalid email or password.');
+    expect(bcrypt.compare).toHaveBeenCalledWith('secret', expect.any(String));
+    expect(generateToken).not.toHaveBeenCalled();
+  });
+
+  it('returns a generic failure for invalid transporter passwords', async () => {
+    ExternalUser.findOne.mockReturnValue(buildFindOneQuery({
+      _id: TRANSPORTER_ID,
+      email: 'driver@example.com',
+      password: 'hashed-password',
+      role: 'transporter',
+      status: 'active',
+      warehouseId: WAREHOUSE_ID,
+    }));
+    bcrypt.compare.mockResolvedValue(false);
+
+    const res = await invokeJsonController(authController.loginTransporter, {
+      body: {
+        email: 'driver@example.com',
+        password: 'wrong-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.payload.message).toBe('Invalid email or password.');
+    expect(bcrypt.compare).toHaveBeenCalledWith('wrong-secret', 'hashed-password');
     expect(generateToken).not.toHaveBeenCalled();
   });
 
@@ -147,6 +172,7 @@ describe('auth controller external transporter login', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.payload.message).toMatch(/assigned to a warehouse/i);
+    expect(bcrypt.compare).toHaveBeenCalledWith('secret', 'hashed-password');
     expect(generateToken).not.toHaveBeenCalled();
   });
 });
@@ -187,10 +213,50 @@ describe('auth controller internal login warehouse boundary', () => {
       });
       expect(res.statusCode).toBe(403);
       expect(res.payload.message).toMatch(/assigned to a warehouse/i);
-      expect(bcrypt.compare).not.toHaveBeenCalled();
+      expect(bcrypt.compare).toHaveBeenCalledWith('secret', 'hashed-password');
       expect(generateToken).not.toHaveBeenCalled();
     },
   );
+
+  it('returns a generic failure and runs a dummy bcrypt compare for missing internal users', async () => {
+    User.findOne.mockReturnValue(buildInternalFindOneQuery(null));
+
+    const res = await invokeJsonController(authController.login, {
+      body: {
+        email: 'staff@example.com',
+        password: 'secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.payload.message).toBe('Invalid email or password.');
+    expect(bcrypt.compare).toHaveBeenCalledWith('secret', expect.any(String));
+    expect(generateToken).not.toHaveBeenCalled();
+  });
+
+  it('returns a generic failure for invalid internal user passwords', async () => {
+    User.findOne.mockReturnValue(buildInternalFindOneQuery({
+      _id: 'internal-user-1',
+      fullName: 'Staff User',
+      email: 'staff@example.com',
+      password: 'hashed-password',
+      role: 'staff',
+      assignedWarehouseId: WAREHOUSE_ID,
+    }));
+    bcrypt.compare.mockResolvedValue(false);
+
+    const res = await invokeJsonController(authController.login, {
+      body: {
+        email: 'staff@example.com',
+        password: 'wrong-secret',
+      },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.payload.message).toBe('Invalid email or password.');
+    expect(bcrypt.compare).toHaveBeenCalledWith('wrong-secret', 'hashed-password');
+    expect(generateToken).not.toHaveBeenCalled();
+  });
 
   it('issues internal login tokens only after warehouse assignment and password validation', async () => {
     const user = {

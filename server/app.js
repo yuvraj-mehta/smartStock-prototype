@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import { corsConfig } from './config/config.js';
+import helmet from 'helmet';
+import { conf, corsConfig } from './config/config.js';
 import healthRouter from './routes/health.route.js';
 import salesOrderRouter from './routes/salesOrder.route.js';
 import salesInvoiceRouter from './routes/salesInvoice.route.js';
@@ -24,12 +25,29 @@ import packageRouter from './routes/package.route.js';
 import transportRouter from './routes/transport.route.js';
 import fulfillmentOrderRouter from './routes/fulfillmentOrder.route.js';
 import inventoryAnalyticsRouter from './routes/inventoryAnalytics.route.js';
+import { aiRateLimiter, authRateLimiter, globalRateLimiter } from './middlewares/rateLimit.middleware.js';
 
 const app = express();
 
+if (conf.trustProxy !== false) {
+  app.set('trust proxy', conf.trustProxy);
+}
+app.disable('x-powered-by');
+app.use(helmet());
 app.use(cors(corsConfig));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(globalRateLimiter);
+app.use(express.json({ limit: conf.jsonBodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: conf.urlEncodedBodyLimit }));
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({
+      success: false,
+      error: 'Request body too large',
+    });
+  }
+
+  return next(err);
+});
 
 // Health check endpoint for Render/uptime checks
 app.get('/', (req, res) => {
@@ -37,7 +55,7 @@ app.get('/', (req, res) => {
 });
 
 // Define routes
-app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/auth', authRateLimiter, authRouter);
 app.use('/api/v1/user', userRouter);
 app.use('/api/v1/external-user', externalUserRouter);
 app.use('/api/v1/item', itemRouter);
@@ -50,7 +68,7 @@ app.use('/api/v1/return', returnRouter);
 app.use('/api/v1/product', productRouter);
 app.use('/api/v1/transport', transportRouter);
 app.use('/api/v1/inventory', inventoryRouter);
-app.use('/api/v1/ai', aiRouter);
+app.use('/api/v1/ai', aiRateLimiter, aiRouter);
 app.use('/api/v1/inventory-analytics', inventoryAnalyticsRouter);
 
 // Sales/revenue routes

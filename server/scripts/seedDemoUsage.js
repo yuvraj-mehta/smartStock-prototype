@@ -25,8 +25,22 @@ import { isDirectRun, runScript } from "./lib/seedUtils.js";
 
 const CURRENCY = "INR";
 const DEMO_DATE = new Date("2026-06-01T09:00:00.000Z");
-const TRANSPORTER_EMAIL = "transporter@smartstock.local";
-const TRANSPORTER_PASSWORD = "seed-transporter123";
+const DEV_ADMIN_EMAIL = "admin@smartstock.local";
+const DEV_TRANSPORTER_EMAIL = "transporter@smartstock.local";
+const DEV_TRANSPORTER_PASSWORD = "seed-transporter123";
+const UNSAFE_TRANSPORTER_PASSWORDS = new Set([
+  DEV_TRANSPORTER_PASSWORD,
+  "transporter",
+  "password",
+  "password123",
+  "changeme",
+  "smartstock",
+]);
+
+const isTruthy = (value) => ["1", "true", "yes", "y"].includes(String(value).toLowerCase());
+const cleanEnv = (key, fallback = "") => process.env[key]?.trim() || fallback;
+const hasEnvValue = (key) => Object.prototype.hasOwnProperty.call(process.env, key);
+const normalizePassword = (value) => String(value ?? "").trim();
 
 const daysAfter = (days, hour = 9) => {
   const date = new Date(DEMO_DATE);
@@ -36,6 +50,44 @@ const daysAfter = (days, hour = 9) => {
 };
 
 const normalizeId = (value) => value?._id?.toString?.() || value?.toString?.();
+
+export const getDemoTransporterSeedConfig = () => {
+  const allowDevDefaultPassword = process.env.NODE_ENV === "development"
+    && isTruthy(process.env.ALLOW_DEV_SEED_CREDENTIALS);
+  const password = hasEnvValue("SEED_TRANSPORTER_PASSWORD")
+    ? normalizePassword(process.env.SEED_TRANSPORTER_PASSWORD)
+    : (allowDevDefaultPassword ? DEV_TRANSPORTER_PASSWORD : "");
+  const usesDevDefaultPassword = allowDevDefaultPassword && !hasEnvValue("SEED_TRANSPORTER_PASSWORD");
+  const passwordIsUnsafe = !usesDevDefaultPassword
+    && (password.length < 12 || UNSAFE_TRANSPORTER_PASSWORDS.has(password.toLowerCase()));
+
+  if (!password || passwordIsUnsafe) {
+    throw new Error(
+      "Refusing to seed a transporter with an unsafe password. "
+      + "Set SEED_TRANSPORTER_PASSWORD to a unique value with at least 12 characters. "
+      + "For local development defaults, set NODE_ENV=development and ALLOW_DEV_SEED_CREDENTIALS=1."
+    );
+  }
+
+  if (allowDevDefaultPassword && !process.env.SEED_TRANSPORTER_PASSWORD) {
+    console.warn("Using development transporter password. Set SEED_TRANSPORTER_PASSWORD to override it.");
+  }
+
+  return {
+    email: cleanEnv("SEED_TRANSPORTER_EMAIL", DEV_TRANSPORTER_EMAIL).toLowerCase(),
+    password,
+    fullName: cleanEnv("SEED_TRANSPORTER_NAME", "Aarav Logistics Lead"),
+    companyName: cleanEnv("SEED_TRANSPORTER_COMPANY", "RapidRider Logistics"),
+    phone: cleanEnv("SEED_TRANSPORTER_PHONE", "2222222222"),
+    address: cleanEnv("SEED_TRANSPORTER_ADDRESS", "42 Dispatch Park, Mumbai"),
+    contactPerson: cleanEnv("SEED_TRANSPORTER_CONTACT", "Aarav Mehta"),
+  };
+};
+
+export const getDemoTransporterLogMessage = (transporter = {}) => {
+  const email = transporter.email || cleanEnv("SEED_TRANSPORTER_EMAIL", DEV_TRANSPORTER_EMAIL).toLowerCase();
+  return `Demo transporter: ${email} (password not printed)`;
+};
 
 const withFinanceTransaction = async (callback) => {
   const session = await mongoose.startSession();
@@ -69,23 +121,27 @@ const cogsForItemIds = async (itemIds) => {
 };
 
 const createTransporter = async (warehouseId) => {
-  const password = await bcrypt.hash(TRANSPORTER_PASSWORD, 10);
+  const config = getDemoTransporterSeedConfig();
+  const password = await bcrypt.hash(config.password, 10);
   return ExternalUser.findOneAndUpdate(
-    { email: TRANSPORTER_EMAIL },
+    { email: config.email },
     {
       $set: {
-        fullName: "Aarav Logistics Lead",
-        companyName: "RapidRider Logistics",
+        fullName: config.fullName,
+        companyName: config.companyName,
         password,
-        phone: "2222222222",
-        address: "42 Dispatch Park, Mumbai",
-        contactPerson: "Aarav Mehta",
+        phone: config.phone,
+        address: config.address,
+        contactPerson: config.contactPerson,
         rating: 5,
         role: "transporter",
         status: "active",
         isVerified: true,
         warehouseId,
         updatedAt: new Date(),
+      },
+      $setOnInsert: {
+        email: config.email,
       },
     },
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
@@ -560,7 +616,8 @@ const seedAIRecords = async ({ admin, warehouse, productsBySku }) => {
 export const seedDemoUsage = async () => {
   await seedProducts();
 
-  const admin = await User.findOne({ email: "admin@smartstock.local" }).populate("assignedWarehouseId");
+  const adminEmail = cleanEnv("ADMIN_EMAIL", DEV_ADMIN_EMAIL).toLowerCase();
+  const admin = await User.findOne({ email: adminEmail }).populate("assignedWarehouseId");
   if (!admin?.assignedWarehouseId) {
     throw new Error("Seed admin or warehouse missing.");
   }
@@ -662,7 +719,7 @@ export const seedDemoUsage = async () => {
 
   console.table([summary]);
   console.log("Seeded realistic demo usage data.");
-  console.log(`Demo transporter: ${TRANSPORTER_EMAIL} / ${TRANSPORTER_PASSWORD}`);
+  console.log(getDemoTransporterLogMessage(transporter));
   return summary;
 };
 

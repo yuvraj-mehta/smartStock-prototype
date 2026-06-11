@@ -17,6 +17,11 @@ const staffUser = {
 };
 let authUser = viewerUser;
 
+const signToken = (payload) => jwt.sign(payload, conf.jwtSecret, {
+  ...conf.jwtSignOptions,
+  expiresIn: '1h',
+});
+
 const User = {
   findById: jest.fn(() => ({
     populate: jest.fn().mockResolvedValue(authUser),
@@ -34,15 +39,11 @@ describe('inventory route RBAC', () => {
   });
 
   it('rejects viewer users before inventory supply intake can mutate stock', async () => {
-    const token = jwt.sign(
-      {
-        id: viewerUser._id,
-        email: viewerUser.email,
-        role: viewerUser.role,
-      },
-      conf.jwtSecret,
-      { expiresIn: '1h' },
-    );
+    const token = signToken({
+      id: viewerUser._id,
+      email: viewerUser.email,
+      role: viewerUser.role,
+    });
 
     const res = await request(app)
       .post('/api/v1/inventory/add-supply')
@@ -54,15 +55,11 @@ describe('inventory route RBAC', () => {
   });
 
   it('rejects viewer users before AI routes can generate or mutate insights', async () => {
-    const token = jwt.sign(
-      {
-        id: viewerUser._id,
-        email: viewerUser.email,
-        role: viewerUser.role,
-      },
-      conf.jwtSecret,
-      { expiresIn: '1h' },
-    );
+    const token = signToken({
+      id: viewerUser._id,
+      email: viewerUser.email,
+      role: viewerUser.role,
+    });
 
     const res = await request(app)
       .post('/api/v1/ai/optimize/stock')
@@ -75,15 +72,11 @@ describe('inventory route RBAC', () => {
 
   it('rejects staff users from the admin-only manual item status route', async () => {
     authUser = staffUser;
-    const token = jwt.sign(
-      {
-        id: staffUser._id,
-        email: staffUser.email,
-        role: staffUser.role,
-      },
-      conf.jwtSecret,
-      { expiresIn: '1h' },
-    );
+    const token = signToken({
+      id: staffUser._id,
+      email: staffUser.email,
+      role: staffUser.role,
+    });
 
     const res = await request(app)
       .put('/api/v1/item/update-status/507f1f77bcf86cd799439031')
@@ -96,15 +89,11 @@ describe('inventory route RBAC', () => {
 
   it('rejects AI requests scoped to a different warehouse', async () => {
     authUser = staffUser;
-    const token = jwt.sign(
-      {
-        id: staffUser._id,
-        email: staffUser.email,
-        role: staffUser.role,
-      },
-      conf.jwtSecret,
-      { expiresIn: '1h' },
-    );
+    const token = signToken({
+      id: staffUser._id,
+      email: staffUser.email,
+      role: staffUser.role,
+    });
 
     const res = await request(app)
       .post('/api/v1/ai/optimize/stock')

@@ -21,6 +21,8 @@ const getMemoryUsage = () => {
   };
 };
 
+const isProduction = () => process.env.NODE_ENV === "production";
+
 export const getReadinessDetails = () => {
   const config = getConfigValidation();
   const databaseReadyState = mongoose.connection.readyState;
@@ -46,28 +48,57 @@ export const getReadinessDetails = () => {
   };
 };
 
-router.get("/", (req, res) => {
+const getPublicHealthPayload = () => {
   const readiness = getReadinessDetails();
-
-  res.status(200).json({
+  const basePayload = {
     status: "healthy",
     service: "smartstock-api",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+  };
+
+  if (isProduction()) {
+    return {
+      ...basePayload,
+      ready: readiness.ready,
+    };
+  }
+
+  return {
+    ...basePayload,
     readiness,
     memory: getMemoryUsage(),
-  });
+  };
+};
+
+const getPublicReadinessPayload = (readiness) => {
+  const basePayload = {
+    status: readiness.ready ? "ready" : "not_ready",
+    service: "smartstock-api",
+    timestamp: new Date().toISOString(),
+  };
+
+  if (isProduction()) {
+    return {
+      ...basePayload,
+      ready: readiness.ready,
+    };
+  }
+
+  return {
+    ...basePayload,
+    readiness,
+  };
+};
+
+router.get("/", (req, res) => {
+  res.status(200).json(getPublicHealthPayload());
 });
 
 router.get("/ready", (req, res) => {
   const readiness = getReadinessDetails();
 
-  res.status(readiness.ready ? 200 : 503).json({
-    status: readiness.ready ? "ready" : "not_ready",
-    service: "smartstock-api",
-    timestamp: new Date().toISOString(),
-    readiness,
-  });
+  res.status(readiness.ready ? 200 : 503).json(getPublicReadinessPayload(readiness));
 });
 
 export default router;

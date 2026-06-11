@@ -40,7 +40,10 @@ const buildUserQuery = (user) => ({
   populate: jest.fn().mockResolvedValue(user),
 });
 
-const signToken = (payload) => jwt.sign(payload, conf.jwtSecret, { expiresIn: '1h' });
+const signToken = (payload) => jwt.sign(payload, conf.jwtSecret, {
+  ...conf.jwtSignOptions,
+  expiresIn: '1h',
+});
 
 describe('transport route auth', () => {
   beforeEach(() => {

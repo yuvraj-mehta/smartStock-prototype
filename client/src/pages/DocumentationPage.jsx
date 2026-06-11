@@ -35,7 +35,7 @@ const summaryCards = [
   {
     label: 'Access',
     value: 'Role gated',
-    helper: 'Admin, staff, viewer, supplier, and transporter boundaries.',
+    helper: 'Admin, staff, viewer, and admin-managed partner boundaries.',
   },
   {
     label: 'Stock source',
@@ -68,6 +68,7 @@ const tableOfContents = [
   ['API map', '#api-map'],
   ['Demo data', '#demo-data'],
   ['Runbook', '#runbook'],
+  ['Deployment', '#deployment'],
   ['Quality', '#quality'],
 ];
 
@@ -162,11 +163,11 @@ const roleRows = [
   ['Staff', 'Warehouse operations', 'Inventory intake, order processing, package dispatch, transport assignment, return handling, finance operations, and AI review.'],
   ['Viewer', 'Read-oriented access', 'Internal review role for catalog and warehouse-scoped operational data where the backend permits read-only access.'],
   ['Supplier', 'External partner record', 'Managed through external-user administration and associated with supply-side business records.'],
-  ['Transporter', 'External delivery flow', 'Uses transporter login and can participate in transport-status workflows assigned to its warehouse.'],
+  ['Transporter', 'External delivery handoff', 'Admin-provisioned partner account for assigned transport-status updates; it is not a public self-service workspace account.'],
 ];
 
 const endpointGroups = [
-  ['/api/v1/auth', 'Public login endpoints plus protected logout, change-password, and profile update actions.', 'Public for login, protected for account changes.'],
+  ['/api/v1/auth', 'Internal login, transporter credential exchange for status updates, plus protected logout, change-password, and profile update actions.', 'Public for credential exchange, protected for account changes.'],
   ['/api/v1/user', 'Internal user creation, update, deletion, current-user reads, and administrative user lookup.', 'Admin-owned except current profile.'],
   ['/api/v1/external-user', 'Supplier and transporter administration for non-internal partner accounts.', 'Admin-owned.'],
   ['/api/v1/product', 'Product catalog, SKU metadata, pricing, dimensions, threshold, shelf life, and active status.', 'Internal read, admin write.'],
@@ -174,7 +175,7 @@ const endpointGroups = [
   ['/api/v1/inventory', 'Supply intake, inventory views, damage marking, and synchronized batch inventory records.', 'Internal workflow roles.'],
   ['/api/v1/order', 'Canonical customer order workflow from pending through sale confirmation or return.', 'Internal workflow roles.'],
   ['/api/v1/package', 'Allocated item IDs, package status, packed values, and fulfillment handoff.', 'Internal workflow roles.'],
-  ['/api/v1/transport', 'Forward delivery and reverse logistics transport records plus status updates.', 'Internal and transporter-aware status flow.'],
+  ['/api/v1/transport', 'Forward delivery and reverse logistics transport records plus status updates.', 'Internal reads; status updates also accept active assigned transporter tokens.'],
   ['/api/v1/return', 'Return initiation, pickup scheduling, receipt, disposition, and processed return records.', 'Internal workflow roles.'],
   ['/api/v1/sales', 'Read-only sales history and retired manual sales recording endpoint.', 'Protected; manual POST is retired.'],
   ['/api/v1/sales-invoice', 'Sales invoice creation, reads, updates, and deletes.', 'Admin or staff.'],
@@ -229,16 +230,24 @@ const qualityRows = [
 ];
 
 const publicPrivateRows = [
-  ['Public', 'Landing page, documentation page, health endpoints, readiness endpoint, login, and transporter login.'],
+  ['Public', 'Landing page, documentation page, health endpoints, readiness endpoint, internal login, and transporter credential exchange.'],
   ['Authenticated shell', 'Dashboard, inventory, products, orders, returns, transport, finance, AI assistant, profile, and admin console.'],
   ['Public documentation rule', 'This documentation is intentionally outside login, but it avoids exposing secrets, tokens, or live credentials.'],
 ];
 
 const environmentRows = [
   ['Server config', 'MONGO_URI, DB_NAME, JWT_SECRET, CORS origin, AI provider keys, and optional mail/cloud settings.'],
-  ['Client config', 'VITE_API_BASE_URL points the browser build to the deployed or local Express API.'],
-  ['Production build guard', 'Plain production builds require an absolute API URL so deploys do not silently point at a relative API.'],
+  ['Client config', 'VITE_API_BASE_URL can point to a separate deployed API; single-Droplet builds default to same-origin /api/v1 behind Nginx.'],
+  ['Production build guard', 'Local development refuses accidental remote APIs unless ALLOW_REMOTE_API_IN_DEV is explicit. Production builds support the Droplet reverse-proxy default.'],
   ['Local smoke build', 'build:smoke supplies http://localhost:3500/api/v1 for local verification.'],
+];
+
+const deploymentRows = [
+  ['Reviewer credentials', 'Provide demo credentials through the reviewer packet, deployment notes, or local seed output. Do not publish passwords, JWTs, API keys, or database URIs in the client bundle or public docs.'],
+  ['Seeded demo state', 'Run the seed workflow against a local or disposable database so reviewers can inspect products, inventory, orders, transport, returns, finance, and AI screens immediately after sign-in.'],
+  ['Client deployment', 'For a single Droplet, serve client/dist with Nginx and proxy /api to the private API port. Set VITE_API_BASE_URL only for a separate API origin.'],
+  ['API readiness', 'Use /api/v1/health for liveness and /api/v1/health/ready for readiness. Production responses are intentionally redacted to avoid leaking database/config details.'],
+  ['Transporter demo path', 'Transporter accounts are created from the admin external-partner workflow. The public client documents the status-update credential exchange without exposing transporter secrets.'],
 ];
 
 const moduleLinks = [
@@ -582,6 +591,25 @@ const DocumentationPage = () => (
             ))}
           </div>
         </article>
+      </section>
+
+      <section id="deployment" className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionHeader
+          eyebrow="Deployment"
+          title="Reviewer handoff notes"
+          description="These notes keep the portfolio demo reviewable without placing unsafe credentials or environment values in public UI."
+        />
+        <div className="grid gap-3 lg:grid-cols-2">
+          {deploymentRows.map(([label, detail]) => (
+            <div key={label} className="rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-blue-700" aria-hidden="true" />
+                <p className="font-semibold text-slate-950">{label}</p>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section id="quality" className="grid gap-6 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1fr)]">

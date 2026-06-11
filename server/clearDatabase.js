@@ -32,7 +32,7 @@ import { User } from './models/user.model.js';
 import { ExternalUser } from './models/externalUsers.model.js';
 import { conf } from './config/config.js';
 
-const protectedDatabaseNames = new Set(['admin', 'config', 'local', 'prod', 'production']);
+const defaultProtectedDatabaseNames = new Set(['admin', 'config', 'local', 'prod', 'production']);
 const protectedRuntimeEnvironments = new Set(['prod', 'production']);
 
 export const collectionsToClear = [
@@ -70,6 +70,12 @@ export const preservedCollections = [
 ];
 
 const isTruthy = (value) => ['1', 'true', 'yes', 'y'].includes(String(value).toLowerCase());
+const parseCsv = (value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+
+export const getProtectedDatabaseNames = () => new Set([
+  ...defaultProtectedDatabaseNames,
+  ...parseCsv(process.env.CLEAR_DATABASE_PROTECTED_NAMES).map((name) => name.toLowerCase()),
+]);
 
 const readArgValue = (args, name) => {
   const equalsPrefix = `${name}=`;
@@ -117,6 +123,7 @@ export async function clearDatabase(options = {}) {
   const allowProtectedDatabase = options.allowProtectedDatabase ?? isTruthy(process.env.CLEAR_DATABASE_ALLOW_PROTECTED);
   const allowProductionClear = options.allowProductionClear ?? isTruthy(process.env.CLEAR_DATABASE_ALLOW_PRODUCTION);
   const runtimeEnvironment = String(process.env.NODE_ENV || '').toLowerCase();
+  const protectedDatabaseNames = getProtectedDatabaseNames();
 
   if (!allowProtectedDatabase && protectedDatabaseNames.has(String(databaseName).toLowerCase())) {
     throw new Error(`Refusing to clear protected database "${databaseName}".`);

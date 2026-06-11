@@ -1,4 +1,4 @@
-import { ArrowLeft, Boxes, Lock, Mail, ShieldCheck, UserPlus, Warehouse } from 'lucide-react';
+import { ArrowLeft, Boxes, KeyRound, Lock, Mail, ShieldCheck, Truck, UserPlus, Warehouse } from 'lucide-react';
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../app/slices/authSlice';
@@ -18,6 +18,19 @@ const platformNotes = [
     icon: ShieldCheck,
     title: 'Role-based internal access',
     text: 'Admin, staff, and viewer accounts get permissioned workspace access.',
+  },
+];
+
+const accessNotes = [
+  {
+    icon: KeyRound,
+    title: 'Reviewer/demo credentials',
+    text: 'Use credentials provided with the deployment or generated locally by seed scripts. Shared passwords are not published in the browser.',
+  },
+  {
+    icon: Truck,
+    title: 'Transporter status access',
+    text: 'Transporter accounts are provisioned by admins for assigned delivery status updates; they are not public self-service accounts.',
   },
 ];
 
@@ -101,6 +114,22 @@ const LoginPage = () => {
                   : 'Use your assigned SmartStock credentials to open the operations workspace.'}
               </p>
             </div>
+
+            {!showSignup && (
+              <div className="mb-6 grid gap-3">
+                {accessNotes.map(({ icon: Icon, title, text }) => (
+                  <div key={title} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-700 ring-1 ring-slate-200">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">{title}</p>
+                      <p className="mt-1 text-sm leading-5 text-slate-500">{text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {!showSignup ? (
               <form className="space-y-5" onSubmit={handleLoginSubmit}>

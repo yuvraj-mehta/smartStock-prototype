@@ -99,7 +99,7 @@ The root endpoint is a minimal uptime response:
 GET /
 ```
 
-The health route includes liveness plus readiness detail:
+The health route includes liveness and readiness state. Non-production responses include detailed readiness diagnostics; production responses are redacted:
 
 ```text
 GET /api/v1/health
@@ -111,7 +111,7 @@ The readiness endpoint returns `200` only when required config is present and Mo
 GET /api/v1/health/ready
 ```
 
-If the API process is alive but not ready, `/api/v1/health/ready` returns `503` with failed checks for database and/or config. This lets uptime checks use `/api/v1/health` while deploy readiness checks use `/api/v1/health/ready`.
+If the API process is alive but not ready, `/api/v1/health/ready` returns `503`. In non-production it includes failed checks for database and/or config; in production it returns only the readiness state. This lets uptime checks use `/api/v1/health` while deploy readiness checks use `/api/v1/health/ready` without exposing internal details publicly.
 
 ## Database Maintenance
 

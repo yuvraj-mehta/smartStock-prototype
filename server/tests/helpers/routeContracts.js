@@ -48,3 +48,29 @@ export const expectReadinessContract = (body) => {
     }),
   );
 };
+
+export const expectProductionHealthContract = (body) => {
+  expect(body).toEqual(
+    expect.objectContaining({
+      status: 'healthy',
+      service: 'smartstock-api',
+      timestamp: expect.any(String),
+      uptime: expect.any(Number),
+      ready: expect.any(Boolean),
+    }),
+  );
+  expect(body).not.toHaveProperty('memory');
+  expect(body).not.toHaveProperty('readiness');
+};
+
+export const expectProductionReadinessContract = (body) => {
+  expect(body).toEqual(
+    expect.objectContaining({
+      status: expect.stringMatching(/^(ready|not_ready)$/),
+      service: 'smartstock-api',
+      timestamp: expect.any(String),
+      ready: expect.any(Boolean),
+    }),
+  );
+  expect(body).not.toHaveProperty('readiness');
+};

@@ -63,6 +63,7 @@ jest.unstable_mockModule('../models/externalUsers.model.js', () => ({ ExternalUs
 const {
   clearDatabase,
   collectionsToClear,
+  getProtectedDatabaseNames,
   parseClearDatabaseArgs,
   preservedCollections,
 } = await import('../clearDatabase.js');
@@ -70,6 +71,7 @@ const {
 const allModels = [...Object.values(targetModels), userModel, externalUserModel, warehouseModel];
 const managedEnvKeys = [
   'CLEAR_DATABASE_ALLOW_PRODUCTION',
+  'CLEAR_DATABASE_PROTECTED_NAMES',
   'NODE_ENV',
 ];
 const savedEnv = {};
@@ -186,6 +188,20 @@ describe('clearDatabase safety guard', () => {
     await expect(clearDatabase({ dryRun: false, confirmDbName: 'wrong_db' }))
       .rejects
       .toThrow('without --confirm-db smartstock_test');
+
+    expect(mongooseMock.connect).not.toHaveBeenCalled();
+    Object.values(targetModels).forEach((model) => {
+      expect(model.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it('refuses configured protected database names before connecting', async () => {
+    process.env.CLEAR_DATABASE_PROTECTED_NAMES = 'shared_live_db, smartstock_test';
+
+    expect([...getProtectedDatabaseNames()]).toEqual(expect.arrayContaining(['smartstock_test']));
+    await expect(clearDatabase({ dryRun: false, confirmDbName: 'smartstock_test' }))
+      .rejects
+      .toThrow('Refusing to clear protected database "smartstock_test"');
 
     expect(mongooseMock.connect).not.toHaveBeenCalled();
     Object.values(targetModels).forEach((model) => {

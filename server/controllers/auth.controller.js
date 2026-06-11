@@ -2,9 +2,10 @@ import { catchAsyncErrors } from "../middlewares/index.js";
 import { ExternalUser, User } from "../models/index.js"
 import bcrypt from "bcryptjs";
 import { generateToken } from "../utils/index.js";
-import jwt from "jsonwebtoken";
 
 const WAREHOUSE_ASSIGNMENT_REQUIRED_MESSAGE = "User must be assigned to a warehouse";
+const GENERIC_AUTH_FAILURE_MESSAGE = "Invalid email or password.";
+const DUMMY_PASSWORD_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8pZfLzFSgtb/Iqr5pJBWZPbTwGqQmm";
 
 
 
@@ -12,6 +13,7 @@ const WAREHOUSE_ASSIGNMENT_REQUIRED_MESSAGE = "User must be assigned to a wareho
 // login controller
 const login = catchAsyncErrors(async (req, res) => {
   const { email, password } = req.body;
+  const loginPassword = typeof password === 'string' ? password : '';
 
   const user = await User.findOne({ email, status: "active" })
     .populate('assignedWarehouseId', 'address warehouseName')
@@ -19,19 +21,20 @@ const login = catchAsyncErrors(async (req, res) => {
 
 
   if (!user) {
-    return res.status(404).json({ message: 'User not found or inactive.' });
+    await bcrypt.compare(loginPassword, DUMMY_PASSWORD_HASH);
+    return res.status(401).json({ message: GENERIC_AUTH_FAILURE_MESSAGE });
+  }
+
+  const isPasswordValid = await bcrypt.compare(loginPassword, user.password);
+
+  if (!isPasswordValid) {
+    return res.status(401).json({ message: GENERIC_AUTH_FAILURE_MESSAGE });
   }
 
   if (!user.assignedWarehouseId) {
     return res.status(403).json({
       message: WAREHOUSE_ASSIGNMENT_REQUIRED_MESSAGE
     });
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-
-  if (!isPasswordValid) {
-    return res.status(401).json({ message: 'Invalid email or password.' });
   }
 
   // Update last login time
@@ -58,6 +61,7 @@ const login = catchAsyncErrors(async (req, res) => {
 
 const loginTransporter = catchAsyncErrors(async (req, res) => {
   const { email, password } = req.body;
+  const loginPassword = typeof password === 'string' ? password : '';
 
   const transporter = await ExternalUser.findOne({
     email,
@@ -66,16 +70,17 @@ const loginTransporter = catchAsyncErrors(async (req, res) => {
   }).select("+password");
 
   if (!transporter) {
-    return res.status(404).json({ message: 'Transporter not found or inactive.' });
+    await bcrypt.compare(loginPassword, DUMMY_PASSWORD_HASH);
+    return res.status(401).json({ message: GENERIC_AUTH_FAILURE_MESSAGE });
+  }
+
+  const isPasswordValid = await bcrypt.compare(loginPassword, transporter.password);
+  if (!isPasswordValid) {
+    return res.status(401).json({ message: GENERIC_AUTH_FAILURE_MESSAGE });
   }
 
   if (!transporter.warehouseId) {
     return res.status(403).json({ message: "Transporter must be assigned to a warehouse" });
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, transporter.password);
-  if (!isPasswordValid) {
-    return res.status(401).json({ message: 'Invalid email or password.' });
   }
 
   const token = generateToken({
@@ -255,5 +260,4 @@ const updateProfile = catchAsyncErrors(async (req, res) => {
 });
 
 export { login, loginTransporter, logout, getMyDetails, changePassword, updateProfile };
-
 

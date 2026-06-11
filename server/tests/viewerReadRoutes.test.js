@@ -69,7 +69,10 @@ const viewerToken = jwt.sign(
     role: viewerUser.role,
   },
   conf.jwtSecret,
-  { expiresIn: '1h' },
+  {
+    ...conf.jwtSignOptions,
+    expiresIn: '1h',
+  },
 );
 
 describe('viewer read-only operational routes', () => {

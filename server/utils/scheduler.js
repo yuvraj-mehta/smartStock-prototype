@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { Batch, Package, Transport, SalesHistory, Return } from "../models/index.js";
 import { recordConfirmedSaleReceivableEvent } from "../services/finance/index.js";
 
+let scheduledTasks = [];
+
 const normalizeId = (id) => (id?._id || id)?.toString();
 
 const allocationKey = (item) => `${normalizeId(item.productId)}:${normalizeId(item.batchId)}`;
@@ -248,13 +250,29 @@ const autoConfirmSales = async () => {
 
 // Schedule the job to run daily at 2 AM
 export const startScheduledJobs = () => {
+  if (scheduledTasks.length > 0) {
+    console.log('Scheduled jobs already started');
+    return scheduledTasks;
+  }
+
   // Run daily at 2:00 AM
-  cron.schedule('0 2 * * *', autoConfirmSales, {
+  const autoConfirmSalesTask = cron.schedule('0 2 * * *', autoConfirmSales, {
     scheduled: true,
     timezone: "America/New_York"
   });
 
+  scheduledTasks = [autoConfirmSalesTask];
   console.log('Scheduled jobs started');
+  return scheduledTasks;
+};
+
+export const stopScheduledJobs = () => {
+  for (const task of scheduledTasks) {
+    task?.stop?.();
+    task?.destroy?.();
+  }
+
+  scheduledTasks = [];
 };
 
 export { autoConfirmSales };
